@@ -64,7 +64,7 @@ public class ServicioAppVerificarDocumento extends RequestSizeFilter {
             
             // 1. Decodificar documento
             LOGGER.log(Level.INFO, "Decodificando documento");
-            byte[] docBytes = Base64.getDecoder().decode(documentoBase64);
+            byte[] docBytes = decodificarBase64(documentoBase64);
             
             // 2. Verificar firmas del PDF
             LOGGER.log(Level.INFO, "Extrayendo firmas del documento PDF");
@@ -176,5 +176,25 @@ public class ServicioAppVerificarDocumento extends RequestSizeFilter {
         error.addProperty("mensaje", mensaje);
         error.addProperty("firmaValida", false);
         return new Gson().toJson(error);
+    }
+    
+    /**
+     * Decodifica una cadena Base64 limpiando caracteres no válidos.
+     * Elimina espacios, saltos de línea y otros caracteres no Base64.
+     */
+    private byte[] decodificarBase64(String base64String) {
+        if (base64String == null || base64String.isEmpty()) {
+            throw new IllegalArgumentException("Cadena Base64 vacía");
+        }
+        
+        // Limpiar la cadena: eliminar espacios, saltos de línea, retornos de carro, tabulaciones
+        String cleaned = base64String.replaceAll("\\s+", "");
+        
+        try {
+            return Base64.getDecoder().decode(cleaned);
+        } catch (IllegalArgumentException e) {
+            LOGGER.log(Level.SEVERE, "Error al decodificar Base64: {0}", e.getMessage());
+            throw new IllegalArgumentException("El contenido Base64 no es válido: " + e.getMessage());
+        }
     }
 }

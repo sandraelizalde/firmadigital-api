@@ -75,7 +75,7 @@ public class ServicioAppFirmarDocumento extends RequestSizeFilter {
             
             // 1. Decodificar certificado PKCS#12
             LOGGER.log(Level.INFO, "Decodificando certificado PKCS#12");
-            byte[] certBytes = Base64.getDecoder().decode(pkcs12Base64);
+            byte[] certBytes = decodificarBase64(pkcs12Base64);
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(new ByteArrayInputStream(certBytes), password.toCharArray());
             
@@ -94,7 +94,7 @@ public class ServicioAppFirmarDocumento extends RequestSizeFilter {
             
             // 3. Decodificar documento
             LOGGER.log(Level.INFO, "Decodificando documento PDF");
-            byte[] docBytes = Base64.getDecoder().decode(documentoBase64);
+            byte[] docBytes = decodificarBase64(documentoBase64);
             
             // 4. Parsear metadatos (si existen)
             Properties params = new Properties();
@@ -153,5 +153,25 @@ public class ServicioAppFirmarDocumento extends RequestSizeFilter {
         error.addProperty("resultado", "ERROR");
         error.addProperty("mensaje", mensaje);
         return new Gson().toJson(error);
+    }
+    
+    /**
+     * Decodifica una cadena Base64 limpiando caracteres no válidos.
+     * Elimina espacios, saltos de línea y otros caracteres no Base64.
+     */
+    private byte[] decodificarBase64(String base64String) {
+        if (base64String == null || base64String.isEmpty()) {
+            throw new IllegalArgumentException("Cadena Base64 vacía");
+        }
+        
+        // Limpiar la cadena: eliminar espacios, saltos de línea, retornos de carro, tabulaciones
+        String cleaned = base64String.replaceAll("\\s+", "");
+        
+        try {
+            return Base64.getDecoder().decode(cleaned);
+        } catch (IllegalArgumentException e) {
+            LOGGER.log(Level.SEVERE, "Error al decodificar Base64: {0}", e.getMessage());
+            throw new IllegalArgumentException("El contenido Base64 no es válido: " + e.getMessage());
+        }
     }
 }
