@@ -144,9 +144,6 @@ public class ServicioAppValidarCertificadoDigital extends RequestSizeFilter {
         } catch (IllegalArgumentException e) {
             LOGGER.log(Level.SEVERE, "Error de formato en los datos: {0}", e.getMessage());
             return crearRespuestaError("Error de formato: El certificado no está correctamente codificado en Base64");
-        } catch (java.security.UnrecoverableKeyException e) {
-            LOGGER.log(Level.SEVERE, "Contraseña incorrecta: {0}", e.getMessage());
-            return crearRespuestaError("Contraseña del certificado incorrecta");
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error al validar certificado: {0}", e);
             return crearRespuestaError("Error al validar certificado: " + e.getMessage());
