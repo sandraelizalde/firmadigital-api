@@ -47,7 +47,6 @@ public class ServicioFechaHora {
      * @return Fecha y hora en formato ISO-8601
      */
     @POST
-    @Secured
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_PLAIN)
     public String getFechaHora(@FormParam("base64") String base64) {
@@ -61,7 +60,6 @@ public class ServicioFechaHora {
      * @return JSON con fecha, hora y zona horaria
      */
     @GET
-    @Secured
     @Produces(MediaType.APPLICATION_JSON)
     public Response getFechaHoraJson() {
         ZonedDateTime now = ZonedDateTime.now();

@@ -64,7 +64,6 @@ public class ServicioVersion {
      * Valida la versión del cliente comparándola con la versión del servidor
      */
     @POST
-    @Secured
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.APPLICATION_JSON)
     public String validarEndpoint(@FormParam("base64") String base64) {
@@ -106,7 +105,6 @@ public class ServicioVersion {
      * Endpoint GET para obtener la versión directamente
      */
     @GET
-    @Secured
     @Produces(MediaType.APPLICATION_JSON)
     public Response getVersionInfo() {
         JsonObject response = new JsonObject();
