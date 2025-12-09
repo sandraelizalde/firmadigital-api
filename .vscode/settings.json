@@ -1,0 +1,15 @@
+{
+  "material-icon-theme.activeIconPack": "nest",
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "file": "docs/.copilot-commit-message-instructions.md"
+    },
+    {
+      "text": "Use conventional commit message format."
+    },
+    {
+      "text": "Add emojis to the commit message"
+    }
+  ],
+  "prisma.pinToPrisma6": true,
+}

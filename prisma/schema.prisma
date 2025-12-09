@@ -1,0 +1,269 @@
+// ---------------------------
+// Prisma Schema completo
+// ---------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------
+// ENUMS GENERALES
+// ---------------------------
+enum IdentificationType {
+  CEDULA
+  RUC
+}
+
+enum TypeClient {
+  PERSONA_NATURAL_SIN_RUC
+  PERSONA_NATURAL_CON_RUC
+  PERSONA_JURIDICA
+}
+
+enum SignatureStatus {
+  COMPLETED
+  PENDING
+  FAILED
+}
+
+enum RechargeMethod {
+  CARD // Tarjeta crédito/débito
+  TRANSFER // Transferencia bancaria
+}
+
+enum RechargeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FAILED
+}
+
+enum MovementType {
+  INCOME
+  EXPENSE
+  ADJUSTMENT
+}
+
+// ---------------------------
+// DISTRIBUIDORES
+// ---------------------------
+model Distributor {
+  id                 String             @id @default(cuid())
+  firstName          String?
+  lastName           String?
+  socialReason       String?
+  identificationType IdentificationType
+  identification     String             @unique
+  email              String             @unique
+  address            String
+  phone              String
+  createdBy          String? // Admin que registró
+  createdByName      String?
+  active             Boolean            @default(true)
+
+  assignedPlans     DistributorPlanAssignment[]
+  assignedDiscounts DistributorDiscountAssignment[]
+  signatureRequests SignatureRequest[]
+  recargas          Recharge[]
+  accountMovements  AccountMovement[]
+  billingInfo       BillingInfo?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------
+// FACTURACIÓN
+// ---------------------------
+model BillingInfo {
+  id            String      @id @default(cuid())
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  distributorId String      @unique
+
+  useDistributorData Boolean             @default(true)
+  socialReason       String?
+  identificationType IdentificationType?
+  identification     String?
+  email              String?
+  phone              String?
+  address            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------
+// PLANES
+// ---------------------------
+model Plan {
+  id                  String       @id @default(cuid())
+  perfil              String       @unique
+  price               Float
+  duration            String
+  durationType        String // 'D', 'M', 'MS', 'Y', 'YS'
+  pricePromo          Float?
+  durationPromo       String?
+  isPromo             Boolean      @default(false)
+  eligibleClientsType TypeClient[] @default([PERSONA_NATURAL_SIN_RUC, PERSONA_NATURAL_CON_RUC])
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime     @updatedAt @db.Timestamptz(6)
+
+  signatureRequests          SignatureRequest[]
+  discountCodes              PlanDiscountCode[]
+  distributorPlanAssignments DistributorPlanAssignment[]
+}
+
+// ---------------------------
+// ASIGNACIÓN DE PLANES Y DESCUENTOS
+// ---------------------------
+model DistributorPlanAssignment {
+  id            String      @id @default(cuid())
+  distributorId String
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  planId        String
+  plan          Plan        @relation(fields: [planId], references: [id])
+  assignedAt    DateTime    @default(now())
+
+  @@unique([distributorId, planId])
+}
+
+model DistributorDiscountAssignment {
+  id             String       @id @default(cuid())
+  distributorId  String
+  distributor    Distributor  @relation(fields: [distributorId], references: [id])
+  discountCodeId String
+  discountCode   DiscountCode @relation(fields: [discountCodeId], references: [id])
+  assignedAt     DateTime     @default(now())
+
+  @@unique([distributorId, discountCodeId])
+}
+
+// ---------------------------
+// DESCUENTOS
+// ---------------------------
+model DiscountCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  mount     Float
+  limitsUse Int      @default(1)
+  usedCount Int      @default(0)
+  expiresAt DateTime @db.Timestamptz(6)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  plans                          PlanDiscountCode[]
+  distributorDiscountAssignments DistributorDiscountAssignment[]
+
+  @@index([code])
+  @@index([expiresAt])
+  @@index([isActive])
+}
+
+model PlanDiscountCode {
+  id             String @id @default(cuid())
+  planId         String
+  discountCodeId String
+
+  plan         Plan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  discountCode DiscountCode @relation(fields: [discountCodeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+
+  @@unique([planId, discountCodeId])
+  @@index([planId])
+  @@index([discountCodeId])
+}
+
+// ---------------------------
+// SOLICITUDES DE FIRMA
+// ---------------------------
+model SignatureRequest {
+  id                 String          @id @default(cuid())
+  numero_tramite     String          @unique
+  perfil_firma       String
+  perfilFirma        Plan            @relation(fields: [perfil_firma], references: [perfil])
+  nombres            String
+  apellidos          String
+  cedula             String
+  correo             String
+  codigo_dactilar    String
+  celular            String
+  provincia          String
+  ciudad             String
+  parroquia          String
+  direccion          String
+  dateOfBirth        DateTime        @db.Timestamptz(6)
+  foto_frontal       String
+  foto_posterior     String
+  foto_selfie        String
+  video_face         String?
+  pdf_sri            String?
+  nombramiento       String?
+  razon_social       String?
+  rep_legal          String?
+  cargo              String?
+  pais               String          @default("ECUADOR")
+  clavefirma         String
+  ruc                String?
+  tipo_envio         String
+  status             SignatureStatus @default(PENDING)
+  providerCode       String?
+  providerMessage    String?
+  activeNotification Boolean         @default(true)
+  createdAt          DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(6)
+  distributor        Distributor?    @relation(fields: [distributorId], references: [id])
+  distributorId      String?
+}
+
+// ---------------------------
+// RECARGAS DE DISTRIBUIDOR
+// ---------------------------
+model Recharge {
+  id            String      @id @default(cuid())
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  distributorId String
+
+  method          RechargeMethod
+  requestedAmount Float
+  creditedAmount  Float?
+  commission      Float?
+  status          RechargeStatus @default(PENDING)
+  adminId         String?
+  adminNote       String?
+
+  paymentReference String?
+  transferDate     DateTime?
+  receiptFile      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accountMovements AccountMovement[]
+}
+
+// ---------------------------
+// ESTADO DE CUENTA
+// ---------------------------
+model AccountMovement {
+  id            String      @id @default(cuid())
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  distributorId String
+
+  type         MovementType
+  detail       String
+  amount       Float
+  balanceAfter Float
+  rechargeId   String? // Si aplica a una recarga
+  signatureId  String? // Si aplica a una firma
+  adminId      String? // Si ajuste manual
+  note         String? // Comentarios opcionales
+
+  createdAt DateTime  @default(now())
+  recharge  Recharge? @relation(fields: [rechargeId], references: [id])
+}
