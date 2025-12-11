@@ -48,6 +48,11 @@ enum MovementType {
   ADJUSTMENT
 }
 
+enum Role {
+  ADMIN
+  DISTRIBUTOR
+}
+
 // ---------------------------
 // DISTRIBUIDORES
 // ---------------------------
@@ -58,6 +63,7 @@ model Distributor {
   socialReason       String?
   identificationType IdentificationType
   identification     String             @unique
+  password           String
   email              String             @unique
   address            String
   phone              String
@@ -65,8 +71,7 @@ model Distributor {
   createdByName      String?
   active             Boolean            @default(true)
 
-  assignedPlans     DistributorPlanAssignment[]
-  assignedDiscounts DistributorDiscountAssignment[]
+  planPrices        DistributorPlanPrice[]
   signatureRequests SignatureRequest[]
   recargas          Recharge[]
   accountMovements  AccountMovement[]
@@ -102,81 +107,45 @@ model BillingInfo {
 model Plan {
   id                  String       @id @default(cuid())
   perfil              String       @unique
-  price               Float
+  basePrice           Float // Precio base/sugerido (referencia)
   duration            String
   durationType        String // 'D', 'M', 'MS', 'Y', 'YS'
-  pricePromo          Float?
+  basePricePromo      Float? // Precio promo base/sugerido
   durationPromo       String?
   isPromo             Boolean      @default(false)
   eligibleClientsType TypeClient[] @default([PERSONA_NATURAL_SIN_RUC, PERSONA_NATURAL_CON_RUC])
   isActive            Boolean      @default(true)
-  createdAt           DateTime     @default(now()) @db.Timestamptz(6)
-  updatedAt           DateTime     @updatedAt @db.Timestamptz(6)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
-  signatureRequests          SignatureRequest[]
-  discountCodes              PlanDiscountCode[]
-  distributorPlanAssignments DistributorPlanAssignment[]
+  signatureRequests     SignatureRequest[]
+  distributorPlanPrices DistributorPlanPrice[]
 }
 
 // ---------------------------
-// ASIGNACIÓN DE PLANES Y DESCUENTOS
+// ASIGNACIÓN DE PRECIOS POR DISTRIBUIDOR
 // ---------------------------
-model DistributorPlanAssignment {
+// Cada distribuidor tiene precios personalizados para cada plan
+model DistributorPlanPrice {
   id            String      @id @default(cuid())
   distributorId String
-  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  distributor   Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
   planId        String
-  plan          Plan        @relation(fields: [planId], references: [id])
-  assignedAt    DateTime    @default(now())
+  plan          Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  customPrice      Float // Precio personalizado para este distribuidor
+  customPricePromo Float? // Precio promo personalizado (opcional)
+  isActive         Boolean @default(true)
+
+  createdBy     String? // Admin que asignó el precio
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([distributorId, planId])
-}
-
-model DistributorDiscountAssignment {
-  id             String       @id @default(cuid())
-  distributorId  String
-  distributor    Distributor  @relation(fields: [distributorId], references: [id])
-  discountCodeId String
-  discountCode   DiscountCode @relation(fields: [discountCodeId], references: [id])
-  assignedAt     DateTime     @default(now())
-
-  @@unique([distributorId, discountCodeId])
-}
-
-// ---------------------------
-// DESCUENTOS
-// ---------------------------
-model DiscountCode {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  mount     Float
-  limitsUse Int      @default(1)
-  usedCount Int      @default(0)
-  expiresAt DateTime @db.Timestamptz(6)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  plans                          PlanDiscountCode[]
-  distributorDiscountAssignments DistributorDiscountAssignment[]
-
-  @@index([code])
-  @@index([expiresAt])
-  @@index([isActive])
-}
-
-model PlanDiscountCode {
-  id             String @id @default(cuid())
-  planId         String
-  discountCodeId String
-
-  plan         Plan         @relation(fields: [planId], references: [id], onDelete: Cascade)
-  discountCode DiscountCode @relation(fields: [discountCodeId], references: [id], onDelete: Cascade)
-  createdAt    DateTime     @default(now())
-
-  @@unique([planId, discountCodeId])
+  @@index([distributorId])
   @@index([planId])
-  @@index([discountCodeId])
+  @@index([isActive])
 }
 
 // ---------------------------
@@ -215,8 +184,8 @@ model SignatureRequest {
   providerCode       String?
   providerMessage    String?
   activeNotification Boolean         @default(true)
-  createdAt          DateTime        @default(now()) @db.Timestamptz(6)
-  updatedAt          DateTime        @updatedAt @db.Timestamptz(6)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
   distributor        Distributor?    @relation(fields: [distributorId], references: [id])
   distributorId      String?
 }
