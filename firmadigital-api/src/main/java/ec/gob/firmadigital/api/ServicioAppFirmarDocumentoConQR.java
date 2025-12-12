@@ -125,9 +125,15 @@ public class ServicioAppFirmarDocumentoConQR extends RequestSizeFilter {
             
             // 4. Parsear metadatos y configurar parámetros de firma con QR
             Properties params = new Properties();
-            String razon = "Firma digital";
-            String localizacion = "Ecuador";
-            String infoQR = "";
+            
+            // Configurar firma con QR
+            params.setProperty("typeSignature", "QR");
+            
+            // Valores por defecto para posición y tamaño del QR
+            float qrPosX = 50f;
+            float qrPosY = 50f;
+            float qrAncho = 200f;
+            float qrAlto = 100f;
             
             if (jsonMetadata != null && !jsonMetadata.isEmpty()) {
                 try {
@@ -135,60 +141,53 @@ public class ServicioAppFirmarDocumentoConQR extends RequestSizeFilter {
                     
                     // Metadatos de firma
                     if (metadata.has("razon")) {
-                        razon = metadata.get("razon").getAsString();
-                        params.setProperty("razon", razon);
+                        params.setProperty("razon", metadata.get("razon").getAsString());
                     }
                     if (metadata.has("localizacion")) {
-                        localizacion = metadata.get("localizacion").getAsString();
-                        params.setProperty("localizacion", localizacion);
+                        params.setProperty("localizacion", metadata.get("localizacion").getAsString());
                     }
                     if (metadata.has("cargo")) {
                         params.setProperty("cargo", metadata.get("cargo").getAsString());
                     }
                     
-                    // Configurar firma con QR usando parámetros de la librería
-                    params.setProperty("typeSignature", "QR");
-                    
                     // Metadatos del QR
                     if (metadata.has("infoQR")) {
-                        infoQR = metadata.get("infoQR").getAsString();
-                        params.setProperty("infoQR", infoQR);
+                        params.setProperty("infoQR", metadata.get("infoQR").getAsString());
                     }
                     
                     // Posición y tamaño del QR
                     if (metadata.has("qrPagina")) {
                         int qrPagina = metadata.get("qrPagina").getAsInt();
                         if (qrPagina > 0) {
-                            params.setProperty("signaturePage", String.valueOf(qrPagina));
-                        } else {
-                            params.setProperty("signatureLastPage", "true");
+                            params.setProperty("lastPage", String.valueOf(qrPagina));
                         }
-                    } else {
-                        params.setProperty("signatureLastPage", "true");
                     }
                     
+                    // Leer posición y tamaño personalizados
                     if (metadata.has("qrPosX")) {
-                        params.setProperty("signaturePositionOnPageLowerLeftX", String.valueOf(metadata.get("qrPosX").getAsFloat()));
+                        qrPosX = metadata.get("qrPosX").getAsFloat();
                     }
                     if (metadata.has("qrPosY")) {
-                        params.setProperty("signaturePositionOnPageLowerLeftY", String.valueOf(metadata.get("qrPosY").getAsFloat()));
+                        qrPosY = metadata.get("qrPosY").getAsFloat();
                     }
                     if (metadata.has("qrAncho")) {
-                        params.setProperty("signaturePositionOnPageWidth", String.valueOf(metadata.get("qrAncho").getAsFloat()));
+                        qrAncho = metadata.get("qrAncho").getAsFloat();
                     }
                     if (metadata.has("qrAlto")) {
-                        params.setProperty("signaturePositionOnPageHeight", String.valueOf(metadata.get("qrAlto").getAsFloat()));
+                        qrAlto = metadata.get("qrAlto").getAsFloat();
                     }
                     
                     LOGGER.log(Level.INFO, "Metadatos procesados: {0}", metadata);
                 } catch (Exception e) {
                     LOGGER.log(Level.WARNING, "Error al parsear metadatos JSON, se usarán valores por defecto: {0}", e.getMessage());
                 }
-            } else {
-                // Valores por defecto para firma con QR
-                params.setProperty("typeSignature", "QR");
-                params.setProperty("signatureLastPage", "true");
             }
+            
+            // Configurar posición del QR usando los nombres correctos de la librería
+            params.setProperty("PositionOnPageLowerLeftX", String.valueOf((int)qrPosX));
+            params.setProperty("PositionOnPageLowerLeftY", String.valueOf((int)qrPosY));
+            params.setProperty("PositionOnPageUpperRightX", String.valueOf((int)qrAncho));
+            params.setProperty("PositionOnPageUpperRightY", String.valueOf((int)qrAlto));
             
             // 5. Firmar digitalmente el documento con QR (la librería maneja todo)
             LOGGER.log(Level.INFO, "Iniciando firma digital del documento con QR");
