@@ -147,7 +147,7 @@ public class ServicioAppFirmarDocumentoConQR extends RequestSizeFilter {
                     }
                     
                     // Configurar firma con QR usando parámetros de la librería
-                    params.setProperty("typeSig", "QR");
+                    params.setProperty("typeSignature", "QR");
                     
                     // Metadatos del QR
                     if (metadata.has("infoQR")) {
@@ -186,7 +186,7 @@ public class ServicioAppFirmarDocumentoConQR extends RequestSizeFilter {
                 }
             } else {
                 // Valores por defecto para firma con QR
-                params.setProperty("typeSig", "QR");
+                params.setProperty("typeSignature", "QR");
                 params.setProperty("signatureLastPage", "true");
             }
             
