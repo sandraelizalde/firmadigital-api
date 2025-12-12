@@ -25,7 +25,7 @@ async function main() {
     {
       perfil: 'PN-018',
       duration: '15',
-      basePrice: 6.99,
+      basePrice: 699,
       durationType: 'D',
       eligibleClientsType: [
         TypeClient.PERSONA_NATURAL_SIN_RUC,
@@ -35,7 +35,7 @@ async function main() {
     {
       perfil: 'PN-001',
       duration: '1',
-      basePrice: 7.99,
+      basePrice: 799,
       durationType: 'M',
       eligibleClientsType: [
         TypeClient.PERSONA_NATURAL_SIN_RUC,
@@ -45,7 +45,7 @@ async function main() {
     {
       perfil: 'PN-002',
       duration: '1',
-      basePrice: 14.99,
+      basePrice: 1499,
       durationType: 'Y',
       eligibleClientsType: [
         TypeClient.PERSONA_NATURAL_SIN_RUC,
@@ -55,7 +55,7 @@ async function main() {
     {
       perfil: 'PN-005',
       duration: '2',
-      basePrice: 21.99,
+      basePrice: 2199,
       durationType: 'YS',
       eligibleClientsType: [
         TypeClient.PERSONA_NATURAL_SIN_RUC,
@@ -65,7 +65,7 @@ async function main() {
     {
       perfil: 'PN-010',
       duration: '3',
-      basePrice: 29.99,
+      basePrice: 2999,
       durationType: 'YS',
       eligibleClientsType: [
         TypeClient.PERSONA_NATURAL_SIN_RUC,
@@ -75,7 +75,7 @@ async function main() {
     {
       perfil: 'PN-007',
       duration: '4',
-      basePrice: 32.99,
+      basePrice: 3299,
       durationType: 'YS',
       eligibleClientsType: [
         TypeClient.PERSONA_NATURAL_SIN_RUC,
@@ -85,7 +85,7 @@ async function main() {
     {
       perfil: 'PN-013',
       duration: '5',
-      basePrice: 43.99,
+      basePrice: 4399,
       durationType: 'YS',
       eligibleClientsType: [
         TypeClient.PERSONA_NATURAL_SIN_RUC,
@@ -97,56 +97,56 @@ async function main() {
     {
       perfil: 'PJ-019',
       duration: '15',
-      basePrice: 6.99,
+      basePrice: 699,
       durationType: 'D',
       eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
     {
       perfil: 'PJ-017',
       duration: '1',
-      basePrice: 7.99,
+      basePrice: 799,
       durationType: 'M',
       eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
     {
       perfil: 'PJ-016',
       duration: '6',
-      basePrice: 11.99,
+      basePrice: 1199,
       durationType: 'MS',
       eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
     {
       perfil: 'PJ-003',
       duration: '1',
-      basePrice: 14.99,
+      basePrice: 1499,
       durationType: 'Y',
       eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
     {
       perfil: 'PJ-006',
       duration: '2',
-      basePrice: 21.99,
+      basePrice: 2199,
       durationType: 'YS',
       eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
     {
       perfil: 'PJ-009',
       duration: '3',
-      basePrice: 29.99,
+      basePrice: 2999,
       durationType: 'YS',
       eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
     {
       perfil: 'PJ-008',
       duration: '4',
-      basePrice: 32.99,
+      basePrice: 3299,
       durationType: 'YS',
       eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
     {
       perfil: 'PJ-013',
       duration: '5',
-      basePrice: 43.99,
+      basePrice: 4399,
       durationType: 'YS',
       eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },

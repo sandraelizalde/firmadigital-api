@@ -70,6 +70,7 @@ model Distributor {
   createdBy          String? // Admin que registró
   createdByName      String?
   active             Boolean            @default(true)
+  balance            Int                @default(0) // Saldo actual del distribuidor en centavos
 
   planPrices        DistributorPlanPrice[]
   signatureRequests SignatureRequest[]
@@ -107,10 +108,10 @@ model BillingInfo {
 model Plan {
   id                  String       @id @default(cuid())
   perfil              String       @unique
-  basePrice           Float // Precio base/sugerido (referencia)
+  basePrice           Int // Precio base/sugerido en centavos
   duration            String
   durationType        String // 'D', 'M', 'MS', 'Y', 'YS'
-  basePricePromo      Float? // Precio promo base/sugerido
+  basePricePromo      Int? // Precio promo base/sugerido en centavos
   durationPromo       String?
   isPromo             Boolean      @default(false)
   eligibleClientsType TypeClient[] @default([PERSONA_NATURAL_SIN_RUC, PERSONA_NATURAL_CON_RUC])
@@ -133,8 +134,8 @@ model DistributorPlanPrice {
   planId        String
   plan          Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
 
-  customPrice      Float // Precio personalizado para este distribuidor
-  customPricePromo Float? // Precio promo personalizado (opcional)
+  customPrice      Int // Precio personalizado en centavos
+  customPricePromo Int? // Precio promo personalizado en centavos (opcional)
   isActive         Boolean @default(true)
 
   createdBy     String? // Admin que asignó el precio
@@ -199,9 +200,9 @@ model Recharge {
   distributorId String
 
   method          RechargeMethod
-  requestedAmount Float
-  creditedAmount  Float?
-  commission      Float?
+  requestedAmount Int // Monto solicitado en centavos
+  creditedAmount  Int? // Monto acreditado en centavos
+  commission      Int? // Comisión en centavos
   status          RechargeStatus @default(PENDING)
   adminId         String?
   adminNote       String?
@@ -226,8 +227,8 @@ model AccountMovement {
 
   type         MovementType
   detail       String
-  amount       Float
-  balanceAfter Float
+  amount       Int // Monto en centavos
+  balanceAfter Int // Balance después del movimiento en centavos
   rechargeId   String? // Si aplica a una recarga
   signatureId  String? // Si aplica a una firma
   adminId      String? // Si ajuste manual

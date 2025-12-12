@@ -9,6 +9,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { PlansModule } from './plans/plans.module';
 import { DistributorsModule } from './distributors/distributors.module';
+import { RechargesModule } from './recharges/recharges.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DistributorsModule } from './distributors/distributors.module';
     AuthModule,
     PlansModule,
     DistributorsModule,
+    RechargesModule,
   ],
   controllers: [AppController],
   providers: [
