@@ -53,6 +53,8 @@ public class QrAppereance implements CustomAppearance {
 
     public QrAppereance(String nombreFirmante, String reason, String location, String signTime, String infoQR) {
         this.nombreFirmante = nombreFirmante;
+        this.reason = reason;
+        this.location = location;
         
         // Si signTime es null o vacío, generar fecha actual
         if (signTime == null || signTime.trim().isEmpty()) {
@@ -62,8 +64,6 @@ public class QrAppereance implements CustomAppearance {
             this.signTime = signTime;
         }
         
-        this.location = location;
-        this.signTime = signTime;
         this.infoQR = infoQR;
     }
 
@@ -74,20 +74,20 @@ public class QrAppereance implements CustomAppearance {
         signatureAppearance.setPageRect(signaturePositionOnPage);
         signatureAppearance.setPageNumber(pageNumber);
 
+        PdfFormXObject layer2 = signatureAppearance.getLayer2();
+        PdfCanvas canvas = new PdfCanvas(layer2, pdfDocument);
+
+        PdfFont fontCourier = loadFont("fonts/courier.ttf");
+        PdfFont fontCourierBold = loadFont("fonts/courier-bold.ttf");
+
+        // Imagen
+        byte[] byteQR = null;
+
+        // QR - Generar contenido del código QR
         String text = "FIRMADO POR: " + nombreFirmante.trim() + "\n";
         text = text + "RAZON: " + "Firmado digitalmente con Nexus Soluciones" + "\n";
         text = text + "LOCALIZACION: " + "ECUADOR" + "\n";
         text = text + "FECHA: " + signTime + "\n";
-        // QR
-        // Validar que signTime no sea null
-        String fechaFirma = (signTime != null && !signTime.trim().isEmpty()) ? signTime : "";
-        
-        String text = "FIRMADO POR: " + nombreFirmante.trim() + "\n";
-        text = text + "RAZON: " + "Firmado digitalmente con Nexus Soluciones" + "\n";
-        text = text + "LOCALIZACION: " + "ECUADOR" + "\n";
-        if (!fechaFirma.isEmpty()) {
-            text = text + "FECHA: " + fechaFirma + "\n";
-        }
         text = text + "VALIDAR CON: " + "https://www.solucionesnexus.com" + "\n";
         text = text + infoQR;
 
@@ -98,7 +98,7 @@ public class QrAppereance implements CustomAppearance {
             LOGGER.log(Level.WARNING, "Error al generar QR: {0}", e);
         }
 
-        // QR
+        // QR - Definir rectángulos para QR y texto
         Rectangle dataRect = new Rectangle(0, 0, signaturePositionOnPage.getWidth() / 3,
                 signaturePositionOnPage.getHeight());
 
