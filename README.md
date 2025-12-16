@@ -1,98 +1,292 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Sistema de Recargas - API Distribuidores Nexus
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## 🔢 Importante: Manejo de Montos
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Todos los montos se manejan en CENTAVOS (enteros)**
 
-## Description
+- El frontend debe enviar y recibir todos los montos en centavos
+- Ejemplo: $100.00 = 10000 centavos
+- Ejemplo: $1.50 = 150 centavos
+- No se usan decimales en la API
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Descripción General
 
-## Project setup
+El sistema de recargas permite a los distribuidores solicitar recargas mediante dos métodos:
+- **TRANSFER (Transferencia bancaria)**: Queda en estado `PENDING` hasta que un admin apruebe o rechace
+- **CARD (Tarjeta)**: Se procesa automáticamente mediante integración con Payphone
 
-```bash
-$ pnpm install
+## Modelos Modificados
+
+### Distributor
+Se agregó el campo `balance` (Int, default: 0) para mantener el saldo actual del distribuidor **en centavos**.
+
+### Campos Monetarios (todos en centavos)
+- `Distributor.balance`: Int
+- `Plan.basePrice`: Int
+- `Plan.basePricePromo`: Int
+- `DistributorPlanPrice.customPrice`: Int
+- `DistributorPlanPrice.customPricePromo`: Int
+- `Recharge.requestedAmount`: Int
+- `Recharge.creditedAmount`: Int
+- `Recharge.commission`: Int
+- `AccountMovement.amount`: Int
+- `AccountMovement.balanceAfter`: Int
+
+## Endpoints
+
+### 📱 Endpoints para Distribuidores
+
+#### 1. Solicitar una Recarga
+```http
+POST /recharges
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "method": "TRANSFER" | "CARD",
+  "requestedAmount": 10000,  // $100.00 en centavos
+  "paymentReference": "TRANS-12345", // Opcional, para transferencias
+  "transferDate": "2025-12-12T10:00:00Z", // Opcional
+  "receiptFile": "https://..." // Opcional, URL del comprobante
+}
 ```
 
-## Compile and run the project
-
-```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+**Respuesta:**
+```json
+{
+  "id": "clxxx",
+  "distributorId": "clxxx",
+  "method": "TRANSFER",
+  "requestedAmount": 10000,  // $100.00 en centavos
+  "creditedAmount": null,
+  "commission": null,
+  "status": "PENDING",
+  "paymentReference": "TRANS-12345",
+  "transferDate": "2025-12-12T10:00:00Z",
+  "receiptFile": "https://...",
+  "createdAt": "2025-12-12T10:00:00Z",
+  "distributor": {
+    "id": "clxxx",
+    "firstName": "Juan",
+    "lastName": "Pérez",
+    "email": "juan@example.com"
+  }
+}
 ```
 
-## Run tests
-
-```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+#### 2. Ver Mis Recargas
+```http
+GET /recharges/my-recharges
+Authorization: Bearer {token}
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+**Respuesta:**
+```json
+[
+  {
+    "id": "clxxx",
+    "method": "TRANSFER",
+    "requestedAmount": 10000,  // $100.00 en centavos
+    "creditedAmount": 10000,
+    "commission": 0,
+    "status": "APPROVED",
+    "createdAt": "2025-12-12T10:00:00Z",
+    "accountMovements": [...]
+  }
+]
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+#### 3. Ver Detalle de una Recarga
+```http
+GET /recharges/my-recharges/{id}
+Authorization: Bearer {token}
+```
 
-## Resources
+#### 4. Ver Mis Movimientos de Cuenta
+```http
+GET /recharges/my-account-movements
+Authorization: Bearer {token}
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+**Respuesta:**
+```json
+[
+  {
+    "id": "clxxx",
+    "type": "INCOME",
+    "detail": "Recarga aprobada - TRANSFER",
+    "amount": 10000,  // $100.00 en centavos
+    "balanceAfter": 10000,
+    "createdAt": "2025-12-12T10:00:00Z",
+    "recharge": {
+      "id": "clxxx",
+      "method": "TRANSFER",
+      "requestedAmount": 10000,
+      "status": "APPROVED"
+    }
+  }
+]
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+---
 
-## Support
+### 👨‍💼 Endpoints para Admin
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+#### 1. Ver Todas las Recargas
+```http
+GET /recharges/admin/all?status=PENDING
+Authorization: Bearer {token}
+```
 
-## Stay in touch
+Query params opcionales:
+- `status`: PENDING | APPROVED | REJECTED | FAILED
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+#### 2. Ver Solo Recargas Pendientes
+```http
+GET /recharges/admin/pending
+Authorization: Bearer {token}
+```
 
-## License
+#### 3. Ver Detalle de una Recarga
+```http
+GET /recharges/admin/{id}
+Authorization: Bearer {token}
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+#### 4. Aprobar o Rechazar Recarga
+```http
+PATCH /recharges/admin/{id}/review
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "status": "APPROVED" | "REJECTED",
+  "adminNote": "Transferencia verificada" // Opcional
+}
+```
+
+**Comportamiento:**
+- Si `status: APPROVED`: 
+  - Se acredita el monto al balance del distribuidor
+  - Se crea un movimiento de cuenta tipo INCOME
+  - Se actualiza el `creditedAmount` y `commission`
+- Si `status: REJECTED`:
+  - No se afecta el balance
+  - Solo se actualiza el estado de la recarga
+
+#### 5. Asignar Recarga Manual
+```http
+POST /recharges/admin/manual
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "distributorId": "clxxx",
+  "amount": 10000,  // $100.00 en centavos
+  "note": "Ajuste por error en sistema anterior" // Opcional
+}
+```
+
+Este endpoint crea una recarga automáticamente aprobada y acredita el monto inmediatamente.
+
+#### 6. Ver Movimientos de Cuenta de un Distribuidor
+```http
+GET /recharges/admin/distributor/{distributorId}/movements
+Authorization: Bearer {token}
+```
+
+---
+
+### 🌐 Webhook de Payphone (Público)
+
+#### Recibir Notificación de Payphone
+```http
+POST /recharges/webhook/payphone
+Content-Type: application/json
+
+{
+  "transactionId": "PAY-12345",
+  "clientTransactionId": "clxxx", // ID de nuestra recarga
+  "status": "Approved" | "Rejected",
+  "amount": 10000,  // $100.00 en centavos
+  "authorizationCode": "AUTH-123", // Opcional
+  "message": "Transacción aprobada" // Opcional
+}
+```
+
+Este endpoint es público (no requiere autenticación) y es llamado por Payphone cuando se completa una transacción.
+
+**Comportamiento:**
+- Valida que la recarga exista y sea de método CARD
+- Actualiza el estado según la respuesta de Payphone
+- Si es aprobada, acredita el monto (menos comisión del 3%) al balance
+- Crea el movimiento de cuenta correspondiente
+
+---
+
+## Estados de Recarga
+
+- `PENDING`: Recarga solicitada, esperando aprobación/procesamiento
+- `APPROVED`: Recarga aprobada y acreditada
+- `REJECTED`: Recarga rechazada por el admin
+- `FAILED`: Error en el procesamiento (generalmente con tarjeta)
+
+## Tipos de Movimiento de Cuenta
+
+- `INCOME`: Ingreso (recargas aprobadas)
+- `EXPENSE`: Egreso (compra de firmas, etc.)
+- `ADJUSTMENT`: Ajustes manuales
+
+## Comisiones
+
+- **Transferencias**: 0% (sin comisión)
+- **Tarjetas (Payphone)**: 3% sobre el monto solicitado (redondeado al centavo más cercano)
+
+El campo `creditedAmount` muestra el monto real acreditado después de descontar la comisión.
+
+**Ejemplos de cálculo:**
+- Recarga de $100.00 (10000 centavos) por transferencia:
+  - Comisión: 0 centavos
+  - Acreditado: 10000 centavos
+- Recarga de $100.00 (10000 centavos) por tarjeta:
+  - Comisión: 300 centavos ($3.00)
+  - Acreditado: 9700 centavos ($97.00)
+
+## Flujo de Trabajo
+
+### Recarga por Transferencia:
+1. Distribuidor solicita recarga con método TRANSFER
+2. Opcionalmente sube comprobante y referencia
+3. Recarga queda en estado PENDING
+4. Admin revisa y aprueba/rechaza
+5. Si aprueba: se acredita el monto al balance
+6. Si rechaza: no se acredita nada
+
+### Recarga por Tarjeta (Payphone):
+1. Distribuidor solicita recarga con método CARD
+2. Se crea recarga en estado PENDING
+3. Frontend redirige a Payphone para procesar pago
+4. Payphone notifica resultado vía webhook
+5. Sistema actualiza estado y acredita si fue aprobado
+
+### Recarga Manual por Admin:
+1. Admin asigna recarga directamente a un distribuidor
+2. Se crea con estado APPROVED automáticamente
+3. El monto se acredita de inmediato
+
+## Integración con Payphone
+
+Para completar la integración con Payphone, necesitarás:
+
+1. **Credenciales de Payphone**: API Key, Store ID
+2. **Implementar generación de link de pago** en el método `createRecharge` cuando `method === CARD`
+3. **Configurar URL del webhook** en el panel de Payphone apuntando a `/recharges/webhook/payphone`
+4. **Validar firma/token** en el webhook para seguridad
+
+## Próximos Pasos
+
+- [ ] Implementar integración completa con Payphone SDK
+- [ ] Agregar notificaciones por email cuando se aprueba/rechaza una recarga
+- [ ] Implementar límites de recarga mínima/máxima
+- [ ] Agregar reportes de recargas por periodo
+- [ ] Implementar descuento automático del balance al crear firma

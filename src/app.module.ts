@@ -10,9 +10,15 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { PlansModule } from './plans/plans.module';
 import { DistributorsModule } from './distributors/distributors.module';
 import { RechargesModule } from './recharges/recharges.module';
+import { FilesModule } from './files/files.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
@@ -24,6 +30,7 @@ import { RechargesModule } from './recharges/recharges.module';
     PlansModule,
     DistributorsModule,
     RechargesModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [

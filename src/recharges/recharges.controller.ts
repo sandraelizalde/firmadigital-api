@@ -23,11 +23,11 @@ import { RechargesService } from './recharges.service';
 import { CreateRechargeDto } from './dto/create-recharge.dto';
 import { ManualRechargeDto } from './dto/manual-recharge.dto';
 import { ReviewRechargeDto } from './dto/review-recharge.dto';
-import { PayphoneWebhookDto } from './dto/payphone-webhook.dto';
+import { InitCardRechargeDto } from './dto/init-card-recharge.dto';
+import { PayphoneConfirmationDto } from './dto/payphone-confirmation.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Public } from '../auth/decorators/public.decorator';
 import { Role, RechargeStatus } from '@prisma/client';
 
 @ApiTags('Recargas')
@@ -43,7 +43,6 @@ export class RechargesController {
   /**
    * Solicitar una nueva recarga
    * - TRANSFER: queda pendiente de aprobación
-   * - CARD: se procesa con Payphone
    */
   @Post()
   @Roles(Role.DISTRIBUTOR)
@@ -64,6 +63,61 @@ export class RechargesController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async createRecharge(@Request() req, @Body() dto: CreateRechargeDto) {
     return this.rechargesService.createRecharge(req.user.id, dto);
+  }
+
+  /**
+   * Iniciar recarga con tarjeta (Payphone)
+   * Crea la recarga y devuelve los datos necesarios para la cajita de pagos
+   */
+  @Post('init-card-recharge')
+  @Roles(Role.DISTRIBUTOR)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Iniciar recarga con tarjeta (Payphone)',
+    description:
+      'Crea una recarga PENDING y devuelve los datos necesarios para mostrar la cajita de pagos de Payphone en el frontend',
+  })
+  @ApiResponse({
+    status: 201,
+    description:
+      'Recarga iniciada, retorna datos para configurar cajita de Payphone',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o distribuidor inactivo',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  async initCardRecharge(@Request() req, @Body() dto: InitCardRechargeDto) {
+    return this.rechargesService.initCardRecharge(req.user.id, dto);
+  }
+
+  /**
+   * Confirmar pago de recarga con Payphone
+   * Se llama desde el frontend después de que Payphone redirige con los parámetros
+   */
+  @Post('confirm-card-recharge')
+  @Roles(Role.DISTRIBUTOR)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Confirmar pago de recarga con Payphone',
+    description:
+      'Confirma el estado de una recarga con tarjeta consultando la API de Payphone. Se debe llamar dentro de los 5 minutos posteriores al pago.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recarga confirmada exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Recarga ya procesada o error en la confirmación',
+  })
+  @ApiResponse({ status: 404, description: 'Recarga no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  async confirmCardRecharge(
+    @Request() req,
+    @Body() dto: PayphoneConfirmationDto,
+  ) {
+    return this.rechargesService.confirmCardRecharge(req.user.id, dto);
   }
 
   /**
@@ -297,35 +351,4 @@ export class RechargesController {
     return this.rechargesService.getDistributorAccountMovements(distributorId);
   }
 
-  // ==========================================
-  // WEBHOOK DE PAYPHONE (PÚBLICO)
-  // ==========================================
-
-  /**
-   * Webhook para recibir notificaciones de Payphone
-   * Este endpoint debe ser público y Payphone lo llamará
-   */
-  @Post('webhook/payphone')
-  @Public()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Webhook de Payphone',
-    description:
-      'Endpoint público para recibir notificaciones de estado de pagos desde Payphone. Actualiza automáticamente el estado de las recargas por tarjeta.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Webhook procesado exitosamente',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Recarga no encontrada',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Datos inválidos o recarga no es por tarjeta',
-  })
-  async handlePayphoneWebhook(@Body() dto: PayphoneWebhookDto) {
-    return this.rechargesService.handlePayphoneWebhook(dto);
-  }
 }

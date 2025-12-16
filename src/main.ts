@@ -83,16 +83,16 @@ async function bootstrap() {
 
     console.log(
       'Swagger habilitado en: http://localhost:' +
-        (process.env.PORT ?? 3000) +
+        (process.env.PORT ?? 8080) +
         '/api',
     );
   } else {
     console.log('Swagger deshabilitado en producción');
   }
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(process.env.PORT ?? 8080);
   console.log(
-    `Aplicación corriendo en: http://localhost:${process.env.PORT ?? 3000}`,
+    `Aplicación corriendo en: http://localhost:${process.env.PORT ?? 8080}`,
   );
 }
 bootstrap();

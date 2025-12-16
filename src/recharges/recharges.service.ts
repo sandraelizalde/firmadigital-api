@@ -5,6 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FilesService } from '../files/files.service';
+import { PayphoneService } from './payphone.service';
 import {
   RechargeMethod,
   RechargeStatus,
@@ -14,15 +16,196 @@ import {
 import { CreateRechargeDto } from './dto/create-recharge.dto';
 import { ManualRechargeDto } from './dto/manual-recharge.dto';
 import { ReviewRechargeDto } from './dto/review-recharge.dto';
+import { InitCardRechargeDto } from './dto/init-card-recharge.dto';
+import { PayphoneConfirmationDto } from './dto/payphone-confirmation.dto';
 
 @Injectable()
 export class RechargesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private filesService: FilesService,
+    private payphoneService: PayphoneService,
+  ) {}
+
+  /**
+   * Iniciar recarga con tarjeta (Payphone)
+   * Crea una recarga PENDING y devuelve los datos necesarios para la cajita de Payphone
+   */
+  async initCardRecharge(distributorId: string, dto: InitCardRechargeDto) {
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId },
+      select: {
+        id: true,
+        active: true,
+        email: true,
+        identification: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException('Distribuidor no encontrado');
+    }
+
+    if (!distributor.active) {
+      throw new BadRequestException('Distribuidor inactivo');
+    }
+
+    // Crear la recarga en estado PENDING
+    const recharge = await this.prisma.recharge.create({
+      data: {
+        distributorId,
+        method: RechargeMethod.CARD,
+        requestedAmount: dto.requestedAmount,
+        status: RechargeStatus.PENDING,
+        paymentReference: dto.reference || 'Recarga con tarjeta',
+      },
+      select: {
+        id: true,
+        requestedAmount: true,
+        createdAt: true,
+      },
+    });
+
+    // Obtener credenciales de Payphone
+    const credentials = this.payphoneService.getPayphoneCredentials();
+
+    // Retornar datos para el frontend
+    return {
+      rechargeId: recharge.id,
+      amount: recharge.requestedAmount,
+      clientTransactionId: recharge.id,
+      payphone: {
+        token: credentials.token,
+        storeId: credentials.storeId,
+        currency: 'USD',
+        reference: dto.reference || 'Recarga de saldo',
+      },
+      distributor: {
+        email: distributor.email,
+        documentId: distributor.identification,
+        name: `${distributor.firstName} ${distributor.lastName}`,
+      },
+    };
+  }
+
+  /**
+   * Confirmar pago de recarga con Payphone
+   * Recibe los parámetros de la URL de respuesta y consulta el estado en Payphone
+   */
+  async confirmCardRecharge(
+    distributorId: string,
+    dto: PayphoneConfirmationDto,
+  ) {
+    // Verificar que la recarga pertenece al distribuidor
+    const recharge = await this.prisma.recharge.findFirst({
+      where: {
+        id: dto.clientTxId,
+        distributorId,
+        method: RechargeMethod.CARD,
+      },
+      include: { distributor: true },
+    });
+
+    if (!recharge) {
+      throw new NotFoundException('Recarga no encontrada o no autorizada');
+    }
+
+    if (recharge.status !== RechargeStatus.PENDING) {
+      throw new BadRequestException(
+        `La recarga ya fue procesada con estado: ${recharge.status}`,
+      );
+    }
+
+    // Confirmar con Payphone
+    const payphoneResponse = await this.payphoneService.confirmTransaction({
+      id: dto.id,
+      clientTxId: dto.clientTxId,
+    });
+
+    // Mapear estado de Payphone
+    let status: RechargeStatus;
+    if (payphoneResponse.statusCode === 3) {
+      status = RechargeStatus.APPROVED;
+    } else if (payphoneResponse.statusCode === 2) {
+      status = RechargeStatus.REJECTED;
+    } else {
+      status = RechargeStatus.FAILED;
+    }
+
+    // Procesar la transacción
+    return this.prisma.$transaction(async (tx) => {
+      let newBalance = recharge.distributor.balance;
+      let creditedAmount = 0;
+      let commission = 0;
+
+      if (status === RechargeStatus.APPROVED) {
+        // Calcular comisión (3% para tarjetas) - redondeado
+        commission = Math.round(recharge.requestedAmount * 0.03);
+        creditedAmount = recharge.requestedAmount - commission;
+        newBalance = recharge.distributor.balance + creditedAmount;
+
+        // Actualizar balance
+        await tx.distributor.update({
+          where: { id: recharge.distributorId },
+          data: { balance: newBalance },
+        });
+
+        // Crear movimiento
+        await tx.accountMovement.create({
+          data: {
+            distributorId: recharge.distributorId,
+            type: MovementType.INCOME,
+            detail: `Recarga con tarjeta aprobada - Payphone`,
+            amount: creditedAmount,
+            balanceAfter: newBalance,
+            rechargeId: recharge.id,
+            note: `Transacción Payphone: ${payphoneResponse.transactionId} - ${payphoneResponse.cardBrand} ${payphoneResponse.lastDigits}`,
+          },
+        });
+      }
+
+      // Actualizar recarga
+      const updatedRecharge = await tx.recharge.update({
+        where: { id: recharge.id },
+        data: {
+          status,
+          creditedAmount:
+            status === RechargeStatus.APPROVED ? creditedAmount : null,
+          commission: status === RechargeStatus.APPROVED ? commission : null,
+          paymentReference: `Payphone: ${payphoneResponse.transactionId}`,
+        },
+        include: {
+          distributor: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              balance: true,
+            },
+          },
+          accountMovements: true,
+        },
+      });
+
+      return {
+        recharge: updatedRecharge,
+        payphone: {
+          transactionId: payphoneResponse.transactionId,
+          authorizationCode: payphoneResponse.authorizationCode,
+          cardBrand: payphoneResponse.cardBrand,
+          lastDigits: payphoneResponse.lastDigits,
+          transactionStatus: payphoneResponse.transactionStatus,
+        },
+      };
+    });
+  }
 
   /**
    * Crear una nueva solicitud de recarga
    * - Si es TRANSFER: queda en PENDING hasta aprobación del admin
-   * - Si es CARD: se crea en PENDING y se debe integrar con Payphone
    */
   async createRecharge(distributorId: string, dto: CreateRechargeDto) {
     const distributor = await this.prisma.distributor.findUnique({
@@ -37,6 +220,18 @@ export class RechargesService {
       throw new BadRequestException('Distribuidor inactivo');
     }
 
+    // Subir el archivo a S3 si viene receiptFile
+    let receiptFileUrl: string | undefined;
+    if (dto.receiptFile) {
+      // Detectar la extensión del archivo desde el base64
+      const extension = this.detectFileExtension(dto.receiptFile);
+      receiptFileUrl = await this.filesService.uploadVoucher(
+        dto.receiptFile,
+        Date.now(),
+        extension,
+      );
+    }
+
     // Crear la recarga
     const recharge = await this.prisma.recharge.create({
       data: {
@@ -46,7 +241,7 @@ export class RechargesService {
         status: RechargeStatus.PENDING,
         paymentReference: dto.paymentReference,
         transferDate: dto.transferDate,
-        receiptFile: dto.receiptFile,
+        receiptFile: receiptFileUrl,
       },
       include: {
         distributor: {
@@ -61,14 +256,6 @@ export class RechargesService {
       },
     });
 
-    // Si es con tarjeta, aquí se integraría con Payphone
-    // Por ahora retornamos la recarga para procesar el pago
-    if (dto.method === RechargeMethod.CARD) {
-      // TODO: Integrar con Payphone
-      // Se debería generar un link de pago o procesar la transacción
-      // y actualizar el estado según la respuesta
-    }
-
     return recharge;
   }
 
@@ -76,13 +263,23 @@ export class RechargesService {
    * Obtener historial de recargas del distribuidor autenticado
    */
   async getMyRecharges(distributorId: string) {
-    return this.prisma.recharge.findMany({
+    const recharges = await this.prisma.recharge.findMany({
       where: { distributorId },
       orderBy: { createdAt: 'desc' },
       include: {
         accountMovements: true,
       },
     });
+
+    // Convertir receiptFile a base64
+    return Promise.all(
+      recharges.map(async (recharge) => ({
+        ...recharge,
+        receiptFile: recharge.receiptFile
+          ? await this.filesService.getVoucher(recharge.receiptFile)
+          : null,
+      })),
+    );
   }
 
   /**
@@ -112,14 +309,20 @@ export class RechargesService {
       throw new NotFoundException('Recarga no encontrada');
     }
 
-    return recharge;
+    // Convertir receiptFile a base64
+    return {
+      ...recharge,
+      receiptFile: recharge.receiptFile
+        ? await this.filesService.getVoucher(recharge.receiptFile)
+        : null,
+    };
   }
 
   /**
    * ADMIN: Obtener todas las recargas pendientes o todas
    */
   async getAllRecharges(status?: RechargeStatus) {
-    return this.prisma.recharge.findMany({
+    const recharges = await this.prisma.recharge.findMany({
       where: status ? { status } : undefined,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -137,6 +340,16 @@ export class RechargesService {
         accountMovements: true,
       },
     });
+
+    // Convertir receiptFile a base64
+    return Promise.all(
+      recharges.map(async (recharge) => ({
+        ...recharge,
+        receiptFile: recharge.receiptFile
+          ? await this.filesService.getVoucher(recharge.receiptFile)
+          : null,
+      })),
+    );
   }
 
   /**
@@ -165,7 +378,13 @@ export class RechargesService {
       throw new NotFoundException('Recarga no encontrada');
     }
 
-    return recharge;
+    // Convertir receiptFile a base64
+    return {
+      ...recharge,
+      receiptFile: recharge.receiptFile
+        ? await this.filesService.getVoucher(recharge.receiptFile)
+        : null,
+    };
   }
 
   /**
@@ -325,94 +544,6 @@ export class RechargesService {
   }
 
   /**
-   * Webhook de Payphone para actualizar estado de pagos con tarjeta
-   * Este método se llamará cuando Payphone notifique el resultado del pago
-   */
-  async handlePayphoneWebhook(data: any) {
-    // TODO: Validar firma/token de Payphone para seguridad
-
-    const rechargeId = data.clientTransactionId;
-    const recharge = await this.prisma.recharge.findUnique({
-      where: { id: rechargeId },
-      include: { distributor: true },
-    });
-
-    if (!recharge) {
-      throw new NotFoundException('Recarga no encontrada');
-    }
-
-    if (recharge.method !== RechargeMethod.CARD) {
-      throw new BadRequestException('La recarga no es por tarjeta');
-    }
-
-    // Mapear estado de Payphone a nuestro sistema
-    let status: RechargeStatus;
-    if (data.status === 'Approved' || data.status === 'approved') {
-      status = RechargeStatus.APPROVED;
-    } else if (data.status === 'Rejected' || data.status === 'rejected') {
-      status = RechargeStatus.REJECTED;
-    } else {
-      status = RechargeStatus.FAILED;
-    }
-
-    return this.prisma.$transaction(async (tx) => {
-      let newBalance = recharge.distributor.balance;
-      let creditedAmount = 0;
-
-      if (status === RechargeStatus.APPROVED) {
-        // Calcular comisión (ejemplo: 3% para tarjetas) - redondeado para evitar decimales
-        const commission = Math.round(recharge.requestedAmount * 0.03);
-        creditedAmount = recharge.requestedAmount - commission;
-        newBalance = recharge.distributor.balance + creditedAmount;
-
-        // Actualizar balance
-        await tx.distributor.update({
-          where: { id: recharge.distributorId },
-          data: { balance: newBalance },
-        });
-
-        // Crear movimiento
-        await tx.accountMovement.create({
-          data: {
-            distributorId: recharge.distributorId,
-            type: MovementType.INCOME,
-            detail: `Recarga con tarjeta aprobada - Payphone`,
-            amount: creditedAmount,
-            balanceAfter: newBalance,
-            rechargeId: recharge.id,
-            note: `Transacción Payphone: ${data.transactionId}`,
-          },
-        });
-      }
-
-      // Actualizar recarga
-      return tx.recharge.update({
-        where: { id: rechargeId },
-        data: {
-          status,
-          creditedAmount,
-          commission:
-            status === RechargeStatus.APPROVED
-              ? recharge.requestedAmount - creditedAmount
-              : null,
-          paymentReference: data.transactionId,
-        },
-        include: {
-          distributor: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              balance: true,
-            },
-          },
-        },
-      });
-    });
-  }
-
-  /**
    * Obtener movimientos de cuenta del distribuidor
    */
   async getAccountMovements(distributorId: string) {
@@ -446,5 +577,28 @@ export class RechargesService {
     }
 
     return this.getAccountMovements(distributorId);
+  }
+  /**
+   * Detecta la extensión del archivo desde el base64
+   */
+  private detectFileExtension(base64: string): string {
+    // Detectar desde el prefijo data:image/jpeg;base64,
+    if (base64.startsWith('data:')) {
+      const mimeMatch = base64.match(/data:([^;]+);/);
+      if (mimeMatch) {
+        const mimeType = mimeMatch[1];
+        const extensionMap: Record<string, string> = {
+          'image/jpeg': 'jpg',
+          'image/jpg': 'jpg',
+          'image/png': 'png',
+          'image/gif': 'gif',
+          'image/webp': 'webp',
+          'application/pdf': 'pdf',
+        };
+        return extensionMap[mimeType] || 'jpg';
+      }
+    }
+    // Por defecto retornar jpg
+    return 'jpg';
   }
 }
