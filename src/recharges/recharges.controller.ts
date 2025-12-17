@@ -62,7 +62,7 @@ export class RechargesController {
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async createRecharge(@Request() req, @Body() dto: CreateRechargeDto) {
-    return this.rechargesService.createRecharge(req.user.id, dto);
+    return this.rechargesService.createRecharge(req.user.userId, dto);
   }
 
   /**
@@ -88,7 +88,7 @@ export class RechargesController {
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async initCardRecharge(@Request() req, @Body() dto: InitCardRechargeDto) {
-    return this.rechargesService.initCardRecharge(req.user.id, dto);
+    return this.rechargesService.initCardRecharge(req.user.userId, dto);
   }
 
   /**
@@ -117,7 +117,7 @@ export class RechargesController {
     @Request() req,
     @Body() dto: PayphoneConfirmationDto,
   ) {
-    return this.rechargesService.confirmCardRecharge(req.user.id, dto);
+    return this.rechargesService.confirmCardRecharge(req.user.userId, dto);
   }
 
   /**
@@ -128,15 +128,40 @@ export class RechargesController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Obtener mi historial de recargas',
-    description: 'Retorna todas las recargas del distribuidor autenticado',
+    description:
+      'Retorna todas las recargas del distribuidor autenticado con paginación',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Cantidad de elementos por página (default: 10)',
+    example: 10,
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de recargas del distribuidor',
+    description: 'Lista de recargas del distribuidor con paginación',
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
-  async getMyRecharges(@Request() req) {
-    return this.rechargesService.getMyRecharges(req.user.id);
+  async getMyRecharges(
+    @Request() req,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.rechargesService.getMyRecharges(
+      req.user.userId,
+      pageNum,
+      limitNum,
+    );
   }
 
   /**
@@ -161,7 +186,7 @@ export class RechargesController {
   @ApiResponse({ status: 404, description: 'Recarga no encontrada' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async getMyRecharge(@Request() req, @Param('id') id: string) {
-    return this.rechargesService.getMyRecharge(req.user.id, id);
+    return this.rechargesService.getMyRecharge(req.user.userId, id);
   }
 
   /**
@@ -181,7 +206,29 @@ export class RechargesController {
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async getMyAccountMovements(@Request() req) {
-    return this.rechargesService.getAccountMovements(req.user.id);
+    return this.rechargesService.getAccountMovements(req.user.userId);
+  }
+
+  /**
+   * Obtener resumen de recargas del distribuidor
+   * Balance total, recargas pendientes y ventas
+   */
+  @Get('summary')
+  @Roles(Role.DISTRIBUTOR)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Obtener resumen de recargas',
+    description:
+      'Retorna balance total, recargas pendientes (cantidad y monto) y ventas totales del distribuidor',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen de recargas obtenido exitosamente',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 404, description: 'Distribuidor no encontrado' })
+  async getRechargesSummary(@Request() req) {
+    return this.rechargesService.getRechargesSummary(req.user.userId);
   }
 
   // ==========================================
@@ -198,7 +245,7 @@ export class RechargesController {
   @ApiOperation({
     summary: '[ADMIN] Obtener todas las recargas',
     description:
-      'Retorna todas las recargas del sistema, con filtro opcional por estado',
+      'Retorna todas las recargas del sistema con paginación, con filtro opcional por estado',
   })
   @ApiQuery({
     name: 'status',
@@ -206,14 +253,34 @@ export class RechargesController {
     enum: RechargeStatus,
     description: 'Filtrar por estado de recarga',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Cantidad de elementos por página (default: 10)',
+    example: 10,
+  })
   @ApiResponse({
     status: 200,
-    description: 'Lista de recargas',
+    description: 'Lista de recargas con paginación',
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
-  async getAllRecharges(@Query('status') status?: RechargeStatus) {
-    return this.rechargesService.getAllRecharges(status);
+  async getAllRecharges(
+    @Query('status') status?: RechargeStatus,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.rechargesService.getAllRecharges(status, pageNum, limitNum);
   }
 
   /**
@@ -224,16 +291,39 @@ export class RechargesController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: '[ADMIN] Obtener recargas pendientes',
-    description: 'Retorna solo las recargas en estado PENDING',
+    description: 'Retorna solo las recargas en estado PENDING con paginación',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Cantidad de elementos por página (default: 10)',
+    example: 10,
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de recargas pendientes',
+    description: 'Lista de recargas pendientes con paginación',
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
-  async getPendingRecharges() {
-    return this.rechargesService.getAllRecharges(RechargeStatus.PENDING);
+  async getPendingRecharges(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.rechargesService.getAllRecharges(
+      RechargeStatus.PENDING,
+      pageNum,
+      limitNum,
+    );
   }
 
   /**
@@ -294,7 +384,7 @@ export class RechargesController {
     @Request() req,
     @Body() dto: ReviewRechargeDto,
   ) {
-    return this.rechargesService.reviewRecharge(id, req.user.id, dto);
+    return this.rechargesService.reviewRecharge(id, req.user.userId, dto);
   }
 
   /**
@@ -319,7 +409,7 @@ export class RechargesController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
   async createManualRecharge(@Request() req, @Body() dto: ManualRechargeDto) {
-    return this.rechargesService.createManualRecharge(req.user.id, dto);
+    return this.rechargesService.createManualRecharge(req.user.userId, dto);
   }
 
   /**
@@ -350,5 +440,4 @@ export class RechargesController {
   ) {
     return this.rechargesService.getDistributorAccountMovements(distributorId);
   }
-
 }

@@ -141,8 +141,8 @@ export class RechargesService {
       let commission = 0;
 
       if (status === RechargeStatus.APPROVED) {
-        // Calcular comisión (3% para tarjetas) - redondeado
-        commission = Math.round(recharge.requestedAmount * 0.03);
+        // Calcular comisión (6% para tarjetas) - redondeado
+        commission = Math.round(recharge.requestedAmount * 0.06);
         creditedAmount = recharge.requestedAmount - commission;
         newBalance = recharge.distributor.balance + creditedAmount;
 
@@ -262,24 +262,49 @@ export class RechargesService {
   /**
    * Obtener historial de recargas del distribuidor autenticado
    */
-  async getMyRecharges(distributorId: string) {
+  async getMyRecharges(
+    distributorId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const skip = (page - 1) * limit;
+
+    // Obtener total de recargas
+    const total = await this.prisma.recharge.count({
+      where: { distributorId },
+    });
+
+    // Obtener recargas paginadas
     const recharges = await this.prisma.recharge.findMany({
       where: { distributorId },
       orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
       include: {
         accountMovements: true,
       },
     });
 
     // Convertir receiptFile a base64
-    return Promise.all(
-      recharges.map(async (recharge) => ({
-        ...recharge,
-        receiptFile: recharge.receiptFile
-          ? await this.filesService.getVoucher(recharge.receiptFile)
-          : null,
-      })),
-    );
+    // const rechargesWithReceipt = await Promise.all(
+    //   recharges.map(async (recharge) => ({
+    //     ...recharge,
+    //     receiptFile: recharge.receiptFile
+    //       ? await this.filesService.getVoucher(recharge.receiptFile)
+    //       : null,
+    //   })),
+    // );
+
+    return {
+      success: true,
+      data: recharges,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
@@ -321,10 +346,26 @@ export class RechargesService {
   /**
    * ADMIN: Obtener todas las recargas pendientes o todas
    */
-  async getAllRecharges(status?: RechargeStatus) {
+  async getAllRecharges(
+    status?: RechargeStatus,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const skip = (page - 1) * limit;
+
+    const whereCondition = status ? { status } : undefined;
+
+    // Obtener total de recargas
+    const total = await this.prisma.recharge.count({
+      where: whereCondition,
+    });
+
+    // Obtener recargas paginadas
     const recharges = await this.prisma.recharge.findMany({
-      where: status ? { status } : undefined,
+      where: whereCondition,
       orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
       include: {
         distributor: {
           select: {
@@ -342,7 +383,7 @@ export class RechargesService {
     });
 
     // Convertir receiptFile a base64
-    return Promise.all(
+    const rechargesWithReceipt = await Promise.all(
       recharges.map(async (recharge) => ({
         ...recharge,
         receiptFile: recharge.receiptFile
@@ -350,6 +391,17 @@ export class RechargesService {
           : null,
       })),
     );
+
+    return {
+      success: true,
+      data: rechargesWithReceipt,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
@@ -578,6 +630,74 @@ export class RechargesService {
 
     return this.getAccountMovements(distributorId);
   }
+
+  /**
+   * Obtener resumen de recargas del distribuidor
+   * Balance total, recargas pendientes y ventas totales
+   */
+  async getRechargesSummary(distributorId: string) {
+    // Obtener balance actual del distribuidor
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId },
+      select: {
+        balance: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException('Distribuidor no encontrado');
+    }
+
+    // Obtener recargas pendientes (cantidad y monto total)
+    const pendingRecharges = await this.prisma.recharge.findMany({
+      where: {
+        distributorId,
+        status: RechargeStatus.PENDING,
+      },
+      select: {
+        requestedAmount: true,
+      },
+    });
+
+    const pendingRechargesCount = pendingRecharges.length;
+    const pendingRechargesAmount = pendingRecharges.reduce(
+      (sum, r) => sum + r.requestedAmount,
+      0,
+    );
+
+    // Obtener ventas totales (movimientos de tipo EXPENSE)
+    const totalSales = await this.prisma.accountMovement.aggregate({
+      where: {
+        distributorId,
+        type: MovementType.EXPENSE,
+      },
+      _sum: {
+        amount: true,
+      },
+      _count: true,
+    });
+
+    return {
+      success: true,
+      summary: {
+        distributor: {
+          name: `${distributor.firstName} ${distributor.lastName}`,
+        },
+        balance: distributor.balance,
+        pendingRecharges: {
+          count: pendingRechargesCount,
+          amount: pendingRechargesAmount,
+        },
+        sales: {
+          count: totalSales._count,
+          amount: Math.abs(totalSales._sum.amount || 0), // Convertir a positivo
+        },
+      },
+    };
+  }
+
   /**
    * Detecta la extensión del archivo desde el base64
    */

@@ -53,7 +53,7 @@ export class FilesService {
       const buffer = Buffer.from(base64Data, 'base64');
 
       const timestamp = Date.now();
-      const key = `vouchers/${rechargeId}-${timestamp}.${extension}`;
+      const key = `vouchers-distribuidores/${rechargeId}-${timestamp}.${extension}`;
 
       const command = new PutObjectCommand({
         Bucket: this.bucketName,

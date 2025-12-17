@@ -219,7 +219,7 @@ Este endpoint es público (no requiere autenticación) y es llamado por Payphone
 **Comportamiento:**
 - Valida que la recarga exista y sea de método CARD
 - Actualiza el estado según la respuesta de Payphone
-- Si es aprobada, acredita el monto (menos comisión del 3%) al balance
+- Si es aprobada, acredita el monto (menos comisión del 6%) al balance
 - Crea el movimiento de cuenta correspondiente
 
 ---
@@ -240,7 +240,7 @@ Este endpoint es público (no requiere autenticación) y es llamado por Payphone
 ## Comisiones
 
 - **Transferencias**: 0% (sin comisión)
-- **Tarjetas (Payphone)**: 3% sobre el monto solicitado (redondeado al centavo más cercano)
+- **Tarjetas (Payphone)**: 6% sobre el monto solicitado (redondeado al centavo más cercano)
 
 El campo `creditedAmount` muestra el monto real acreditado después de descontar la comisión.
 

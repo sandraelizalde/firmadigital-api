@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -10,11 +19,14 @@ import {
 import { DistributorsService } from './distributors.service';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
 
 @ApiTags('Distribuidores')
 @Controller('distributors')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class DistributorsController {
   constructor(private readonly distributorsService: DistributorsService) {}
 
@@ -57,6 +69,30 @@ export class DistributorsController {
   @Roles(Role.ADMIN, Role.DISTRIBUTOR)
   async getDistributorById(@Param('distributorId') distributorId: string) {
     return await this.distributorsService.getDistributorById(distributorId);
+  }
+
+  @ApiOperation({
+    summary: 'Obtener información del dashboard del distribuidor',
+    description:
+      'Obtiene información completa del distribuidor para mostrar en la página principal/dashboard incluyendo saldo disponible, total de firmas vendidas, recargas del mes, ventas del mes y actividad reciente',
+  })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Información del dashboard obtenida exitosamente',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Distribuidor no encontrado',
+  })
+  @Get('profile/dashboard')
+  @Roles(Role.DISTRIBUTOR)
+  async getDashboardInfo(@Request() req: any) {
+    return await this.distributorsService.getDashboardInfo(req.user.userId);
   }
 
   @ApiOperation({

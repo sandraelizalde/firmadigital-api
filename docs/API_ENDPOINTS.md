@@ -348,6 +348,88 @@ Authorization: Bearer {token}
 
 ---
 
+### 📊 Obtener Dashboard del Distribuidor
+**GET** `/distributors/profile/dashboard`
+
+Obtiene información completa del distribuidor para mostrar en la página principal/dashboard incluyendo saldo disponible, total de firmas vendidas, recargas del mes, ventas del mes y actividad reciente.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "dashboard": {
+    "distributor": {
+      "id": "clxxx123abc",
+      "firstName": "Luis Fernando",
+      "lastName": "González",
+      "email": "distribuidor@example.com",
+      "identification": "0123456789",
+      "phone": "0987654321",
+      "address": "Av. Principal 123"
+    },
+    "balance": 500000,
+    "totalSignatures": 15,
+    "monthlyRecharges": 3,
+    "monthlyIncome": 250000,
+    "recentMovements": [
+      {
+        "id": "mov1",
+        "type": "INCOME",
+        "detail": "Recarga aprobada",
+        "amount": 100000,
+        "date": "2025-12-17T14:30:00.000Z"
+      },
+      {
+        "id": "mov2",
+        "type": "EXPENSE",
+        "detail": "Venta realizada",
+        "amount": -15000,
+        "date": "2025-12-17T09:15:00.000Z"
+      },
+      {
+        "id": "mov3",
+        "type": "INCOME",
+        "detail": "Firma completada",
+        "amount": 50000,
+        "date": "2025-12-16T16:45:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Campos devueltos:**
+- `distributor`: Información básica del distribuidor autenticado
+  - `id`: ID único del distribuidor
+  - `firstName`: Nombre del distribuidor
+  - `lastName`: Apellido del distribuidor
+  - `email`: Email del distribuidor
+  - `identification`: Cédula o RUC del distribuidor
+  - `phone`: Teléfono del distribuidor
+  - `address`: Dirección del distribuidor
+- `balance`: Saldo disponible en centavos
+- `totalSignatures`: Total de firmas vendidas (acumulado histórico)
+- `monthlyRecharges`: Cantidad de recargas aprobadas en el mes actual
+- `monthlyIncome`: Ingresos generados en el mes actual en centavos (suma de movimientos tipo INCOME)
+- `recentMovements`: Últimos 5 movimientos de la cuenta
+  - `id`: ID del movimiento
+  - `type`: Tipo de movimiento (INCOME, EXPENSE, ADJUSTMENT)
+  - `detail`: Descripción del movimiento
+  - `amount`: Monto en centavos (positivo para ingresos, negativo para gastos)
+  - `date`: Fecha y hora del movimiento
+
+**Errores:**
+- `401`: No autorizado
+- `404`: Distribuidor no encontrado
+
+---
+
 ## Planes
 
 ### 📱 Listar Todos los Planes
@@ -881,10 +963,10 @@ Content-Type: application/json
 
 ---
 
-### 📜 Obtener Mis Recargas
-**GET** `/recharges/my-recharges`
+### � Obtener Resumen de Recargas
+**GET** `/recharges/summary`
 
-Retorna el historial de recargas del distribuidor autenticado.
+Retorna balance total, recargas pendientes y ventas del distribuidor autenticado.
 
 **Headers:**
 ```
@@ -893,28 +975,93 @@ Authorization: Bearer {token}
 
 **Respuesta Exitosa (200):**
 ```json
-[
-  {
-    "id": "recharge123",
-    "distributorId": "clxxx123abc",
-    "method": "TRANSFER",
-    "requestedAmount": 10000,
-    "creditedAmount": 10000,
-    "commission": 0,
-    "status": "APPROVED",
-    "paymentReference": "TRANS-12345",
-    "receiptFile": "iVBORw0KGgoAAAANSUhEUgAA...",
-    "createdAt": "2025-12-15T10:00:00.000Z",
-    "accountMovements": [
-      {
-        "id": "mov123",
-        "type": "INCOME",
-        "amount": 10000,
-        "detail": "Recarga aprobada - TRANSFER",
-        "balanceAfter": 10000
-      }
-    ]
+{
+  "success": true,
+  "summary": {
+    "distributor": {
+      "name": "Luis Fernando González"
+    },
+    "balance": 500000,
+    "pendingRecharges": {
+      "count": 2,
+      "amount": 200000
+    },
+    "sales": {
+      "count": 15,
+      "amount": 350000
+    }
   }
+}
+```
+
+**Campos devueltos:**
+- `balance`: Saldo disponible en centavos
+- `pendingRecharges`: Recargas en estado PENDING
+  - `count`: Cantidad de recargas pendientes
+  - `amount`: Monto total de recargas pendientes en centavos
+- `sales`: Ventas totales del distribuidor
+  - `count`: Cantidad total de ventas realizadas
+  - `amount`: Monto total de ventas en centavos (valor absoluto)
+
+**Errores:**
+- `401`: No autorizado
+- `404`: Distribuidor no encontrado
+
+---
+
+### 📜 Obtener Mis Recargas
+**GET** `/recharges/my-recharges`
+
+Retorna el historial de recargas del distribuidor autenticado con paginación.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros Query:**
+- `page` (number, opcional): Número de página (default: 1)
+- `limit` (number, opcional): Cantidad de elementos por página (default: 10)
+
+**Ejemplo Request:**
+```
+GET /recharges/my-recharges?page=1&limit=10
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "recharge123",
+      "distributorId": "clxxx123abc",
+      "method": "TRANSFER",
+      "requestedAmount": 10000,
+      "creditedAmount": 10000,
+      "commission": 0,
+      "status": "APPROVED",
+      "paymentReference": "TRANS-12345",
+      "receiptFile": "iVBORw0KGgoAAAANSUhEUgAA...",
+      "createdAt": "2025-12-15T10:00:00.000Z",
+      "accountMovements": [
+        {
+          "id": "mov123",
+          "type": "INCOME",
+          "amount": 10000,
+          "detail": "Recarga aprobada - TRANSFER",
+          "balanceAfter": 10000
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "total": 25,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 3
+  }
+}
 ]
 ```
 
@@ -1036,7 +1183,7 @@ Authorization: Bearer {token}
 ### 📋 [ADMIN] Obtener Todas las Recargas
 **GET** `/recharges/admin/all`
 
-Retorna todas las recargas del sistema con filtro opcional por estado.
+Retorna todas las recargas del sistema con paginación y filtro opcional por estado.
 
 **Headers:**
 ```
@@ -1045,36 +1192,47 @@ Authorization: Bearer {token}
 
 **Query Params:**
 - `status` (opcional): PENDING | APPROVED | REJECTED | FAILED
+- `page` (opcional): Número de página (default: 1)
+- `limit` (opcional): Cantidad de elementos por página (default: 10)
 
-**Ejemplo:** `/recharges/admin/all?status=PENDING`
+**Ejemplo:** `/recharges/admin/all?status=PENDING&page=1&limit=10`
 
 **Respuesta Exitosa (200):**
 ```json
-[
-  {
-    "id": "recharge123",
-    "distributorId": "clxxx123abc",
-    "method": "TRANSFER",
-    "requestedAmount": 10000,
-    "creditedAmount": 10000,
-    "commission": 0,
-    "status": "APPROVED",
-    "paymentReference": "TRANS-12345",
-    "receiptFile": "iVBORw0KGgoAAAANSUhEUgAA...",
-    "adminNote": "Aprobado",
-    "createdAt": "2025-12-15T10:00:00.000Z",
-    "distributor": {
-      "id": "clxxx123abc",
-      "firstName": "Luis",
-      "lastName": "González",
-      "socialReason": "Distribuidora González S.A.",
-      "email": "distribuidor@example.com",
-      "identification": "0123456789",
-      "balance": 50000
-    },
-    "accountMovements": []
+{
+  "success": true,
+  "data": [
+    {
+      "id": "recharge123",
+      "distributorId": "clxxx123abc",
+      "method": "TRANSFER",
+      "requestedAmount": 10000,
+      "creditedAmount": 10000,
+      "commission": 0,
+      "status": "APPROVED",
+      "paymentReference": "TRANS-12345",
+      "receiptFile": "iVBORw0KGgoAAAANSUhEUgAA...",
+      "adminNote": "Aprobado",
+      "createdAt": "2025-12-15T10:00:00.000Z",
+      "distributor": {
+        "id": "clxxx123abc",
+        "firstName": "Luis",
+        "lastName": "González",
+        "socialReason": "Distribuidora González S.A.",
+        "email": "distribuidor@example.com",
+        "identification": "0123456789",
+        "balance": 50000
+      },
+      "accountMovements": []
+    }
+  ],
+  "pagination": {
+    "total": 150,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 15
   }
-]
+}
 ```
 
 **Errores:**
@@ -1086,14 +1244,20 @@ Authorization: Bearer {token}
 ### ⏳ [ADMIN] Obtener Recargas Pendientes
 **GET** `/recharges/admin/pending`
 
-Retorna solo las recargas en estado PENDING.
+Retorna solo las recargas en estado PENDING con paginación.
 
 **Headers:**
 ```
 Authorization: Bearer {token}
 ```
 
-**Respuesta:** Igual que el endpoint anterior, pero filtrado por `status=PENDING`
+**Query Params:**
+- `page` (opcional): Número de página (default: 1)
+- `limit` (opcional): Cantidad de elementos por página (default: 10)
+
+**Ejemplo:** `/recharges/admin/pending?page=1&limit=10`
+
+**Respuesta:** Igual estructura que el endpoint anterior con paginación, pero filtrado por `status=PENDING`
 
 **Errores:**
 - `401`: No autorizado

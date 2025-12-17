@@ -185,4 +185,119 @@ export class DistributorsService {
       distributors,
     };
   }
+
+  // Obtener información del dashboard del distribuidor
+  async getDashboardInfo(distributorId: string) {
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        identification: true,
+        phone: true,
+        address: true,
+        balance: true,
+        active: true,
+      },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException({
+        message: 'Distribuidor no encontrado',
+        error: 'DISTRIBUTOR_NOT_FOUND',
+      });
+    }
+
+    // Obtener total de firmas vendidas
+    const totalSignatures = await this.prisma.signatureRequest.count({
+      where: {
+        distributorId,
+      },
+    });
+
+    // Obtener recargas del mes actual
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+
+    const monthlyRecharges = await this.prisma.recharge.count({
+      where: {
+        distributorId,
+        status: 'APPROVED',
+        createdAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+    });
+
+    // Obtener ventas del mes (sumar movimientos de INCOME del mes)
+    const monthlyIncome = await this.prisma.accountMovement.aggregate({
+      where: {
+        distributorId,
+        type: 'INCOME',
+        createdAt: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    // Obtener últimos 2 movimientos de cuenta
+    const recentMovements = await this.prisma.accountMovement.findMany({
+      where: {
+        distributorId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 2,
+      select: {
+        id: true,
+        type: true,
+        detail: true,
+        amount: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      success: true,
+      dashboard: {
+        distributor: {
+          id: distributor.id,
+          firstName: distributor.firstName,
+          lastName: distributor.lastName,
+          email: distributor.email,
+          identification: distributor.identification,
+          phone: distributor.phone,
+          address: distributor.address,
+        },
+        balance: distributor.balance,
+        totalSignatures,
+        monthlyRecharges,
+        monthlyIncome: monthlyIncome._sum.amount || 0,
+        recentMovements: recentMovements.map((movement) => ({
+          id: movement.id,
+          type: movement.type,
+          detail: movement.detail,
+          amount: movement.amount,
+          date: movement.createdAt,
+        })),
+      },
+    };
+  }
 }
