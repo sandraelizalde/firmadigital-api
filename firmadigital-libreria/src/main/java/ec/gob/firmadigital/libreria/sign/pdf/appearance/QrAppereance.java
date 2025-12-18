@@ -18,6 +18,8 @@
 package ec.gob.firmadigital.libreria.sign.pdf.appearance;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.logging.Logger;
 
 import com.itextpdf.io.image.ImageDataFactory;
@@ -53,7 +55,15 @@ public class QrAppereance implements CustomAppearance {
         this.nombreFirmante = nombreFirmante;
         this.reason = reason;
         this.location = location;
-        this.signTime = signTime;
+        
+        // Si signTime es null o vacío, generar fecha actual
+        if (signTime == null || signTime.trim().isEmpty()) {
+            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+            this.signTime = sdf.format(new Date());
+        } else {
+            this.signTime = signTime;
+        }
+        
         this.infoQR = infoQR;
     }
 
@@ -73,11 +83,12 @@ public class QrAppereance implements CustomAppearance {
         // Imagen
         byte[] byteQR = null;
 
-        // QR
+        // QR - Generar contenido del código QR
         String text = "FIRMADO POR: " + nombreFirmante.trim() + "\n";
-        text = text + "RAZON: " + reason + "\n";
-        text = text + "LOCALIZACION: " + location + "\n";
+        text = text + "RAZON: " + "Firmado digitalmente con Nexus Soluciones" + "\n";
+        text = text + "LOCALIZACION: " + "ECUADOR" + "\n";
         text = text + "FECHA: " + signTime + "\n";
+        text = text + "VALIDAR CON: " + "https://www.solucionesnexus.com" + "\n";
         text = text + infoQR;
 
         try {
@@ -87,12 +98,14 @@ public class QrAppereance implements CustomAppearance {
             LOGGER.log(Level.WARNING, "Error al generar QR: {0}", e);
         }
 
-        // QR
-        Rectangle dataRect = new Rectangle(0, 0, signaturePositionOnPage.getWidth(),
+        // QR - Definir rectángulos para QR y texto
+        Rectangle dataRect = new Rectangle(0, 0, signaturePositionOnPage.getWidth() / 3,
                 signaturePositionOnPage.getHeight());
 
-        Rectangle signatureRect = new Rectangle(signaturePositionOnPage.getWidth() / 3, 0,
-                signaturePositionOnPage.getWidth(), signaturePositionOnPage.getHeight());
+        // Aumentar separación entre QR y texto (ajustar el valor de división para más o menos espacio)
+        float separacion = signaturePositionOnPage.getWidth() / 2.8f;
+        Rectangle signatureRect = new Rectangle(separacion, 0,
+                signaturePositionOnPage.getWidth() - separacion, signaturePositionOnPage.getHeight());
 
         Div imageDiv = new Div();
         imageDiv.setHeight(dataRect.getHeight());
@@ -110,7 +123,7 @@ public class QrAppereance implements CustomAppearance {
 
         Div textDiv = new Div();
         textDiv.setHeight(signatureRect.getHeight());
-        textDiv.setWidth(signatureRect.getWidth() - signaturePositionOnPage.getWidth() / 3);
+        textDiv.setWidth(signatureRect.getWidth());
         textDiv.setVerticalAlignment(VerticalAlignment.MIDDLE);
         textDiv.setHorizontalAlignment(HorizontalAlignment.LEFT);
 
@@ -124,7 +137,7 @@ public class QrAppereance implements CustomAppearance {
                 .setFontSize(6.25f);
         textDiv.add(paragraph);
 
-        Text info = new Text("\nValidar únicamente con FirmaEC");
+        Text info = new Text("\nValidar únicamente con Nexus Soluciones\n");
         paragraph = new Paragraph().add(info).setFont(fontCourier).setMargin(0).setMultipliedLeading(0.9f)
                 .setFontSize(3.25f);
         textDiv.add(paragraph);
