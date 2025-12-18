@@ -230,7 +230,7 @@ export class DistributorsService {
       999,
     );
 
-    const monthlyRecharges = await this.prisma.recharge.count({
+    const monthlySpent = await this.prisma.recharge.aggregate({
       where: {
         distributorId,
         status: 'APPROVED',
@@ -239,20 +239,8 @@ export class DistributorsService {
           lte: endOfMonth,
         },
       },
-    });
-
-    // Obtener ventas del mes (sumar movimientos de INCOME del mes)
-    const monthlyIncome = await this.prisma.accountMovement.aggregate({
-      where: {
-        distributorId,
-        type: 'INCOME',
-        createdAt: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
-      },
       _sum: {
-        amount: true,
+        creditedAmount: true,
       },
     });
 
@@ -274,6 +262,16 @@ export class DistributorsService {
       },
     });
 
+    // Obtener publicidad activa
+    const advertisements = await this.prisma.advertisement.findMany({
+      where: { isActive: true },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        imageUrl: true,
+      },
+    });
+
     return {
       success: true,
       dashboard: {
@@ -288,8 +286,8 @@ export class DistributorsService {
         },
         balance: distributor.balance,
         totalSignatures,
-        monthlyRecharges,
-        monthlyIncome: monthlyIncome._sum.amount || 0,
+        monthlySpent: monthlySpent._sum.creditedAmount || 0,
+        advertisements,
         recentMovements: recentMovements.map((movement) => ({
           id: movement.id,
           type: movement.type,

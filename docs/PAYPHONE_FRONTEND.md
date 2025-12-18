@@ -85,8 +85,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Montos en centavos
     amount: payphoneData.amount,
     amountWithoutTax: payphoneData.amount,
-    amountWithTax: 0,
-    tax: 0,
+    // NO enviar amountWithTax y tax si son 0, Payphone requiere que ambos tengan valor o ambos sean omitidos
+    // amountWithTax: 0,  // NO incluir si es 0
+    // tax: 0,            // NO incluir si es 0
     service: 0,
     tip: 0,
     
@@ -355,6 +356,67 @@ export default RechargeConfirmation;
 - `APPROVED`: Pago aprobado y saldo acreditado
 - `REJECTED`: Pago rechazado por el banco
 - `FAILED`: Error en el procesamiento
+
+### ⚠️ Solución de Problemas Comunes
+
+#### Error: "AmountWithTax and Tax validation"
+```json
+{
+  "message": "Failed validation",
+  "errorCode": 800,
+  "errors": [
+    {
+      "message": "AmountWithTax",
+      "errorDescriptions": ["If field AmountWithTax have value then Tax must have a value"]
+    },
+    {
+      "message": "Tax",
+      "errorDescriptions": ["If field Tax have value then AmountWithTax must have a value"]
+    }
+  ]
+}
+```
+
+**Solución:** NO incluyas los campos `amountWithTax` y `tax` en la configuración si no los necesitas. Payphone requiere que ambos tengan valor o ambos sean omitidos completamente.
+
+**Correcto:**
+```javascript
+const ppb = new PPaymentButtonBox({
+  token: data.payphone.token,
+  storeId: data.payphone.storeId,
+  clientTransactionId: data.clientTransactionId,
+  amount: data.amount,
+  amountWithoutTax: data.amount,
+  // NO incluir amountWithTax ni tax
+  currency: data.payphone.currency,
+  reference: data.payphone.reference,
+  // ...resto de configuración
+});
+```
+
+**Incorrecto:**
+```javascript
+// ❌ NO hacer esto
+const ppb = new PPaymentButtonBox({
+  // ...
+  amountWithTax: 0,  // Si incluyes esto con valor 0
+  tax: 0,            // También debes incluir este con valor
+  // ...
+});
+```
+
+Si necesitas incluir impuestos, ambos campos deben tener valores válidos mayores a 0:
+```javascript
+// ✅ Correcto si tienes impuestos
+const ppb = new PPaymentButtonBox({
+  // ...
+  amount: 11200,           // Total con impuesto
+  amountWithoutTax: 10000, // Subtotal sin impuesto
+  amountWithTax: 11200,    // Total con impuesto
+  tax: 1200,               // Valor del impuesto (12%)
+  // ...
+});
+```
 
 ## Endpoints del Backend
 

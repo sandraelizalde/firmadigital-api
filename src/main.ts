@@ -6,7 +6,7 @@ import compression from 'compression';
 import * as express from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
-import "dotenv/config";
+import 'dotenv/config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -54,18 +54,23 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Configuración corregida para servir archivos estáticos
+  // Configuración para servir archivos estáticos
   const assetsPath = join(process.cwd(), 'src', 'assets');
+  const uploadsPath = join(process.cwd(), 'uploads');
 
-  app.useStaticAssets(assetsPath, {
-    prefix: '/static/',
+  // app.useStaticAssets(assetsPath, {
+  //   prefix: '/static/',
+  // });
+
+  app.useStaticAssets(uploadsPath, {
+    prefix: '/uploads/',
   });
 
   // Solo habilitar Swagger en desarrollo
   if (process.env.ENVIRONMENT === 'development') {
     const config = new DocumentBuilder()
-      .setTitle('Nexus-Firma Electronica Backend API')
-      .setDescription('API documentation for Nexus Backend')
+      .setTitle('Distribuidores Nexus API')
+      .setDescription('API documentation for Distribuidores Nexus Backend')
       .setVersion('1.0')
       .addBearerAuth({
         type: 'http',

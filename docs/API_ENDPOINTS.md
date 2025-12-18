@@ -5,6 +5,7 @@
 - [Distribuidores](#distribuidores)
 - [Planes](#planes)
 - [Recargas](#recargas)
+- [Publicidad](#publicidad)
 
 ---
 
@@ -351,7 +352,7 @@ Authorization: Bearer {token}
 ### 📊 Obtener Dashboard del Distribuidor
 **GET** `/distributors/profile/dashboard`
 
-Obtiene información completa del distribuidor para mostrar en la página principal/dashboard incluyendo saldo disponible, total de firmas vendidas, recargas del mes, ventas del mes y actividad reciente.
+Obtiene información completa del distribuidor para mostrar en la página principal/dashboard incluyendo saldo disponible, total de firmas vendidas, dinero gastado en el mes y actividad reciente.
 
 **Headers:**
 ```
@@ -375,8 +376,17 @@ Content-Type: application/json
     },
     "balance": 500000,
     "totalSignatures": 15,
-    "monthlyRecharges": 3,
-    "monthlyIncome": 250000,
+    "monthlySpent": 300000,
+    "advertisements": [
+      {
+        "id": "clxxx123abc",
+        "imageUrl": "/uploads/ads/ad_1702894567890_abc123.jpeg",
+      },
+      {
+        "id": "clxxx789ghi",
+        "imageUrl": "/uploads/ads/ad_1702894567892_ghi789.jpeg",
+      }
+    ],
     "recentMovements": [
       {
         "id": "mov1",
@@ -392,13 +402,6 @@ Content-Type: application/json
         "amount": -15000,
         "date": "2025-12-17T09:15:00.000Z"
       },
-      {
-        "id": "mov3",
-        "type": "INCOME",
-        "detail": "Firma completada",
-        "amount": 50000,
-        "date": "2025-12-16T16:45:00.000Z"
-      }
     ]
   }
 }
@@ -415,9 +418,11 @@ Content-Type: application/json
   - `address`: Dirección del distribuidor
 - `balance`: Saldo disponible en centavos
 - `totalSignatures`: Total de firmas vendidas (acumulado histórico)
-- `monthlyRecharges`: Cantidad de recargas aprobadas en el mes actual
-- `monthlyIncome`: Ingresos generados en el mes actual en centavos (suma de movimientos tipo INCOME)
-- `recentMovements`: Últimos 5 movimientos de la cuenta
+- `monthlySpent`: Total de dinero gastado en recargas aprobadas del mes actual (en centavos)
+- `advertisements`: Array de publicidades activas ordenadas por prioridad
+  - `id`: ID de la publicidad
+  - `imageUrl`: URL de la imagen (se puede acceder directamente desde el navegador)
+- `recentMovements`: Últimos 2 movimientos de la cuenta
   - `id`: ID del movimiento
   - `type`: Tipo de movimiento (INCOME, EXPENSE, ADJUSTMENT)
   - `detail`: Descripción del movimiento
@@ -1543,3 +1548,238 @@ El token se obtiene del endpoint `/auth/login` y tiene una validez definida en `
 ### Documentación Adicional
 - [Integración Payphone Frontend](PAYPHONE_FRONTEND.md)
 - [Flujo de Recargas](RECARGAS.md)
+
+---
+
+## Publicidad
+
+### 📢 Crear Publicidad (ADMIN)
+**POST** `/advertisements`
+
+Permite al administrador subir una nueva publicidad con imagen.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEA...",
+  "isActive": true,
+}
+```
+
+**Campos:**
+- `image` (string, requerido): Imagen en formato base64 (jpg, png, gif, etc.)
+- `isActive` (boolean, opcional): Si la publicidad está activa (default: true)
+
+**Respuesta Exitosa (201):**
+```json
+{
+  "success": true,
+  "message": "Publicidad creada exitosamente",
+  "advertisement": {
+    "id": "clxxx123abc",
+    "imageUrl": "/uploads/ads/ad_1702894567890_abc123.jpeg",
+    "isActive": true,
+    "createdBy": "admin123",
+    "createdAt": "2025-12-18T12:00:00.000Z",
+    "updatedAt": "2025-12-18T12:00:00.000Z"
+  }
+}
+```
+
+**Errores:**
+- `400`: Imagen requerida o formato inválido
+- `401`: Token no válido o expirado
+- `403`: No tiene permisos de ADMIN
+
+---
+
+### 📋 Listar Todas las Publicidades (ADMIN)
+**GET** `/advertisements`
+
+Obtiene todas las publicidades del sistema (activas e inactivas).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "count": 3,
+  "advertisements": [
+    {
+      "id": "clxxx123abc",
+      "imageUrl": "/uploads/ads/ad_1702894567890_abc123.jpeg",
+      "isActive": true,
+      "createdBy": "admin123",
+      "createdAt": "2025-12-18T12:00:00.000Z",
+      "updatedAt": "2025-12-18T12:00:00.000Z"
+    },
+    {
+      "id": "clxxx456def",
+      "imageUrl": "/uploads/ads/ad_1702894567891_def456.png",
+      "isActive": false,
+      "createdBy": "admin123",
+      "createdAt": "2025-12-17T10:00:00.000Z",
+      "updatedAt": "2025-12-17T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### ✅ Listar Publicidades Activas
+**GET** `/advertisements/active`
+
+Obtiene solo las publicidades activas ordenadas por orden y fecha de creación.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "count": 2,
+  "advertisements": [
+    {
+      "id": "clxxx123abc",
+      "imageUrl": "/uploads/ads/ad_1702894567890_abc123.jpeg",
+    },
+    {
+      "id": "clxxx789ghi",
+      "imageUrl": "/uploads/ads/ad_1702894567892_ghi789.jpeg",
+    }
+  ]
+}
+```
+
+**Nota:** Este endpoint es accesible tanto para administradores como para distribuidores. Las publicidades activas también se incluyen automáticamente en el endpoint `/distributors/profile/dashboard`.
+
+---
+
+### 🔍 Obtener una Publicidad (ADMIN)
+**GET** `/advertisements/:id`
+
+Obtiene los detalles de una publicidad específica.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+- `id` (string): ID de la publicidad
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "advertisement": {
+    "id": "clxxx123abc",
+    "imageUrl": "/uploads/ads/ad_1702894567890_abc123.jpeg",
+    "isActive": true,
+    "createdBy": "admin123",
+    "createdAt": "2025-12-18T12:00:00.000Z",
+    "updatedAt": "2025-12-18T12:00:00.000Z"
+  }
+}
+```
+
+**Errores:**
+- `404`: Publicidad no encontrada
+
+---
+
+### ✏️ Actualizar Publicidad (ADMIN)
+**PATCH** `/advertisements/:id`
+
+Actualiza una publicidad existente.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Parámetros de URL:**
+- `id` (string): ID de la publicidad
+
+**Body:**
+```json
+{
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...",
+  "isActive": false,
+}
+```
+
+**Campos (todos opcionales):**
+- `image` (string): Nueva imagen en base64 (si se proporciona, reemplaza la anterior)
+- `isActive` (boolean): Cambiar estado activo/inactivo
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "message": "Publicidad actualizada exitosamente",
+  "advertisement": {
+    "id": "clxxx123abc",
+    "imageUrl": "/uploads/ads/ad_1702894667890_xyz789.png",
+    "isActive": false,
+    "createdBy": "admin123",
+    "createdAt": "2025-12-18T12:00:00.000Z",
+    "updatedAt": "2025-12-18T12:30:00.000Z"
+  }
+}
+```
+
+**Errores:**
+- `404`: Publicidad no encontrada
+
+---
+
+### 🗑️ Eliminar Publicidad (ADMIN)
+**DELETE** `/advertisements/:id`
+
+Elimina una publicidad y su imagen del sistema.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+- `id` (string): ID de la publicidad
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "message": "Publicidad eliminada exitosamente"
+}
+```
+
+**Errores:**
+- `404`: Publicidad no encontrada
+
+---
+
+### 📌 Notas sobre Publicidad
+- Las imágenes se guardan en el servidor en la carpeta `/uploads/ads/`
+- Las imágenes se sirven como archivos estáticos en la ruta `/uploads/ads/{filename}`
+- Al actualizar una publicidad con nueva imagen, la imagen anterior se elimina automáticamente
+- Al eliminar una publicidad, también se elimina su imagen del servidor
+- Las publicidades activas aparecen automáticamente en el dashboard del distribuidor
+- Formatos de imagen soportados: JPG, PNG, GIF, WEBP
+

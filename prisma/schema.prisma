@@ -136,6 +136,7 @@ model DistributorPlanPrice {
 
   customPrice      Int // Precio personalizado en centavos
   customPricePromo Int? // Precio promo personalizado en centavos (opcional)
+
   isActive         Boolean @default(true)
 
   createdBy     String? // Admin que asignó el precio
@@ -236,4 +237,19 @@ model AccountMovement {
 
   createdAt DateTime  @default(now())
   recharge  Recharge? @relation(fields: [rechargeId], references: [id])
+}
+
+// ---------------------------
+// PUBLICIDAD
+// ---------------------------
+model Advertisement {
+  id        String   @id @default(cuid())
+  imageUrl  String // URL de la imagen guardada
+  isActive  Boolean  @default(true)
+  createdBy String? // Admin que creó la publicidad
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([isActive])
 }
