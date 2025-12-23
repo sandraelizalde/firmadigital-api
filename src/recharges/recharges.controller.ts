@@ -198,15 +198,39 @@ export class RechargesController {
   @ApiOperation({
     summary: 'Obtener mis movimientos de cuenta',
     description:
-      'Retorna todos los movimientos de cuenta (ingresos, egresos, ajustes) del distribuidor',
+      'Retorna todos los movimientos de cuenta (ingresos, egresos, ajustes) del distribuidor con paginación',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Cantidad de elementos por página (default: 10)',
+    example: 10,
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de movimientos de cuenta',
+    description: 'Lista de movimientos de cuenta con paginación',
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
-  async getMyAccountMovements(@Request() req) {
-    return this.rechargesService.getAccountMovements(req.user.userId);
+  async getMyAccountMovements(
+    @Request() req,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.rechargesService.getAccountMovements(
+      req.user.userId,
+      pageNum,
+      limitNum,
+    );
   }
 
   /**
@@ -421,23 +445,45 @@ export class RechargesController {
   @ApiOperation({
     summary: '[ADMIN] Ver movimientos de cuenta de un distribuidor',
     description:
-      'Retorna todos los movimientos de cuenta de un distribuidor específico',
+      'Retorna todos los movimientos de cuenta de un distribuidor específico con paginación',
   })
   @ApiParam({
     name: 'distributorId',
     description: 'ID del distribuidor',
     example: 'clxxx123456',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Cantidad de elementos por página (default: 10)',
+    example: 10,
+  })
   @ApiResponse({
     status: 200,
-    description: 'Lista de movimientos de cuenta',
+    description: 'Lista de movimientos de cuenta con paginación',
   })
   @ApiResponse({ status: 404, description: 'Distribuidor no encontrado' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
   async getDistributorAccountMovements(
     @Param('distributorId') distributorId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.rechargesService.getDistributorAccountMovements(distributorId);
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.rechargesService.getDistributorAccountMovements(
+      distributorId,
+      pageNum,
+      limitNum,
+    );
   }
 }

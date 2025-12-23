@@ -847,7 +847,7 @@ Content-Type: application/json
 ### 💳 Iniciar Recarga con Tarjeta (Payphone)
 **POST** `/recharges/init-card-recharge`
 
-Crea una recarga PENDING y retorna datos para configurar la cajita de Payphone.
+Crea una recarga PENDING con cálculos de comisión y retorna datos para configurar la cajita de Payphone.
 
 **Headers:**
 ```
@@ -864,7 +864,7 @@ Content-Type: application/json
 ```
 
 **Campos:**
-- `requestedAmount` (number, requerido): Monto en centavos (mínimo 100)
+- `requestedAmount` (number, requerido): Monto total a pagar en centavos (mínimo 100)
 - `reference` (string, opcional): Motivo del pago
 
 **Respuesta Exitosa (201):**
@@ -872,10 +872,9 @@ Content-Type: application/json
 {
   "rechargeId": "recharge456",
   "amount": 10000,
+  "commission": 600,
   "clientTransactionId": "recharge456",
   "payphone": {
-    "token": "uk73jInqfLLWEoypWu2MXAnTxWrQ2yphHS9C0oAV...",
-    "storeId": "828efefe-57c8-4f75-8852-fdcca3dd9ca5",
     "currency": "USD",
     "reference": "Recarga de saldo"
   },
@@ -886,6 +885,20 @@ Content-Type: application/json
   }
 }
 ```
+
+**Campos devueltos:**
+- `rechargeId`: ID único de la recarga creada
+- `amount`: Monto total a pagar (igual a `requestedAmount`)
+- `commission`: Comisión del 6% calculada automáticamente
+- `clientTransactionId`: ID de transacción para Payphone (igual a `rechargeId`)
+- `payphone`: Datos necesarios para configurar la cajita de pagos
+- `distributor`: Información del distribuidor para Payphone
+
+**⚠️ IMPORTANTE - Comisiones:**
+- Comisión: **6%** del monto total
+- Monto a acreditar: `requestedAmount - (requestedAmount * 0.06)`
+- Ejemplo: Si se paga $100.00, se cobra comisión de $6.00 y se acreditan $94.00 al saldo
+- Los valores de comisión y monto a acreditar se calculan y guardan en la base de datos al crear la recarga
 
 **Errores:**
 - `400`: Datos inválidos o distribuidor inactivo
@@ -898,7 +911,7 @@ Content-Type: application/json
 ### ✅ Confirmar Recarga con Tarjeta
 **POST** `/recharges/confirm-card-recharge`
 
-Confirma el estado de una recarga con tarjeta consultando Payphone API.
+Confirma el estado de una recarga con tarjeta consultando Payphone API y acredita el saldo si fue aprobada.
 
 **Headers:**
 ```
@@ -926,8 +939,8 @@ Content-Type: application/json
     "distributorId": "clxxx123abc",
     "method": "CARD",
     "requestedAmount": 10000,
-    "creditedAmount": 9700,
-    "commission": 300,
+    "creditedAmount": 9400,
+    "commission": 600,
     "status": "APPROVED",
     "paymentReference": "Payphone: 23178284",
     "createdAt": "2025-12-16T10:00:00.000Z",
@@ -936,15 +949,16 @@ Content-Type: application/json
       "firstName": "Luis",
       "lastName": "González",
       "email": "distribuidor@example.com",
-      "balance": 59700
+      "balance": 59400
     },
     "accountMovements": [
       {
         "id": "mov123",
         "type": "INCOME",
         "detail": "Recarga con tarjeta aprobada - Payphone",
-        "amount": 9700,
-        "balanceAfter": 59700,
+        "amount": 9400,
+        "balanceAfter": 59400,
+        "note": "Transacción Payphone: 23178284 - Mastercard Produbanco/Promerica XX17",
         "createdAt": "2025-12-16T10:01:00.000Z"
       }
     ]
@@ -959,12 +973,22 @@ Content-Type: application/json
 }
 ```
 
+**Comportamiento:**
+1. Consulta el estado de la transacción en Payphone
+2. Si es aprobada (statusCode=3), acredita el saldo usando los valores calculados en `initCardRecharge`
+3. Si es rechazada (statusCode=2), actualiza el estado a REJECTED sin acreditar
+4. Crea un movimiento de cuenta con el monto acreditado y detalles de Payphone
+
+**⚠️ IMPORTANTE:** 
+- Este endpoint debe llamarse dentro de los **5 minutos** posteriores al pago
+- Si no se confirma en ese tiempo, Payphone reversará automáticamente la transacción
+- Los valores de `creditedAmount` y `commission` ya fueron calculados en `initCardRecharge` (6% de comisión)
+- NO se recalcula la comisión, se usan los valores guardados en la base de datos
+
 **Errores:**
 - `400`: Recarga ya procesada o error en la confirmación
 - `401`: No autorizado
 - `404`: Recarga no encontrada
-
-**⚠️ IMPORTANTE:** Este endpoint debe llamarse dentro de los **5 minutos** posteriores al pago. Si no se confirma en ese tiempo, Payphone reversará automáticamente la transacción.
 
 ---
 
@@ -1135,49 +1159,67 @@ Authorization: Bearer {token}
 ### 💰 Obtener Mis Movimientos de Cuenta
 **GET** `/recharges/my-account-movements`
 
-Retorna todos los movimientos de cuenta del distribuidor (ingresos, egresos, ajustes).
+Retorna todos los movimientos de cuenta del distribuidor (ingresos, egresos, ajustes) con paginación.
 
 **Headers:**
 ```
 Authorization: Bearer {token}
 ```
 
+**Parámetros Query:**
+- `page` (number, opcional): Número de página (default: 1)
+- `limit` (number, opcional): Cantidad de elementos por página (default: 10)
+
+**Ejemplo Request:**
+```
+GET /recharges/my-account-movements?page=1&limit=10
+```
+
 **Respuesta Exitosa (200):**
 ```json
-[
-  {
-    "id": "mov123",
-    "distributorId": "clxxx123abc",
-    "type": "INCOME",
-    "detail": "Recarga aprobada - TRANSFER",
-    "amount": 10000,
-    "balanceAfter": 10000,
-    "note": "Aprobado por admin",
-    "createdAt": "2025-12-15T11:00:00.000Z",
-    "recharge": {
-      "id": "recharge123",
-      "method": "TRANSFER",
-      "requestedAmount": 10000,
-      "creditedAmount": 10000,
-      "status": "APPROVED"
+{
+  "success": true,
+  "data": [
+    {
+      "id": "mov123",
+      "distributorId": "clxxx123abc",
+      "type": "INCOME",
+      "detail": "Recarga aprobada - TRANSFER",
+      "amount": 10000,
+      "balanceAfter": 10000,
+      "note": "Aprobado por admin",
+      "createdAt": "2025-12-15T11:00:00.000Z",
+      "recharge": {
+        "id": "recharge123",
+        "method": "TRANSFER",
+        "requestedAmount": 10000,
+        "creditedAmount": 10000,
+        "status": "APPROVED"
+      }
+    },
+    {
+      "id": "mov124",
+      "distributorId": "clxxx123abc",
+      "type": "EXPENSE",
+      "detail": "Venta de recarga",
+      "amount": -1500,
+      "balanceAfter": 8500,
+      "createdAt": "2025-12-16T09:00:00.000Z",
+      "recharge": null
     }
-  },
-  {
-    "id": "mov124",
-    "distributorId": "clxxx123abc",
-    "type": "OUTCOME",
-    "detail": "Venta de recarga",
-    "amount": 1500,
-    "balanceAfter": 8500,
-    "createdAt": "2025-12-16T09:00:00.000Z",
-    "recharge": null
+  ],
+  "pagination": {
+    "total": 45,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 5
   }
-]
+}
 ```
 
 **Tipos de movimiento:**
 - `INCOME`: Ingreso (recargas aprobadas)
-- `OUTCOME`: Egreso (ventas, deducciones)
+- `EXPENSE`: Egreso (ventas, deducciones)
 - `ADJUSTMENT`: Ajuste manual
 
 **Errores:**
@@ -1466,7 +1508,7 @@ Content-Type: application/json
 ### 💰 [ADMIN] Ver Movimientos de Cuenta de Distribuidor
 **GET** `/recharges/admin/distributor/:distributorId/movements`
 
-Retorna todos los movimientos de cuenta de un distribuidor específico.
+Retorna todos los movimientos de cuenta de un distribuidor específico con paginación.
 
 **Headers:**
 ```
@@ -1476,28 +1518,46 @@ Authorization: Bearer {token}
 **Parámetros URL:**
 - `distributorId` (string): ID del distribuidor
 
+**Parámetros Query:**
+- `page` (number, opcional): Número de página (default: 1)
+- `limit` (number, opcional): Cantidad de elementos por página (default: 10)
+
+**Ejemplo Request:**
+```
+GET /recharges/admin/distributor/clxxx123abc/movements?page=1&limit=10
+```
+
 **Respuesta Exitosa (200):**
 ```json
-[
-  {
-    "id": "mov123",
-    "distributorId": "clxxx123abc",
-    "type": "INCOME",
-    "detail": "Recarga aprobada - TRANSFER",
-    "amount": 10000,
-    "balanceAfter": 10000,
-    "adminId": "admin456",
-    "note": "Aprobado",
-    "createdAt": "2025-12-15T11:00:00.000Z",
-    "recharge": {
-      "id": "recharge123",
-      "method": "TRANSFER",
-      "requestedAmount": 10000,
-      "creditedAmount": 10000,
-      "status": "APPROVED"
+{
+  "success": true,
+  "data": [
+    {
+      "id": "mov123",
+      "distributorId": "clxxx123abc",
+      "type": "INCOME",
+      "detail": "Recarga aprobada - TRANSFER",
+      "amount": 10000,
+      "balanceAfter": 10000,
+      "adminId": "admin456",
+      "note": "Aprobado",
+      "createdAt": "2025-12-15T11:00:00.000Z",
+      "recharge": {
+        "id": "recharge123",
+        "method": "TRANSFER",
+        "requestedAmount": 10000,
+        "creditedAmount": 10000,
+        "status": "APPROVED"
+      }
     }
+  ],
+  "pagination": {
+    "total": 87,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 9
   }
-]
+}
 ```
 
 **Errores:**

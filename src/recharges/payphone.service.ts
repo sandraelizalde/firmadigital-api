@@ -100,13 +100,4 @@ export class PayphoneService {
     }
   }
 
-  /**
-   * Obtiene las credenciales necesarias para el frontend
-   */
-  getPayphoneCredentials() {
-    return {
-      token: this.token,
-      storeId: this.storeId,
-    };
-  }
 }

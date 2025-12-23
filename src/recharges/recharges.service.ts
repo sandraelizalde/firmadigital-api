@@ -57,28 +57,26 @@ export class RechargesService {
       data: {
         distributorId,
         method: RechargeMethod.CARD,
-        requestedAmount: dto.requestedAmount,
+        requestedAmount: dto.requestedAmount + dto.requestedAmount * 0.06,
+        commission: dto.requestedAmount * 0.06, // 6% de comisión
         status: RechargeStatus.PENDING,
         paymentReference: dto.reference || 'Recarga con tarjeta',
       },
       select: {
         id: true,
         requestedAmount: true,
+        commission: true,
         createdAt: true,
       },
     });
-
-    // Obtener credenciales de Payphone
-    const credentials = this.payphoneService.getPayphoneCredentials();
 
     // Retornar datos para el frontend
     return {
       rechargeId: recharge.id,
       amount: recharge.requestedAmount,
+      commission: recharge.commission,
       clientTransactionId: recharge.id,
       payphone: {
-        token: credentials.token,
-        storeId: credentials.storeId,
         currency: 'USD',
         reference: dto.reference || 'Recarga de saldo',
       },
@@ -137,13 +135,11 @@ export class RechargesService {
     // Procesar la transacción
     return this.prisma.$transaction(async (tx) => {
       let newBalance = recharge.distributor.balance;
-      let creditedAmount = 0;
-      let commission = 0;
 
       if (status === RechargeStatus.APPROVED) {
-        // Calcular comisión (6% para tarjetas) - redondeado
-        commission = Math.round(recharge.requestedAmount * 0.06);
-        creditedAmount = recharge.requestedAmount - commission;
+        // Usar los valores ya calculados en initCardRecharge
+        const creditedAmount =
+          recharge.requestedAmount - (recharge.commission ?? 0);
         newBalance = recharge.distributor.balance + creditedAmount;
 
         // Actualizar balance
@@ -166,15 +162,16 @@ export class RechargesService {
         });
       }
 
-      // Actualizar recarga
+      // Actualizar recarga con el estado de Payphone
       const updatedRecharge = await tx.recharge.update({
         where: { id: recharge.id },
         data: {
           status,
-          creditedAmount:
-            status === RechargeStatus.APPROVED ? creditedAmount : null,
-          commission: status === RechargeStatus.APPROVED ? commission : null,
           paymentReference: `Payphone: ${payphoneResponse.transactionId}`,
+          creditedAmount:
+            status === RechargeStatus.APPROVED
+              ? recharge.requestedAmount - (recharge.commission ?? 0)
+              : 0,
         },
         include: {
           distributor: {
@@ -598,10 +595,24 @@ export class RechargesService {
   /**
    * Obtener movimientos de cuenta del distribuidor
    */
-  async getAccountMovements(distributorId: string) {
-    return this.prisma.accountMovement.findMany({
+  async getAccountMovements(
+    distributorId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const skip = (page - 1) * limit;
+
+    // Obtener total de movimientos
+    const total = await this.prisma.accountMovement.count({
+      where: { distributorId },
+    });
+
+    // Obtener movimientos paginados
+    const movements = await this.prisma.accountMovement.findMany({
       where: { distributorId },
       orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
       include: {
         recharge: {
           select: {
@@ -614,12 +625,27 @@ export class RechargesService {
         },
       },
     });
+
+    return {
+      success: true,
+      data: movements,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
    * ADMIN: Obtener movimientos de cuenta de un distribuidor
    */
-  async getDistributorAccountMovements(distributorId: string) {
+  async getDistributorAccountMovements(
+    distributorId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
     const distributor = await this.prisma.distributor.findUnique({
       where: { id: distributorId },
     });
@@ -628,7 +654,7 @@ export class RechargesService {
       throw new NotFoundException('Distribuidor no encontrado');
     }
 
-    return this.getAccountMovements(distributorId);
+    return this.getAccountMovements(distributorId, page, limit);
   }
 
   /**
