@@ -12,6 +12,7 @@ import { DistributorsModule } from './distributors/distributors.module';
 import { RechargesModule } from './recharges/recharges.module';
 import { FilesModule } from './files/files.module';
 import { AdvertisementsModule } from './advertisements/advertisements.module';
+import { SignaturesModule } from './signatures/signatures.module';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
@@ -33,6 +34,7 @@ import { ConfigModule } from '@nestjs/config';
     RechargesModule,
     FilesModule,
     AdvertisementsModule,
+    SignaturesModule,
   ],
   controllers: [AppController],
   providers: [

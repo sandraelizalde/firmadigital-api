@@ -6,6 +6,7 @@
 - [Planes](#planes)
 - [Recargas](#recargas)
 - [Publicidad](#publicidad)
+- [Firmas Digitales](#firmas-digitales)
 
 ---
 
@@ -1843,3 +1844,387 @@ Authorization: Bearer {token}
 - Las publicidades activas aparecen automáticamente en el dashboard del distribuidor
 - Formatos de imagen soportados: JPG, PNG, GIF, WEBP
 
+---
+
+## Firmas Digitales
+
+### ✍️ Crear Solicitud de Firma Digital - Persona Natural (DISTRIBUTOR)
+**POST** `/signatures/natural`
+
+Permite a un distribuidor crear una solicitud de firma digital para persona natural. Los datos son enviados al proveedor ENEXT. El sistema valida el balance del distribuidor y cobra automáticamente solo si la solicitud es exitosa (código 1 del proveedor).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "nombres": "LUIS XAVIER",
+  "apellidos": "GONZALEZ JIMENEZ",
+  "cedula": "1752549467",
+  "codigo_dactilar": "V43I4444",
+  "correo": "luisg@solucionesnexus.com",
+  "provincia": "PICHINCHA",
+  "ciudad": "QUITO",
+  "parroquia": "IÑAQUITO",
+  "direccion": "QUITUS COLONIAL",
+  "celular": "0990602199",
+  "clavefirma": "GONZALEZ1752",
+  "foto_frontal": "https://example.com/frontal.jpg",
+  "foto_posterior": "https://example.com/posterior.jpg",
+  "perfil_firma": "PN-001",
+  "dateOfBirth": "1990-05-15",
+  "tipo_envio": "1",
+  "ruc": "1752549467001"
+}
+```
+
+**Campos:**
+- `nombres` (string, requerido): Nombres del solicitante
+- `apellidos` (string, requerido): Apellidos del solicitante
+- `cedula` (string, requerido): Número de cédula (10 dígitos)
+- `codigo_dactilar` (string, requerido): Código dactilar de la cédula
+- `correo` (string, requerido): Correo electrónico del solicitante
+- `provincia` (string, requerido): Provincia de residencia
+- `ciudad` (string, requerido): Ciudad de residencia
+- `parroquia` (string, requerido): Parroquia de residencia
+- `direccion` (string, requerido): Dirección completa
+- `celular` (string, requerido): Número de celular (10 dígitos)
+- `clavefirma` (string, requerido): Clave para la firma digital
+- `foto_frontal` (string, requerido): URL de la foto frontal de la cédula
+- `foto_posterior` (string, requerido): URL de la foto posterior de la cédula
+- `perfil_firma` (string, requerido): Código del plan de firma (formato: PN-XXX, ejemplo: "PN-001")
+- `dateOfBirth` (string, requerido): Fecha de nacimiento en formato ISO (YYYY-MM-DD)
+- `tipo_envio` (string, requerido): Tipo de envío ("1" = normal, "2" = express)
+- `ruc` (string, opcional): RUC si la persona natural lo tiene (13 dígitos)
+
+**Respuesta Exitosa - Aprobada por el Proveedor (201):**
+```json
+{
+  "success": true,
+  "message": "Solicitud enviada correctamente",
+  "data": {
+    "id": "clx1234567890",
+    "numero_tramite": "17034425678900001",
+    "perfil_firma": "PN-001",
+    "nombres": "LUIS XAVIER",
+    "apellidos": "GONZALEZ JIMENEZ",
+    "cedula": "1752549467",
+    "status": "COMPLETED",
+    "providerCode": "1",
+    "providerMessage": "Solicitud enviada correctamente"
+  },
+  "balance": 450000,
+  "priceCharged": 79900
+}
+```
+
+**Respuesta - Rechazada por el Proveedor (201):**
+```json
+{
+  "success": false,
+  "message": "El código dactilar no corresponde a la cédula ingresada",
+  "data": {
+    "id": "clx1234567890",
+    "numero_tramite": "17034425678900002",
+    "status": "REJECTED",
+    "providerCode": "0"
+  },
+  "balance": 450000,
+  "priceCharged": 0
+}
+```
+
+**Notas importantes:**
+- Si el proveedor retorna código `1`: se marca como `COMPLETED` y se cobra el monto del plan
+- Si el proveedor retorna código `0`: se marca como `REJECTED` y NO se cobra
+- Si hay cualquier otro código: se marca como `FAILED` y NO se cobra
+- El balance se muestra en centavos (450000 = $4500.00)
+- El registro siempre se guarda en la BD independiente del resultado
+
+**Errores:**
+- `400`: Balance insuficiente, plan no asignado, distribuidor inactivo o datos inválidos
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (solo para distribuidores)
+
+---
+
+### ✍️ Crear Solicitud de Firma Digital - Persona Jurídica (DISTRIBUTOR)
+**POST** `/signatures/juridica`
+
+Permite a un distribuidor crear una solicitud de firma digital para empresa/persona jurídica. Requiere datos adicionales como RUC, razón social, representante legal y nombramiento. El sistema valida el balance y cobra automáticamente solo si la solicitud es exitosa.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "nombres": "LUIS XAVIER",
+  "apellidos": "GONZALEZ JIMENEZ",
+  "cedula": "1752549467",
+  "codigo_dactilar": "V43I4444",
+  "correo": "luisg@solucionesnexus.com",
+  "provincia": "PICHINCHA",
+  "ciudad": "QUITO",
+  "parroquia": "IÑAQUITO",
+  "direccion": "QUITUS COLONIAL",
+  "celular": "0990602199",
+  "clavefirma": "GONZALEZ1752",
+  "foto_frontal": "https://example.com/frontal.jpg",
+  "foto_posterior": "https://example.com/posterior.jpg",
+  "perfil_firma": "PJ-003",
+  "dateOfBirth": "1990-05-15",
+  "ruc": "1752549467001",
+  "razon_social": "DISTRIBUIDORA GONZALEZ S.A.",
+  "rep_legal": "LUIS XAVIER GONZALEZ JIMENEZ",
+  "cargo": "GERENTE GENERAL",
+  "nombramiento": "https://example.com/nombramiento.pdf"
+}
+```
+
+**Campos adicionales (además de los de persona natural):**
+- `ruc` (string, requerido): RUC de la empresa (13 dígitos)
+- `razon_social` (string, requerido): Razón social de la empresa
+- `rep_legal` (string, requerido): Nombre completo del representante legal
+- `cargo` (string, requerido): Cargo del representante legal
+- `nombramiento` (string, requerido): URL del documento de nombramiento
+- `perfil_firma` (string, requerido): Código del plan de firma (formato: PJ-XXX, ejemplo: "PJ-003")
+
+**Respuesta Exitosa - Aprobada por el Proveedor (201):**
+```json
+{
+  "success": true,
+  "message": "Solicitud enviada correctamente",
+  "data": {
+    "id": "clx1234567890",
+    "numero_tramite": "17034425678900001",
+    "perfil_firma": "PJ-003",
+    "nombres": "LUIS XAVIER",
+    "apellidos": "GONZALEZ JIMENEZ",
+    "cedula": "1752549467",
+    "ruc": "1752549467001",
+    "razon_social": "DISTRIBUIDORA GONZALEZ S.A.",
+    "rep_legal": "LUIS XAVIER GONZALEZ JIMENEZ",
+    "cargo": "GERENTE GENERAL",
+    "status": "COMPLETED",
+    "providerCode": "1",
+    "providerMessage": "Solicitud enviada correctamente"
+  },
+  "balance": 300000,
+  "priceCharged": 149900
+}
+```
+
+**Respuesta - Rechazada por el Proveedor (201):**
+```json
+{
+  "success": false,
+  "message": "El RUC no es válido",
+  "data": {
+    "id": "clx1234567890",
+    "numero_tramite": "17034425678900002",
+    "status": "REJECTED",
+    "providerCode": "0"
+  },
+  "balance": 450000,
+  "priceCharged": 0
+}
+```
+
+**Notas importantes:**
+- Misma lógica de cobro que persona natural (solo se cobra si código = 1)
+- El RUC debe tener exactamente 13 dígitos
+- Los campos del representante legal deben corresponder a quien firma el documento
+- El nombramiento debe ser un documento válido y accesible
+
+**Errores:**
+- `400`: Balance insuficiente, plan no asignado, distribuidor inactivo o datos inválidos (RUC debe tener 13 dígitos)
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (solo para distribuidores)
+
+---
+
+### 📋 Obtener Mis Solicitudes de Firma (DISTRIBUTOR)
+**GET** `/signatures`
+
+Retorna todas las solicitudes de firma digital creadas por el distribuidor autenticado.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Respuesta Exitosa (200):**
+```json
+[
+  {
+    "id": "clx1234567890",
+    "numero_tramite": "DIST1703342567890001",
+    "perfil_firma": "018",
+    "nombres": "FERNANDO MATIAS",
+    "apellidos": "TURIZO FERNANDEZ",
+    "cedula": "1752549468",
+    "correo": "luisg@solucionesnexus.com",
+    "status": "PENDING",
+    "providerCode": "200",
+    "providerMessage": "Solicitud recibida",
+    "createdAt": "2025-12-23T10:30:00.000Z",
+    "updatedAt": "2025-12-23T10:30:00.000Z"
+  },
+  {
+    "id": "clx9876543210",
+    "numero_tramite": "DIST1703342567890002",
+    "perfil_firma": "018",
+    "nombres": "MARIA JOSE",
+    "apellidos": "PEREZ LOPEZ",
+    "cedula": "0987654321",
+    "correo": "maria@example.com",
+    "status": "COMPLETED",
+    "providerCode": "200",
+    "providerMessage": "Firma procesada exitosamente",
+    "createdAt": "2025-12-22T15:20:00.000Z",
+    "updatedAt": "2025-12-22T16:00:00.000Z"
+  }
+]
+```
+
+**Errores:**
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (solo para distribuidores)
+
+---
+
+### 🔍 Obtener Detalle de Solicitud de Firma (DISTRIBUTOR)
+**GET** `/signatures/:id`
+
+Retorna los detalles completos de una solicitud de firma específica del distribuidor autenticado.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+- `id` (string): ID de la solicitud de firma
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "id": "clx1234567890",
+  "numero_tramite": "DIST1703342567890001",
+  "perfil_firma": "018",
+  "nombres": "FERNANDO MATIAS",
+  "apellidos": "TURIZO FERNANDEZ",
+  "cedula": "1752549468",
+  "correo": "luisg@solucionesnexus.com",
+  "codigo_dactilar": "V43I4444",
+  "celular": "0990602199",
+  "provincia": "PICHINCHA",
+  "ciudad": "QUITO",
+  "parroquia": "IÑAQUITO",
+  "direccion": "QUITUS COLONIAL",
+  "dateOfBirth": "1990-05-15T00:00:00.000Z",
+  "foto_frontal": "https://example.com/frontal.jpg",
+  "foto_posterior": "https://example.com/posterior.jpg",
+  "video_face": null,
+  "pdf_sri": null,
+  "nombramiento": null,
+  "razon_social": null,
+  "rep_legal": null,
+  "cargo": null,
+  "clavefirma": "GONZALEZ1752",
+  "ruc": null,
+  "pais": "ECUADOR",
+  "status": "PENDING",
+  "providerCode": "200",
+  "providerMessage": "Solicitud recibida",
+  "activeNotification": true,
+  "distributorId": "clxdist123",
+  "createdAt": "2025-12-23T10:30:00.000Z",
+  "updatedAt": "2025-12-23T10:30:00.000Z"
+}
+```
+
+**Errores:**
+- `400`: Solicitud no encontrada o no pertenece al distribuidor
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (solo para distribuidores)
+
+---
+
+### 📌 Notas sobre Firmas Digitales
+
+**Tipos de firma:**
+- **Persona Natural** (`/signatures/natural`): Para individuos que requieren firma digital personal
+  - Planes identificados con prefijo `PN-` (ejemplo: PN-001, PN-002)
+- **Persona Jurídica** (`/signatures/juridica`): Para empresas y organizaciones
+  - Planes identificados con prefijo `PJ-` (ejemplo: PJ-001, PJ-003)
+  - Requiere RUC (13 dígitos), razón social, representante legal y nombramiento
+
+**Sistema de cobro:**
+- El balance se valida ANTES de enviar la solicitud al proveedor
+- Solo se cobra si el proveedor retorna código `1` (solicitud exitosa)
+- Si el proveedor rechaza (código `0`) o falla, NO se cobra
+- El registro siempre se guarda en la base de datos para auditoría
+- Se crea un AccountMovement de tipo EXPENSE cuando se cobra
+
+**Estados de solicitud:**
+- `COMPLETED`: Proveedor aceptó y procesó la solicitud (código = 1)
+- `REJECTED`: Proveedor rechazó la solicitud (código = 0)
+- `FAILED`: Error en la comunicación o código desconocido del proveedor
+
+**Proveedor ENEXT:**
+- Autenticación: Basic Auth (credenciales diferentes para payload vs headers)
+- Número de trámite: Generado automáticamente con timestamp
+- Respuestas del proveedor:
+  - `codigo: 1` = Solicitud exitosa y aceptada
+  - `codigo: 0` = Solicitud rechazada (problemas con datos del cliente)
+  - Otros códigos = Error de procesamiento
+
+**Variables de entorno necesarias:**
+```env
+# URL del proveedor para personas naturales
+SIGN_PROVIDER_BASE_URL_NATURAL=https://enext.online/factureroV2/apiFactu/PN3.php
+
+# URL del proveedor para personas jurídicas
+SIGN_PROVIDER_BASE_URL_JURIDICA=https://enext.online/factureroV2/apiFactu/PJ3.php
+
+# Credenciales para el payload de la solicitud
+SIGN_PROVIDER_USER=usuario_payload
+SIGN_PROVIDER_PASSWORD=password_payload
+
+# Credenciales para Basic Auth (headers)
+SIGN_PROVIDER_AUTH_USERNAME=factu465
+SIGN_PROVIDER_AUTH_PASSWORD=apifac
+```
+
+**Seguridad:**
+- Solo distribuidores activos con rol DISTRIBUTOR pueden crear solicitudes
+- El distribuidor debe tener el plan asignado antes de poder usarlo
+- Se valida que el distribuidor tenga balance suficiente
+- Cada distribuidor solo puede ver sus propias solicitudes
+
+**Logs y auditoría:**
+- Todas las solicitudes y respuestas del proveedor se registran
+- Los movimientos de cuenta se registran con referencia al ID de la solicitud
+- Se mantiene historial completo de todas las operaciones
+
+**Formato de datos:**
+- Balance y precios en centavos (100 centavos = $1.00)
+- Fechas en formato ISO 8601
+- Cédula: 10 dígitos
+- RUC: 13 dígitos
+- Celular: 10 dígitos
+- País: "ECUADOR" por defecto
+- Tipo de envío: "1" = normal, "2" = express
+
+**Recursos externos:**
+- Las URLs de fotos, videos y documentos deben ser accesibles públicamente
+- El proveedor necesita acceso directo a estos recursos para procesarlos

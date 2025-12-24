@@ -7,6 +7,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AssignPlansToDistributorDto } from './dto/assign-plan-to-distributor.dto';
 import { UpdateDistributorPlanPriceDto } from './dto/update-distributor-plan-price.dto';
+import { TypeClient } from '@prisma/client';
 
 @Injectable()
 export class PlansService {
@@ -334,6 +335,117 @@ export class PlansService {
         identification: d.identification,
         plansCount: d.planPrices.length,
         plans: d.planPrices,
+      })),
+    };
+  }
+
+  // Obtener planes para personas naturales del distribuidor autenticado
+  async getDistributorNaturalPlans(distributorId: string) {
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId, active: true },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException({
+        message: 'Distribuidor no encontrado o inactivo',
+        error: 'DISTRIBUTOR_NOT_FOUND',
+      });
+    }
+
+    const assignments = await this.prisma.distributorPlanPrice.findMany({
+      where: {
+        distributorId,
+        isActive: true,
+        plan: {
+          eligibleClientsType: {
+            hasSome: [
+              TypeClient.PERSONA_NATURAL_SIN_RUC,
+              TypeClient.PERSONA_NATURAL_CON_RUC,
+            ],
+          },
+          isActive: true,
+        },
+      },
+      include: {
+        plan: true,
+      },
+      orderBy: {
+        plan: {
+          perfil: 'asc',
+        },
+      },
+    });
+
+    return {
+      success: true,
+      plans: assignments.map((a) => ({
+        id: a.plan.id,
+        perfil: a.plan.perfil,
+        basePrice: a.plan.basePrice,
+        basePricePromo: a.plan.basePricePromo,
+        duration: a.plan.duration,
+        durationType: a.plan.durationType,
+        durationPromo: a.plan.durationPromo,
+        isPromo: a.plan.isPromo,
+        eligibleClientsType: a.plan.eligibleClientsType,
+        customPrice: a.customPrice,
+        customPricePromo: a.customPricePromo,
+        isActive: a.isActive,
+        createdAt: a.createdAt,
+      })),
+    };
+  }
+
+  // Obtener planes para personas jurídicas del distribuidor autenticado
+  async getDistributorJuridicalPlans(distributorId: string) {
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId, active: true },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException({
+        message: 'Distribuidor no encontrado o inactivo',
+        error: 'DISTRIBUTOR_NOT_FOUND',
+      });
+    }
+
+    const assignments = await this.prisma.distributorPlanPrice.findMany({
+      where: {
+        distributorId,
+        isActive: true,
+        plan: {
+          eligibleClientsType: {
+            has: TypeClient.PERSONA_JURIDICA,
+          },
+          isActive: true,
+        },
+      },
+      include: {
+        plan: true,
+      },
+      orderBy: {
+        plan: {
+          perfil: 'asc',
+        },
+      },
+    });
+
+    return {
+      success: true,
+      plans: assignments.map((a) => ({
+        id: a.plan.id,
+        perfil: a.plan.perfil,
+        basePrice: a.plan.basePrice,
+        basePricePromo: a.plan.basePricePromo,
+        duration: a.plan.duration,
+        durationType: a.plan.durationType,
+        durationPromo: a.plan.durationPromo,
+        isPromo: a.plan.isPromo,
+        eligibleClientsType: a.plan.eligibleClientsType,
+        customPrice: a.customPrice,
+        customPricePromo: a.customPricePromo,
+        isActive: a.isActive,
+        createdAt: a.createdAt,
       })),
     };
   }

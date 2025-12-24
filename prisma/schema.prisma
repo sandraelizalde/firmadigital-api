@@ -27,6 +27,7 @@ enum TypeClient {
 enum SignatureStatus {
   COMPLETED
   PENDING
+  REJECTED
   FAILED
 }
 
@@ -119,7 +120,6 @@ model Plan {
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
-  signatureRequests     SignatureRequest[]
   distributorPlanPrices DistributorPlanPrice[]
 }
 
@@ -137,7 +137,7 @@ model DistributorPlanPrice {
   customPrice      Int // Precio personalizado en centavos
   customPricePromo Int? // Precio promo personalizado en centavos (opcional)
 
-  isActive         Boolean @default(true)
+  isActive Boolean @default(true)
 
   createdBy     String? // Admin que asignó el precio
   createdByName String?
@@ -157,7 +157,6 @@ model SignatureRequest {
   id                 String          @id @default(cuid())
   numero_tramite     String          @unique
   perfil_firma       String
-  perfilFirma        Plan            @relation(fields: [perfil_firma], references: [perfil])
   nombres            String
   apellidos          String
   cedula             String
@@ -171,7 +170,6 @@ model SignatureRequest {
   dateOfBirth        DateTime        @db.Timestamptz(6)
   foto_frontal       String
   foto_posterior     String
-  foto_selfie        String
   video_face         String?
   pdf_sri            String?
   nombramiento       String?
@@ -243,13 +241,13 @@ model AccountMovement {
 // PUBLICIDAD
 // ---------------------------
 model Advertisement {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   imageUrl  String // URL de la imagen guardada
-  isActive  Boolean  @default(true)
+  isActive  Boolean @default(true)
   createdBy String? // Admin que creó la publicidad
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([isActive])
 }

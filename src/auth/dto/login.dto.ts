@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class LoginDto {
   @ApiProperty({
     description: 'Cédula o RUC del distribuidor',
-    example: '1752549467',
+    example: '1752549468',
     type: String,
     minLength: 10,
     maxLength: 13,

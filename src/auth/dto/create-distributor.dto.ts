@@ -49,7 +49,7 @@ export class CreateDistributorDto {
 
   @ApiProperty({
     description: 'Número de cédula o RUC del distribuidor',
-    example: '1752549467',
+    example: '1752549468',
     type: String,
     minLength: 10,
     maxLength: 13,

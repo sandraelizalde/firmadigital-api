@@ -286,4 +286,101 @@ export class PlansController {
   async getAllDistributorsWithPlans() {
     return await this.plansService.getAllDistributorsWithPlans();
   }
+
+  @ApiOperation({
+    summary: 'Obtener mis planes de persona natural',
+    description:
+      'Obtiene todos los planes para personas naturales asignados al distribuidor autenticado con sus precios personalizados. Incluye planes para PERSONA_NATURAL_SIN_RUC y PERSONA_NATURAL_CON_RUC.',
+  })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de planes naturales del distribuidor',
+    schema: {
+      example: {
+        success: true,
+        plans: [
+          {
+            id: 'clx123',
+            perfil: 'PN-001',
+            basePrice: 79900,
+            basePricePromo: 69900,
+            duration: '1',
+            durationType: 'Y',
+            durationPromo: null,
+            isPromo: true,
+            eligibleClientsType: [
+              'PERSONA_NATURAL_SIN_RUC',
+              'PERSONA_NATURAL_CON_RUC',
+            ],
+            customPrice: 75000,
+            customPricePromo: 65000,
+            isActive: true,
+            createdAt: '2024-12-20T10:00:00.000Z',
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo para distribuidores',
+  })
+  @Get('my-plans/natural')
+  @Roles(Role.DISTRIBUTOR)
+  async getMyNaturalPlans(@Request() req: any) {
+    return await this.plansService.getDistributorNaturalPlans(req.user.userId);
+  }
+
+  @ApiOperation({
+    summary: 'Obtener mis planes de persona jurídica',
+    description:
+      'Obtiene todos los planes para personas jurídicas asignados al distribuidor autenticado con sus precios personalizados. Incluye planes con PERSONA_JURIDICA.',
+  })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de planes jurídicos del distribuidor',
+    schema: {
+      example: {
+        success: true,
+        plans: [
+          {
+            id: 'clx456',
+            perfil: 'PJ-003',
+            basePrice: 149900,
+            basePricePromo: 129900,
+            duration: '1',
+            durationType: 'Y',
+            durationPromo: null,
+            isPromo: true,
+            eligibleClientsType: ['PERSONA_JURIDICA'],
+            customPrice: 140000,
+            customPricePromo: 120000,
+            isActive: true,
+            createdAt: '2024-12-20T10:00:00.000Z',
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo para distribuidores',
+  })
+  @Get('my-plans/juridica')
+  @Roles(Role.DISTRIBUTOR)
+  async getMyJuridicalPlans(@Request() req: any) {
+    return await this.plansService.getDistributorJuridicalPlans(
+      req.user.userId,
+    );
+  }
 }
