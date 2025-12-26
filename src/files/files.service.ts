@@ -9,7 +9,6 @@ import {
 @Injectable()
 export class FilesService {
   private readonly s3Client: S3Client;
-  private readonly bucketName = 'vouchers-nexus';
   private readonly logger = new Logger(FilesService.name);
 
   constructor() {
@@ -42,10 +41,12 @@ export class FilesService {
    * @param extension - Extensión del archivo (jpg, png, pdf, etc.)
    * @returns URL del archivo subido
    */
-  async uploadVoucher(
+  async uploadFile(
     base64: string,
-    rechargeId: number,
+    rechargeId: number | string,
     extension: string,
+    file: string,
+    bucket: string,
   ): Promise<string> {
     try {
       // Remover el prefijo data:image/jpeg;base64, si existe
@@ -53,23 +54,23 @@ export class FilesService {
       const buffer = Buffer.from(base64Data, 'base64');
 
       const timestamp = Date.now();
-      const key = `vouchers-distribuidores/${rechargeId}-${timestamp}.${extension}`;
+      const key = `${file}/${rechargeId}-${timestamp}.${extension}`;
 
       const command = new PutObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: bucket,
         Key: key,
         Body: buffer,
         ContentType: this.getContentType(extension),
       });
 
       await this.s3Client.send(command);
-      const fileUrl = `${process.env.WASABI_ENDPOINT}/${this.bucketName}/${key}`;
+      const fileUrl = `${key}`;
 
-      this.logger.log(`Voucher subido exitosamente: ${key}`);
+      this.logger.log(`Archivo subido exitosamente en ${bucket}: ${key}`);
       return fileUrl;
     } catch (error) {
-      this.logger.error(`Error al subir voucher: ${error.message}`);
-      throw new Error(`Error al subir voucher: ${error.message}`);
+      this.logger.error(`Error al subir ${bucket}: ${error.message}`);
+      throw new Error(`Error al subir ${bucket}: ${error.message}`);
     }
   }
 
@@ -78,11 +79,10 @@ export class FilesService {
    * @param url - URL completa del archivo en S3
    * @returns Archivo en formato base64
    */
-  async getVoucher(url: string): Promise<string> {
+  async getFile(key: string, bucket: string): Promise<string> {
     try {
-      const key = this.extractKeyFromUrl(url);
       const command = new GetObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: bucket,
         Key: key,
       });
 
@@ -98,8 +98,8 @@ export class FilesService {
 
       return base64;
     } catch (error) {
-      this.logger.error(`Error al obtener voucher: ${error.message}`);
-      throw new Error(`Error al obtener voucher: ${error.message}`);
+      this.logger.error(`Error al obtener ${key}: ${error.message}`);
+      throw new Error(`Error al obtener ${key}: ${error.message}`);
     }
   }
 
@@ -107,30 +107,19 @@ export class FilesService {
    * Elimina un voucher del bucket de S3
    * @param url - URL completa del archivo en S3
    */
-  async deleteVoucher(url: string): Promise<void> {
+  async deleteFile(key: string, bucket: string): Promise<void> {
     try {
-      const key = this.extractKeyFromUrl(url);
       const command = new DeleteObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: bucket,
         Key: key,
       });
 
       await this.s3Client.send(command);
       this.logger.log(`Voucher eliminado exitosamente: ${key}`);
     } catch (error) {
-      this.logger.error(`Error al eliminar voucher: ${error.message}`);
-      throw new Error(`Error al eliminar voucher: ${error.message}`);
+      this.logger.error(`Error al eliminar ${key}: ${error.message}`);
+      throw new Error(`Error al eliminar ${key}: ${error.message}`);
     }
-  }
-
-  /**
-   * Extrae la clave (key) de una URL completa de Wasabi
-   * @param url - URL completa del archivo
-   * @returns Clave del archivo en S3
-   */
-  private extractKeyFromUrl(url: string): string {
-    const urlParts = url.split(`${this.bucketName}/`);
-    return urlParts[1] || url;
   }
 
   /**

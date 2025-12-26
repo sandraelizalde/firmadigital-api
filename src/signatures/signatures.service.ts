@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
 import { SignatureStatus, MovementType } from '@prisma/client';
+import { FilesService } from 'src/files/files.service';
 
 /**
  * Interface para la respuesta del proveedor de firmas
@@ -36,6 +37,7 @@ export class SignaturesService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
+    private readonly filesService: FilesService,
   ) {
     this.signProviderBaseUrlNatural = this.configService.get<string>(
       'SIGN_PROVIDER_BASE_URL_NATURAL',
@@ -175,7 +177,7 @@ export class SignaturesService {
         numero_tramite,
         usuario: this.signProviderUser,
         password: this.signProviderPassword,
-        perfil_firma: dto.perfil_firma,
+        perfil_firma: this.cleanPerfilFirma(dto.perfil_firma),
         nombres: dto.nombres.toUpperCase(),
         apellidos: dto.apellidos.toUpperCase(),
         cedula: dto.cedula,
@@ -240,6 +242,43 @@ export class SignaturesService {
           });
         }
 
+        const foto_frontal_key = await this.filesService.uploadFile(
+          dto.foto_frontal,
+          distributorId.toString(),
+          'jpg',
+          'fotos-distribuidores',
+          'fotos-cedulas',
+        );
+
+        const foto_posterior_key = await this.filesService.uploadFile(
+          dto.foto_posterior,
+          distributorId.toString(),
+          'jpg',
+          'fotos-distribuidores',
+          'fotos-cedulas',
+        );
+        let pdf_sri_key;
+        let nombramiento_key;
+
+        if (dto.pdfSriBase64) {
+          pdf_sri_key = await this.filesService.uploadFile(
+            dto.pdfSriBase64,
+            distributorId.toString(),
+            'pdf',
+            'pdfs-distribuidores',
+            'pdf-sri',
+          );
+        }
+        if (dto.nombramientoBase64) {
+          nombramiento_key = await this.filesService.uploadFile(
+            dto.nombramientoBase64,
+            distributorId.toString(),
+            'pdf',
+            'pdfs-distribuidores',
+            'pdf-nombramiento',
+          );
+        }
+
         // Crear la solicitud de firma (siempre, sin importar el resultado)
         const signatureRequest = await tx.signatureRequest.create({
           data: {
@@ -256,15 +295,15 @@ export class SignaturesService {
             parroquia: dto.parroquia.toUpperCase(),
             direccion: dto.direccion.toUpperCase(),
             dateOfBirth: new Date(dto.dateOfBirth),
-            foto_frontal: dto.foto_frontal,
-            foto_posterior: dto.foto_posterior,
+            foto_frontal: foto_frontal_key,
+            foto_posterior: foto_posterior_key,
             clavefirma: dto.clavefirma,
             ruc: dto.ruc || null,
             razon_social: dto.razon_social?.toUpperCase() || null,
             rep_legal: dto.rep_legal?.toUpperCase() || null,
             cargo: dto.cargo?.toUpperCase() || null,
-            nombramiento: dto.nombramientoBase64 || null,
-            pdf_sri: dto.pdfSriBase64 || null,
+            nombramiento: nombramiento_key || null,
+            pdf_sri: pdf_sri_key || null,
             tipo_envio: '1',
             pais: 'ECUADOR',
             distributorId,
@@ -448,22 +487,131 @@ export class SignaturesService {
   }
 
   /**
-   * Obtiene las solicitudes de firma de un distribuidor
+   * Obtiene las solicitudes de firma de un distribuidor con paginación
    * @param distributorId ID del distribuidor
-   * @returns Lista de solicitudes de firma
+   * @param page Número de página
+   * @param limit Cantidad de resultados por página
+   * @returns Lista paginada de solicitudes de firma con fotos en Base64
    */
-  async getDistributorSignatureRequests(distributorId: string) {
-    return this.prisma.signatureRequest.findMany({
+  async getAllSignatureRequests(
+    distributorId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const skip = (page - 1) * limit;
+
+    // Obtener el total de registros
+    const total = await this.prisma.signatureRequest.count({
+      where: { distributorId },
+    });
+
+    // Obtener las solicitudes paginadas
+    const signatureRequests = await this.prisma.signatureRequest.findMany({
       where: { distributorId },
       orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
     });
+
+    // Convertir las fotos de S3 a Base64
+    const signatureRequestsWithBase64 = await Promise.all(
+      signatureRequests.map(async (request) => {
+        try {
+          return {
+            id: request.id,
+            numero_tramite: request.numero_tramite,
+            perfil_firma: request.perfil_firma,
+            nombres: request.nombres,
+            apellidos: request.apellidos,
+            cedula: request.cedula,
+            correo: request.correo,
+            codigo_dactilar: request.codigo_dactilar,
+            celular: request.celular,
+            provincia: request.provincia,
+            ciudad: request.ciudad,
+            parroquia: request.parroquia,
+            direccion: request.direccion,
+            dateOfBirth: request.dateOfBirth,
+            razon_social: request.razon_social,
+            rep_legal: request.rep_legal,
+            cargo: request.cargo,
+            pais: request.pais,
+            clavefirma: request.clavefirma,
+            ruc: request.ruc,
+            tipo_envio: request.tipo_envio,
+            status: request.status,
+            providerCode: request.providerCode,
+            providerMessage: request.providerMessage,
+            activeNotification: request.activeNotification,
+            createdAt: request.createdAt,
+            updatedAt: request.updatedAt,
+          };
+        } catch (error) {
+          this.logger.error(
+            `Error al obtener fotos de S3 para solicitud ${request.id}: ${error.message}`,
+          );
+          // En caso de error, devolver la solicitud sin las imágenes
+          return {
+            id: request.id,
+            numero_tramite: request.numero_tramite,
+            perfil_firma: request.perfil_firma,
+            nombres: request.nombres,
+            apellidos: request.apellidos,
+            cedula: request.cedula,
+            correo: request.correo,
+            codigo_dactilar: request.codigo_dactilar,
+            celular: request.celular,
+            provincia: request.provincia,
+            ciudad: request.ciudad,
+            parroquia: request.parroquia,
+            direccion: request.direccion,
+            dateOfBirth: request.dateOfBirth,
+            foto_frontal_base64: null,
+            foto_posterior_base64: null,
+            video_face: request.video_face,
+            pdf_sri_base64: null,
+            nombramiento_base64: null,
+            razon_social: request.razon_social,
+            rep_legal: request.rep_legal,
+            cargo: request.cargo,
+            pais: request.pais,
+            clavefirma: request.clavefirma,
+            ruc: request.ruc,
+            tipo_envio: request.tipo_envio,
+            status: request.status,
+            providerCode: request.providerCode,
+            providerMessage: request.providerMessage,
+            activeNotification: request.activeNotification,
+            createdAt: request.createdAt,
+            updatedAt: request.updatedAt,
+          };
+        }
+      }),
+    );
+
+    // Calcular información de paginación
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return {
+      data: signatureRequestsWithBase64,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
+    };
   }
 
   /**
    * Obtiene una solicitud de firma específica
    * @param id ID de la solicitud
    * @param distributorId ID del distribuidor (para verificar permisos)
-   * @returns Solicitud de firma
+   * @returns Solicitud de firma con fotos en Base64
    */
   async getSignatureRequest(id: string, distributorId: string) {
     const signatureRequest = await this.prisma.signatureRequest.findFirst({
@@ -477,6 +625,85 @@ export class SignaturesService {
       throw new BadRequestException('Solicitud de firma no encontrada');
     }
 
-    return signatureRequest;
+    // Convertir las fotos de S3 a Base64
+    try {
+      const [foto_frontal_base64, foto_posterior_base64] = await Promise.all([
+        this.filesService.getFile(
+          signatureRequest.foto_frontal,
+          'fotos-cedulas',
+        ),
+        this.filesService.getFile(
+          signatureRequest.foto_posterior,
+          'fotos-cedulas',
+        ),
+        Promise.resolve(null),
+      ]);
+
+      let pdf_sri_base64;
+      let nombramiento_base64;
+
+      if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
+        pdf_sri_base64 = signatureRequest.pdf_sri
+          ? await this.filesService.getFile(signatureRequest.pdf_sri, 'pdf-sri')
+          : null;
+
+        nombramiento_base64 = signatureRequest.nombramiento
+          ? await this.filesService.getFile(
+              signatureRequest.nombramiento,
+              'pdf-nombramiento',
+            )
+          : null;
+      }
+
+      return {
+        id: signatureRequest.id,
+        numero_tramite: signatureRequest.numero_tramite,
+        perfil_firma: signatureRequest.perfil_firma,
+        nombres: signatureRequest.nombres,
+        apellidos: signatureRequest.apellidos,
+        cedula: signatureRequest.cedula,
+        correo: signatureRequest.correo,
+        codigo_dactilar: signatureRequest.codigo_dactilar,
+        celular: signatureRequest.celular,
+        provincia: signatureRequest.provincia,
+        ciudad: signatureRequest.ciudad,
+        parroquia: signatureRequest.parroquia,
+        direccion: signatureRequest.direccion,
+        dateOfBirth: signatureRequest.dateOfBirth,
+        foto_frontal_base64,
+        foto_posterior_base64,
+        video_face: signatureRequest.video_face,
+        pdf_sri_base64,
+        nombramiento_base64,
+        razon_social: signatureRequest.razon_social,
+        rep_legal: signatureRequest.rep_legal,
+        cargo: signatureRequest.cargo,
+        pais: signatureRequest.pais,
+        clavefirma: signatureRequest.clavefirma,
+        ruc: signatureRequest.ruc,
+        tipo_envio: signatureRequest.tipo_envio,
+        status: signatureRequest.status,
+        providerCode: signatureRequest.providerCode,
+        providerMessage: signatureRequest.providerMessage,
+        activeNotification: signatureRequest.activeNotification,
+        createdAt: signatureRequest.createdAt,
+        updatedAt: signatureRequest.updatedAt,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error al obtener fotos de S3 para solicitud ${id}: ${error.message}`,
+      );
+      throw new BadRequestException(
+        'Error al obtener las imágenes de la solicitud',
+      );
+    }
+  }
+
+  private cleanPerfilFirma(perfil: string): string {
+    //Limpiar PN- y PJ- al inicio del perfil
+    if (perfil.startsWith('PN-') || perfil.startsWith('PJ-')) {
+      return perfil.slice(3);
+    }
+    return perfil;
   }
 }

@@ -2054,49 +2054,135 @@ Content-Type: application/json
 
 ---
 
-### 📋 Obtener Mis Solicitudes de Firma (DISTRIBUTOR)
+### 📋 Obtener Mis Solicitudes de Firma con Paginación (DISTRIBUTOR)
 **GET** `/signatures`
 
-Retorna todas las solicitudes de firma digital creadas por el distribuidor autenticado.
+Retorna todas las solicitudes de firma digital creadas por el distribuidor autenticado con paginación. Las fotos y documentos se convierten automáticamente a Base64 desde Wasabi S3.
 
 **Headers:**
 ```
 Authorization: Bearer {token}
 ```
 
+**Query Parameters:**
+- `page` (number, opcional): Número de página (default: 1, mínimo: 1)
+- `limit` (number, opcional): Cantidad de resultados por página (default: 10, máximo: 100)
+
+**Ejemplo de URL:**
+```
+GET /signatures/all/?page=1&limit=10
+```
+
 **Respuesta Exitosa (200):**
 ```json
-[
-  {
-    "id": "clx1234567890",
-    "numero_tramite": "DIST1703342567890001",
-    "perfil_firma": "018",
-    "nombres": "FERNANDO MATIAS",
-    "apellidos": "TURIZO FERNANDEZ",
-    "cedula": "1752549468",
-    "correo": "luisg@solucionesnexus.com",
-    "status": "PENDING",
-    "providerCode": "200",
-    "providerMessage": "Solicitud recibida",
-    "createdAt": "2025-12-23T10:30:00.000Z",
-    "updatedAt": "2025-12-23T10:30:00.000Z"
-  },
-  {
-    "id": "clx9876543210",
-    "numero_tramite": "DIST1703342567890002",
-    "perfil_firma": "018",
-    "nombres": "MARIA JOSE",
-    "apellidos": "PEREZ LOPEZ",
-    "cedula": "0987654321",
-    "correo": "maria@example.com",
-    "status": "COMPLETED",
-    "providerCode": "200",
-    "providerMessage": "Firma procesada exitosamente",
-    "createdAt": "2025-12-22T15:20:00.000Z",
-    "updatedAt": "2025-12-22T16:00:00.000Z"
+{
+  "data": [
+    {
+      "id": "clx1234567890",
+      "numero_tramite": "DIST1703342567890001",
+      "perfil_firma": "018",
+      "nombres": "FERNANDO MATIAS",
+      "apellidos": "TURIZO FERNANDEZ",
+      "cedula": "1752549468",
+      "correo": "fernando@example.com",
+      "codigo_dactilar": "V43I4444",
+      "celular": "0990602199",
+      "provincia": "PICHINCHA",
+      "ciudad": "QUITO",
+      "parroquia": "IÑAQUITO",
+      "direccion": "QUITUS COLONIAL",
+      "dateOfBirth": "1990-05-15T00:00:00.000Z",
+      "razon_social": null,
+      "rep_legal": null,
+      "cargo": null,
+      "pais": "ECUADOR",
+      "clavefirma": "TURIZO1752",
+      "ruc": null,
+      "tipo_envio": "1",
+      "status": "PENDING",
+      "providerCode": "200",
+      "providerMessage": "Solicitud recibida",
+      "activeNotification": true,
+      "createdAt": "2024-12-23T10:30:00.000Z",
+      "updatedAt": "2024-12-23T10:30:00.000Z"
+    },
+    {
+      "id": "clx9876543210",
+      "numero_tramite": "DIST1703342567890002",
+      "perfil_firma": "017",
+      "nombres": "MARIA JOSE",
+      "apellidos": "PEREZ LOPEZ",
+      "cedula": "0987654321",
+      "correo": "maria@example.com",
+      "codigo_dactilar": "V45J5555",
+      "celular": "0987654321",
+      "provincia": "GUAYAS",
+      "ciudad": "GUAYAQUIL",
+      "parroquia": "URDESA",
+      "direccion": "AV. PRINCIPAL 123",
+      "dateOfBirth": "1985-08-20T00:00:00.000Z",
+      "razon_social": "EMPRESA XYZ S.A.",
+      "rep_legal": "MARIA JOSE PEREZ LOPEZ",
+      "cargo": "GERENTE GENERAL",
+      "pais": "ECUADOR",
+      "clavefirma": "PEREZ0987",
+      "ruc": "0987654321001",
+      "tipo_envio": "1",
+      "status": "COMPLETED",
+      "providerCode": "1",
+      "providerMessage": "Firma procesada exitosamente",
+      "activeNotification": true,
+      "createdAt": "2024-12-22T15:20:00.000Z",
+      "updatedAt": "2024-12-22T16:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 25,
+    "totalPages": 3,
+    "hasNextPage": true,
+    "hasPrevPage": false
   }
-]
+}
 ```
+
+**Campos devueltos:**
+- `id`: ID único de la solicitud
+- `numero_tramite`: Número de trámite generado automáticamente
+- `perfil_firma`: Plan de firma utilizado (3 dígitos)
+- `nombres`, `apellidos`, `cedula`: Datos del solicitante
+- `correo`, `celular`: Datos de contacto
+- `codigo_dactilar`: Código dactilar de la cédula
+- `provincia`, `ciudad`, `parroquia`, `direccion`: Datos de ubicación
+- `dateOfBirth`: Fecha de nacimiento
+- `foto_frontal_base64`: Imagen frontal de la cédula en Base64
+- `foto_posterior_base64`: Imagen posterior de la cédula en Base64
+- `pdf_sri_base64`: PDF del SRI en Base64 (solo jurídicas)
+- `nombramiento_base64`: Nombramiento en Base64 (solo jurídicas)
+- `razon_social`, `rep_legal`, `cargo`: Datos de persona jurídica (null si es natural)
+- `ruc`: RUC si aplica
+- `pais`: País (siempre ECUADOR)
+- `clavefirma`: Clave de la firma digital
+- `tipo_envio`: Tipo de envío (siempre "1")
+- `status`: Estado (PENDING, COMPLETED, REJECTED, FAILED)
+- `providerCode`, `providerMessage`: Código y mensaje del proveedor
+- `activeNotification`: Notificación activa
+- `createdAt`, `updatedAt`: Fechas de creación y actualización
+
+**Paginación:**
+- `page`: Página actual
+- `limit`: Cantidad de resultados por página
+- `total`: Total de registros
+- `totalPages`: Total de páginas
+- `hasNextPage`: Si hay página siguiente
+- `hasPrevPage`: Si hay página anterior
+
+**Notas importantes:**
+- Las imágenes y PDFs se obtienen automáticamente desde Wasabi S3
+- Si hay error al obtener alguna imagen, se devuelve `null` en lugar del Base64
+- Los campos `pdf_sri_base64` y `nombramiento_base64` solo tendrán valor para personas jurídicas
+- La respuesta incluye TODOS los detalles, no solo un resumen
 
 **Errores:**
 - `401`: No autorizado (token inválido o expirado)
@@ -2104,10 +2190,10 @@ Authorization: Bearer {token}
 
 ---
 
-### 🔍 Obtener Detalle de Solicitud de Firma (DISTRIBUTOR)
+### 🔍 Obtener Detalle Completo de Solicitud de Firma (DISTRIBUTOR)
 **GET** `/signatures/:id`
 
-Retorna los detalles completos de una solicitud de firma específica del distribuidor autenticado.
+Retorna los detalles completos de una solicitud de firma específica del distribuidor autenticado, incluyendo todas las fotos y documentos convertidos a Base64 desde Wasabi S3.
 
 **Headers:**
 ```
@@ -2116,6 +2202,11 @@ Authorization: Bearer {token}
 
 **Parámetros de URL:**
 - `id` (string): ID de la solicitud de firma
+
+**Ejemplo:**
+```
+GET /signatures/clx1234567890
+```
 
 **Respuesta Exitosa (200):**
 ```json
@@ -2134,29 +2225,75 @@ Authorization: Bearer {token}
   "parroquia": "IÑAQUITO",
   "direccion": "QUITUS COLONIAL",
   "dateOfBirth": "1990-05-15T00:00:00.000Z",
-  "foto_frontal": "https://example.com/frontal.jpg",
-  "foto_posterior": "https://example.com/posterior.jpg",
+  "foto_frontal_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "foto_posterior_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
   "video_face": null,
-  "pdf_sri": null,
-  "nombramiento": null,
+  "pdf_sri_base64": null,
+  "nombramiento_base64": null,
   "razon_social": null,
   "rep_legal": null,
   "cargo": null,
+  "pais": "ECUADOR",
   "clavefirma": "GONZALEZ1752",
   "ruc": null,
-  "pais": "ECUADOR",
+  "tipo_envio": "1",
   "status": "PENDING",
   "providerCode": "200",
   "providerMessage": "Solicitud recibida",
   "activeNotification": true,
-  "distributorId": "clxdist123",
-  "createdAt": "2025-12-23T10:30:00.000Z",
-  "updatedAt": "2025-12-23T10:30:00.000Z"
+  "createdAt": "2024-12-23T10:30:00.000Z",
+  "updatedAt": "2024-12-23T10:30:00.000Z"
 }
 ```
 
+**Ejemplo - Persona Jurídica:**
+```json
+{
+  "id": "clx9876543210",
+  "numero_tramite": "DIST1703342567890005",
+  "perfil_firma": "017",
+  "nombres": "MARIA JOSE",
+  "apellidos": "PEREZ LOPEZ",
+  "cedula": "0987654321",
+  "correo": "maria@example.com",
+  "codigo_dactilar": "V45J5555",
+  "celular": "0987654321",
+  "provincia": "GUAYAS",
+  "ciudad": "GUAYAQUIL",
+  "parroquia": "URDESA",
+  "direccion": "AV. PRINCIPAL 123",
+  "dateOfBirth": "1985-08-20T00:00:00.000Z",
+  "foto_frontal_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "foto_posterior_base64": "/9j/4AAQSkZJRgABAQAAAQABAAD...",
+  "video_face": null,
+  "pdf_sri_base64": "JVBERi0xLjQKJeLjz9MKMSAw...",
+  "nombramiento_base64": "JVBERi0xLjQKJeLjz9MKMSAw...",
+  "razon_social": "DISTRIBUIDORA PEREZ S.A.",
+  "rep_legal": "MARIA JOSE PEREZ LOPEZ",
+  "cargo": "GERENTE GENERAL",
+  "pais": "ECUADOR",
+  "clavefirma": "PEREZ0987",
+  "ruc": "0987654321001",
+  "tipo_envio": "1",
+  "status": "COMPLETED",
+  "providerCode": "1",
+  "providerMessage": "Solicitud enviada correctamente",
+  "activeNotification": true,
+  "createdAt": "2024-12-22T15:20:00.000Z",
+  "updatedAt": "2024-12-22T16:00:00.000Z"
+}
+```
+
+**Campos devueltos:** (Mismos que en el endpoint de listado con paginación)
+
+**Notas importantes:**
+- Este endpoint devuelve el detalle completo de UNA solicitud específica
+- Las imágenes y PDFs se obtienen desde Wasabi S3 y se convierten a Base64
+- Solo se puede acceder a solicitudes del distribuidor autenticado
+- Si hay error al obtener las imágenes de S3, se retorna un error 400
+
 **Errores:**
-- `400`: Solicitud no encontrada o no pertenece al distribuidor
+- `400`: Solicitud no encontrada, no pertenece al distribuidor o error al obtener imágenes de S3
 - `401`: No autorizado (token inválido o expirado)
 - `403`: Acceso denegado (solo para distribuidores)
 
@@ -2170,6 +2307,17 @@ Authorization: Bearer {token}
 - **Persona Jurídica** (`/signatures/juridica`): Para empresas y organizaciones
   - Planes identificados con prefijo `PJ-` (ejemplo: PJ-001, PJ-003)
   - Requiere RUC (13 dígitos), razón social, representante legal y nombramiento
+
+**Almacenamiento de archivos:**
+- Las fotos frontales y posteriores de cédula se suben a Wasabi S3 bucket `vouchers-nexus`
+- Los PDFs (SRI y nombramiento) también se suben al mismo bucket
+- En la base de datos solo se guarda la **key** (ruta) del archivo, no el contenido
+- Cuando se consulta una solicitud, los archivos se obtienen desde S3 y se convierten a Base64
+- Estructura de keys en S3:
+  - Fotos frontales: `signatures-frontal/{timestamp}.jpg`
+  - Fotos posteriores: `signatures-posterior/{timestamp}.jpg`
+  - PDF SRI: `signatures-pdf-sri/{timestamp}.pdf`
+  - Nombramientos: `signatures-nombramiento/{timestamp}.pdf`
 
 **Sistema de cobro:**
 - El balance se valida ANTES de enviar la solicitud al proveedor

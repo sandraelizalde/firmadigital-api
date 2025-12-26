@@ -222,10 +222,12 @@ export class RechargesService {
     if (dto.receiptFile) {
       // Detectar la extensión del archivo desde el base64
       const extension = this.detectFileExtension(dto.receiptFile);
-      receiptFileUrl = await this.filesService.uploadVoucher(
+      receiptFileUrl = await this.filesService.uploadFile(
         dto.receiptFile,
         Date.now(),
         extension,
+        'vouchers-distribuidores',
+        'vouchers-nexus',
       );
     }
 
@@ -335,7 +337,10 @@ export class RechargesService {
     return {
       ...recharge,
       receiptFile: recharge.receiptFile
-        ? await this.filesService.getVoucher(recharge.receiptFile)
+        ? await this.filesService.getFile(
+            recharge.receiptFile,
+            'vouchers-nexus',
+          )
         : null,
     };
   }
@@ -384,7 +389,10 @@ export class RechargesService {
       recharges.map(async (recharge) => ({
         ...recharge,
         receiptFile: recharge.receiptFile
-          ? await this.filesService.getVoucher(recharge.receiptFile)
+          ? await this.filesService.getFile(
+              recharge.receiptFile,
+              'vouchers-nexus',
+            )
           : null,
       })),
     );
@@ -431,7 +439,10 @@ export class RechargesService {
     return {
       ...recharge,
       receiptFile: recharge.receiptFile
-        ? await this.filesService.getVoucher(recharge.receiptFile)
+        ? await this.filesService.getFile(
+            recharge.receiptFile,
+            'vouchers-nexus',
+          )
         : null,
     };
   }
