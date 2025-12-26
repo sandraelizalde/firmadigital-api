@@ -142,37 +142,45 @@ export class CreateJuridicalSignatureDto {
   clavefirma: string;
 
   @ApiProperty({
-    description: 'URL de la foto frontal de cédula del representante',
-    example: 'https://example.com/frontal.jpg',
+    description: 'Foto frontal de cédula en Base64',
+    example: 'iVBORw0KGgoAAAANSUhEUgAA...',
   })
   @IsString()
   @IsNotEmpty()
   foto_frontal: string;
 
   @ApiProperty({
-    description: 'URL de la foto posterior de cédula del representante',
-    example: 'https://example.com/posterior.jpg',
+    description: 'Foto posterior de cédula en Base64',
+    example: 'iVBORw0KGgoAAAANSUhEUgAA...',
   })
   @IsString()
   @IsNotEmpty()
   foto_posterior: string;
 
   @ApiProperty({
-    description: 'URL del documento de nombramiento',
-    example: 'https://example.com/nombramiento.pdf',
+    description: 'PDF del SRI en Base64',
+    example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
   })
   @IsString()
   @IsNotEmpty()
-  nombramiento: string;
+  pdfSriBase64: string;
 
   @ApiProperty({
-    description: 'Perfil de firma (PJ-003, PJ-006, etc.)',
-    example: 'PJ-003',
+    description: 'Documento de nombramiento en Base64',
+    example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+  })
+  @IsString()
+  @IsNotEmpty()
+  nombramientoBase64: string;
+
+  @ApiProperty({
+    description: 'Perfil de firma (017, 018, etc.)',
+    example: '017',
   })
   @IsString()
   @IsNotEmpty()
   @Matches(/^PJ-\d{3}$/, {
-    message: 'El perfil debe tener formato PJ-XXX (ej: PJ-003)',
+    message: 'El perfil debe tener 3 dígitos (ej: 017, 018)',
   })
   perfil_firma: string;
 

@@ -7,6 +7,7 @@
 - [Recargas](#recargas)
 - [Publicidad](#publicidad)
 - [Firmas Digitales](#firmas-digitales)
+- [Consultas (Cédulas y RUC)](#consultas-cédulas-y-ruc)
 
 ---
 
@@ -1873,11 +1874,10 @@ Content-Type: application/json
   "direccion": "QUITUS COLONIAL",
   "celular": "0990602199",
   "clavefirma": "GONZALEZ1752",
-  "foto_frontal": "https://example.com/frontal.jpg",
-  "foto_posterior": "https://example.com/posterior.jpg",
-  "perfil_firma": "PN-001",
+  "foto_frontal": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "foto_posterior": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "perfil_firma": "018",
   "dateOfBirth": "1990-05-15",
-  "tipo_envio": "1",
   "ruc": "1752549467001"
 }
 ```
@@ -1894,11 +1894,10 @@ Content-Type: application/json
 - `direccion` (string, requerido): Dirección completa
 - `celular` (string, requerido): Número de celular (10 dígitos)
 - `clavefirma` (string, requerido): Clave para la firma digital
-- `foto_frontal` (string, requerido): URL de la foto frontal de la cédula
-- `foto_posterior` (string, requerido): URL de la foto posterior de la cédula
-- `perfil_firma` (string, requerido): Código del plan de firma (formato: PN-XXX, ejemplo: "PN-001")
+- `foto_frontal` (string, requerido): Imagen de cédula frontal en formato Base64
+- `foto_posterior` (string, requerido): Imagen de cédula posterior en formato Base64
+- `perfil_firma` (string, requerido): Código del plan de firma (3 dígitos, ejemplo: "018")
 - `dateOfBirth` (string, requerido): Fecha de nacimiento en formato ISO (YYYY-MM-DD)
-- `tipo_envio` (string, requerido): Tipo de envío ("1" = normal, "2" = express)
 - `ruc` (string, opcional): RUC si la persona natural lo tiene (13 dígitos)
 
 **Respuesta Exitosa - Aprobada por el Proveedor (201):**
@@ -1977,15 +1976,16 @@ Content-Type: application/json
   "direccion": "QUITUS COLONIAL",
   "celular": "0990602199",
   "clavefirma": "GONZALEZ1752",
-  "foto_frontal": "https://example.com/frontal.jpg",
-  "foto_posterior": "https://example.com/posterior.jpg",
-  "perfil_firma": "PJ-003",
+  "foto_frontal": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "foto_posterior": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "perfil_firma": "017",
   "dateOfBirth": "1990-05-15",
   "ruc": "1752549467001",
   "razon_social": "DISTRIBUIDORA GONZALEZ S.A.",
   "rep_legal": "LUIS XAVIER GONZALEZ JIMENEZ",
   "cargo": "GERENTE GENERAL",
-  "nombramiento": "https://example.com/nombramiento.pdf"
+  "pdfSriBase64": "JVBERi0xLjQKJeLjz9MKMSAw...",
+  "nombramientoBase64": "JVBERi0xLjQKJeLjz9MKMSAw..."
 }
 ```
 
@@ -1994,8 +1994,11 @@ Content-Type: application/json
 - `razon_social` (string, requerido): Razón social de la empresa
 - `rep_legal` (string, requerido): Nombre completo del representante legal
 - `cargo` (string, requerido): Cargo del representante legal
-- `nombramiento` (string, requerido): URL del documento de nombramiento
-- `perfil_firma` (string, requerido): Código del plan de firma (formato: PJ-XXX, ejemplo: "PJ-003")
+- `pdfSriBase64` (string, requerido): PDF del SRI en formato Base64
+- `nombramientoBase64` (string, requerido): Documento de nombramiento en formato Base64
+- `perfil_firma` (string, requerido): Código del plan de firma (3 dígitos, ejemplo: "017")
+- `foto_frontal` (string, requerido): Imagen de cédula frontal en formato Base64
+- `foto_posterior` (string, requerido): Imagen de cédula posterior en formato Base64
 
 **Respuesta Exitosa - Aprobada por el Proveedor (201):**
 ```json
@@ -2203,6 +2206,9 @@ SIGN_PROVIDER_PASSWORD=password_payload
 # Credenciales para Basic Auth (headers)
 SIGN_PROVIDER_AUTH_USERNAME=factu465
 SIGN_PROVIDER_AUTH_PASSWORD=apifac
+
+# URL de callback para el proveedor (usado en firmas jurídicas)
+SIGN_PROVIDER_CALLBACK=https://yourdomain.com/callback
 ```
 
 **Seguridad:**
@@ -2223,8 +2229,363 @@ SIGN_PROVIDER_AUTH_PASSWORD=apifac
 - RUC: 13 dígitos
 - Celular: 10 dígitos
 - País: "ECUADOR" por defecto
+- Tipo de envío: "1" (configurado automáticamente por el sistema)
+- **Imágenes y documentos**: Ahora se envían en formato Base64 en lugar de URLs
+  - `foto_frontal`: Base64 de la imagen de cédula frontal
+  - `foto_posterior`: Base64 de la imagen de cédula posterior
+  - `pdfSriBase64`: Base64 del PDF del SRI (solo jurídica)
+  - `nombramientoBase64`: Base64 del documento de nombramiento (solo jurídica)
+- **Perfiles de firma**: Ahora usan formato de 3 dígitos (ejemplo: "017", "018") en lugar del formato anterior (PN-001, PJ-003)
+- País: "ECUADOR" por defecto
 - Tipo de envío: "1" = normal, "2" = express
 
 **Recursos externos:**
 - Las URLs de fotos, videos y documentos deben ser accesibles públicamente
 - El proveedor necesita acceso directo a estos recursos para procesarlos
+
+---
+
+## Consultas (Cédulas y RUC)
+
+Los endpoints de consultas permiten a administradores y distribuidores obtener información actualizada de cédulas y RUC desde servicios externos. Estos servicios son útiles para validar y completar datos de clientes antes de procesar solicitudes.
+
+### 🔎 Consultar Datos de Cédula (ADMIN/DISTRIBUTOR)
+**POST** `/consultations/cedula`
+
+Obtiene información detallada de una persona mediante su número de cédula desde servicios del Registro Civil.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "cedula": "1804677951"
+}
+```
+
+**Validaciones:**
+- La cédula debe tener exactamente 10 dígitos
+- Solo debe contener números
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "message": "Consulta exitosa",
+  "data": {
+    "nui": "1804677951",
+    "nombre": "FERNANDO MATIAS TURIZO FERNANDEZ",
+    "firstNames": "FERNANDO MATIAS",
+    "lastNames": "TURIZO FERNANDEZ",
+    "fechaNacimiento": "16/04/1990",
+    "sexo": "HOMBRE",
+    "genero": null,
+    "nacionalidad": "ECUATORIANA",
+    "lugarNacimiento": "TUNGURAHUA/AMBATO/LA MATRIZ",
+    "domicilio": "TUNGURAHUA/AMBATO/LA MATRIZ",
+    "calle": "12 DE NOV Y MALDONADO SN",
+    "numeroCasa": "SN",
+    "estadoCivil": "CASADO",
+    "conyuge": "MARIA FERNANDA LOPEZ GARCIA",
+    "nombreMadre": "ANA LUCIA FERNANDEZ MERA",
+    "nombrePadre": "CARLOS TURIZO MORALES",
+    "instruccion": "SUPERIOR",
+    "profesion": "INGENIERO",
+    "condicionCedulado": "CIUDADANO",
+    "fechaCedulacion": "25/01/2017",
+    "fechaInscripcionDefuncion": null,
+    "fechaInscripcionGenero": null,
+    "lugarInscripcionGenero": null
+  }
+}
+```
+
+**Respuesta Sin Resultados (200):**
+```json
+{
+  "success": false,
+  "message": "Cédula no encontrada",
+  "data": null
+}
+```
+
+**Campos del response:**
+Todos los campos devuelven `null` si la información no está disponible:
+
+- **Datos básicos:**
+  - `nui`: Número Único de Identificación
+  - `nombre`: Nombre completo
+  - `firstNames`: Nombres separados automáticamente (puede incluir nombres compuestos)
+  - `lastNames`: Apellidos separados automáticamente
+  - `fechaNacimiento`: Fecha de nacimiento (formato: DD/MM/YYYY)
+  - `sexo`: Sexo biológico (HOMBRE, MUJER)
+  - `genero`: Género (si está registrado)
+  - `nacionalidad`: Nacionalidad
+
+- **Datos de ubicación:**
+  - `lugarNacimiento`: Lugar de nacimiento (Provincia/Ciudad/Parroquia)
+  - `domicilio`: Domicilio actual (Provincia/Ciudad/Parroquia)
+  - `calle`: Dirección de calle
+  - `numeroCasa`: Número de casa
+
+- **Datos civiles:**
+  - `estadoCivil`: Estado civil (SOLTERO, CASADO, DIVORCIADO, VIUDO, UNION LIBRE)
+  - `conyuge`: Nombre del cónyuge (si aplica)
+
+- **Datos familiares:**
+  - `nombreMadre`: Nombre completo de la madre
+  - `nombrePadre`: Nombre completo del padre
+
+- **Datos educación/profesión:**
+  - `instruccion`: Nivel de instrucción (PRIMARIA, SECUNDARIA, SUPERIOR, etc.)
+  - `profesion`: Profesión declarada
+
+- **Datos de cedulación:**
+  - `condicionCedulado`: Condición (CIUDADANO, EXTRANJERO, etc.)
+  - `fechaCedulacion`: Fecha de emisión de la cédula (formato: DD/MM/YYYY)
+
+- **Otros datos:**
+  - `fechaInscripcionDefuncion`: Fecha de defunción (si aplica)
+  - `fechaInscripcionGenero`: Fecha de inscripción de género
+  - `lugarInscripcionGenero`: Lugar de inscripción de género
+
+**Errores:**
+- `400`: Cédula inválida (formato incorrecto)
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (rol no permitido)
+- `500`: Error de configuración del servicio
+
+**Errores de Servicio (200 con success: false):**
+- "Cédula no encontrada": La cédula no existe en la base del Registro Civil
+- "No se pudo conectar con el servicio de consulta": Error de conexión
+- "Tiempo de espera agotado al consultar": Timeout en la consulta
+- "Error de autenticación con el servicio": Credenciales incorrectas
+- "El servicio de consulta no está disponible": Servicio externo caído
+
+---
+
+### 🏢 Consultar Datos de RUC (ADMIN/DISTRIBUTOR)
+**POST** `/consultations/ruc`
+
+Obtiene información detallada de un contribuyente mediante su RUC desde el Servicio de Rentas Internas (SRI).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "ruc": "1804677951001"
+}
+```
+
+**Validaciones:**
+- El RUC debe tener exactamente 13 dígitos
+- Solo debe contener números
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "message": "Consulta exitosa",
+  "data": {
+    "numRuc": "1804677951001",
+    "razonSocial": "TURIZO FERNANDEZ FERNANDO MATIAS",
+    "nombreComercial": "LR-SOFT SOLUTION",
+    "estadoContribuyente": "ACTIVO",
+    "actividadEconomicaPrincipal": "PRESTACION DE SERVICIOS PROFESIONALES.",
+    "tipoContribuyente": "PERSONA NATURAL",
+    "regimen": "GENERAL",
+    "categoria": "",
+    "obligadoLlevarContabilidad": "NO",
+    "agenteRetencion": "NO",
+    "contribuyenteEspecial": "NO",
+    "identificacionRepresentanteLegal": null,
+    "nombreRepresentanteLegal": null,
+    "representanteLegalFirstNames": null,
+    "representanteLegalLastNames": null,
+    "fechaInicioActividades": "2023-05-22 00:00:00.0",
+    "fechaCese": null,
+    "fechaReinicioActividades": null,
+    "fechaActualizacion": "2023-06-30 16:30:56.0",
+    "motivoCancelacionSuspension": null,
+    "contribuyenteFantasma": "NO",
+    "transaccionesInexistente": "NO",
+    "direccionCompleta": "TUNGURAHUA / AMBATO",
+    "establecimientos": [
+      {
+        "numeroEstablecimiento": "001",
+        "nombreFantasiaComercial": "LR-SOFT SOLUTION",
+        "direccionCompleta": "TUNGURAHUA / AMBATO",
+        "estado": "ABIERTO",
+        "tipoEstablecimiento": "MAT"
+      },
+      {
+        "numeroEstablecimiento": "002",
+        "nombreFantasiaComercial": "",
+        "direccionCompleta": "TUNGURAHUA / AMBATO",
+        "estado": "ABIERTO",
+        "tipoEstablecimiento": "OFI"
+      }
+    ]
+  }
+}
+```
+
+**Respuesta Sin Resultados (200):**
+```json
+{
+  "success": false,
+  "message": "RUC no encontrado",
+  "data": null
+}
+```
+
+**Campos del response:**
+Todos los campos devuelven `null` si la información no está disponible:
+
+- **Datos básicos:**
+  - `numRuc`: Número de RUC (13 dígitos)
+  - `razonSocial`: Razón social o nombre completo del contribuyente
+  - `nombreComercial`: Nombre comercial o fantasía
+  - `estadoContribuyente`: Estado del RUC (ACTIVO, SUSPENDIDO, CANCELADO)
+
+- **Actividad económica:**
+  - `actividadEconomicaPrincipal`: Descripción de la actividad económica principal
+  - `tipoContribuyente`: Tipo (PERSONA NATURAL, SOCIEDAD, etc.)
+  - `regimen`: Régimen tributario (GENERAL, RIMPE, etc.)
+  - `categoria`: Categoría del contribuyente
+
+- **Obligaciones tributarias:**
+  - `obligadoLlevarContabilidad`: SI/NO
+  - `agenteRetencion`: SI/NO
+  - `contribuyenteEspecial`: SI/NO o número de resolución
+
+- **Representante legal:**
+  - `identificacionRepresentanteLegal`: Cédula del representante legal
+  - `nombreRepresentanteLegal`: Nombre completo del representante legal
+  - `representanteLegalFirstNames`: Nombres del representante legal separados automáticamente
+  - `representanteLegalLastNames`: Apellidos del representante legal separados automáticamente
+
+- **Estados y fechas:**
+  - `fechaInicioActividades`: Fecha de inicio de actividades (formato: YYYY-MM-DD HH:MM:SS.S)
+  - `fechaCese`: Fecha de cese de actividades
+  - `fechaReinicioActividades`: Fecha de reinicio de actividades
+  - `fechaActualizacion`: Fecha de última actualización en el SRI
+  - `motivoCancelacionSuspension`: Motivo si está cancelado o suspendido
+
+- **Clasificaciones:**
+  - `contribuyenteFantasma`: SI/NO (marcación del SRI por operaciones sospechosas)
+  - `transaccionesInexistente`: SI/NO (transacciones declaradas sin sustento)
+
+- **Dirección:**
+  - `direccionCompleta`: Dirección completa del domicilio fiscal
+
+- **Establecimientos:**
+  - `establecimientos`: Array de establecimientos registrados
+    - `numeroEstablecimiento`: Número secuencial (001, 002, etc.)
+    - `nombreFantasiaComercial`: Nombre comercial del establecimiento
+    - `direccionCompleta`: Dirección del establecimiento
+    - `estado`: Estado (ABIERTO, CERRADO)
+    - `tipoEstablecimiento`: Tipo (MAT=Matriz, SUC=Sucursal, OFI=Oficina, etc.)
+
+**Errores:**
+- `400`: RUC inválido (formato incorrecto)
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (rol no permitido)
+- `500`: Error de configuración del servicio
+
+**Errores de Servicio (200 con success: false):**
+- "RUC no encontrado": El RUC no existe en la base del SRI
+- "No se pudo conectar con el servicio de consulta": Error de conexión
+- "Tiempo de espera agotado al consultar": Timeout en la consulta
+- "Error de autenticación con el servicio": Credenciales incorrectas
+- "El servicio de consulta no está disponible": Servicio externo caído
+
+---
+
+### 📌 Notas sobre Consultas
+
+**Servicios externos:**
+- Las consultas se realizan a servicios de terceros (LR-Soft Solution)
+- La disponibilidad depende del proveedor externo
+- Los tiempos de respuesta pueden variar (timeout configurado a 15 segundos)
+
+**Seguridad y acceso:**
+- Disponible para roles ADMIN y DISTRIBUTOR
+- Requiere autenticación mediante JWT
+- No se cobra por las consultas
+- No afecta el balance del distribuidor
+
+**Manejo de datos:**
+- Todos los campos pueden ser `null` si la información no está disponible
+- Los servicios devuelven `success: false` cuando no encuentran datos
+- Los errores de conexión o servicio se reportan con `success: false`
+- La estructura de respuesta es consistente independientemente del resultado
+
+**Separación automática de nombres y apellidos:**
+El sistema separa automáticamente los nombres completos en `firstNames` y `lastNames` utilizando la siguiente lógica inteligente:
+
+- **1 palabra**: Se considera solo nombre
+  - Ejemplo: "FERNANDO" → Nombres: "FERNANDO", Apellidos: null
+
+- **2 palabras**: Primera es nombre, segunda es apellido
+  - Ejemplo: "LUIS GONZALEZ" → Nombres: "LUIS", Apellidos: "GONZALEZ"
+
+- **3 palabras**: Primera es nombre, últimas dos son apellidos
+  - Ejemplo: "LUIS GONZALEZ JIMENEZ" → Nombres: "LUIS", Apellidos: "GONZALEZ JIMENEZ"
+
+- **4+ palabras**: Primeras dos son nombres, últimas dos son apellidos
+  - Ejemplo: "LUIS XAVIER GONZALEZ JIMENEZ" → Nombres: "LUIS XAVIER", Apellidos: "GONZALEZ JIMENEZ"
+  - Ejemplo: "NORMITA DEL CARMEN JIMENEZ ROBLES" → Nombres: "NORMITA DEL CARMEN", Apellidos: "JIMENEZ ROBLES"
+
+- **Casos especiales**: El algoritmo reconoce palabras conectoras como "de", "del", "de la", "y", que pueden formar parte de nombres compuestos
+  - Ejemplo: "MARIA DE LOS ANGELES RODRIGUEZ LOPEZ" → Nombres: "MARIA DE LOS ANGELES", Apellidos: "RODRIGUEZ LOPEZ"
+
+Esta separación se aplica a:
+- `nombre` → `firstNames` y `lastNames` (consulta de cédula)
+- `nombreRepresentanteLegal` → `representanteLegalFirstNames` y `representanteLegalLastNames` (consulta de RUC)
+
+**Uso recomendado:**
+- Validar datos de clientes antes de crear solicitudes de firma
+- Autocompletar formularios con información actualizada
+- Verificar estados de contribuyentes antes de transacciones
+- Validar que cédulas y RUC estén activos
+
+**Variables de entorno necesarias:**
+```env
+# URL de servicio de consulta de cédulas
+API_CEDULAS_URL=https://api.lr-softsolution.com/api/ConsultasCedula
+
+# URL de servicio de consulta de RUC
+API_SRI_URL=https://api.lr-softsolution.com/api/ConsultasSRI
+
+# Credenciales de autenticación
+API_CEDULAS_USER=
+API_CEDULAS_TOKEN=
+```
+
+**Logs y monitoreo:**
+- Todas las consultas se registran en los logs
+- Se registran tanto consultas exitosas como fallidas
+- Se incluye información de errores de red y timeouts
+- Permite auditoría de uso del servicio
+
+**Formato de datos retornados:**
+- Fechas en formato DD/MM/YYYY (cédulas) o YYYY-MM-DD HH:MM:SS.S (RUC)
+- Textos en mayúsculas generalmente
+- Valores booleanos como "SI"/"NO"
+- Arrays vacíos como `null` si no hay datos
+
+**Personalización de respuestas:**
+Los DTOs están diseñados para facilitar agregar o quitar campos según necesidades:
+1. Editar interfaces en `cedula-response.dto.ts` y `ruc-response.dto.ts`
+2. Ajustar transformación en métodos `transformCedulaData()` y `transformRucData()`
+3. Los campos no mapeados automáticamente devuelven `null`

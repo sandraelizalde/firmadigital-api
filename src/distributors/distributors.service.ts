@@ -6,6 +6,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
+import { SignatureStatus } from '@prisma/client';
 
 @Injectable()
 export class DistributorsService {
@@ -214,6 +215,7 @@ export class DistributorsService {
     const totalSignatures = await this.prisma.signatureRequest.count({
       where: {
         distributorId,
+        status: SignatureStatus.COMPLETED,
       },
     });
 

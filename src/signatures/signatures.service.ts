@@ -30,6 +30,7 @@ export class SignaturesService {
   private readonly signProviderPassword: string | undefined;
   private readonly signProviderAuthUsername: string | undefined;
   private readonly signProviderAuthPassword: string | undefined;
+  private readonly signProviderCallback: string | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,6 +53,9 @@ export class SignaturesService {
     );
     this.signProviderAuthPassword = this.configService.get<string>(
       'SIGN_PROVIDER_AUTH_PASSWORD',
+    );
+    this.signProviderCallback = this.configService.get<string>(
+      'SIGN_PROVIDER_CALLBACK',
     );
   }
 
@@ -186,15 +190,18 @@ export class SignaturesService {
         clavefirma: dto.clavefirma,
         foto_frontal: dto.foto_frontal,
         foto_posterior: dto.foto_posterior,
+        pais: 'ECUADOR',
         tipo_envio: '1',
       };
 
       // Agregar campos específicos para persona jurídica
       if (type === 'JURIDICA') {
+        providerPayload.callback = this.signProviderCallback || '';
         providerPayload.razon_social = dto.razon_social?.toUpperCase() || '';
         providerPayload.rep_legal = dto.rep_legal?.toUpperCase() || '';
         providerPayload.cargo = dto.cargo?.toUpperCase() || '';
-        providerPayload.nombramiento = dto.nombramiento || '';
+        providerPayload.pdfSriBase64 = dto.pdfSriBase64 || '';
+        providerPayload.nombramientoBase64 = dto.nombramientoBase64 || '';
       }
 
       // Llamar al proveedor de firma
@@ -256,7 +263,8 @@ export class SignaturesService {
             razon_social: dto.razon_social?.toUpperCase() || null,
             rep_legal: dto.rep_legal?.toUpperCase() || null,
             cargo: dto.cargo?.toUpperCase() || null,
-            nombramiento: dto.nombramiento || null,
+            nombramiento: dto.nombramientoBase64 || null,
+            pdf_sri: dto.pdfSriBase64 || null,
             tipo_envio: '1',
             pais: 'ECUADOR',
             distributorId,
@@ -371,31 +379,47 @@ export class SignaturesService {
       };
     } catch (error) {
       if (error instanceof AxiosError) {
+        // El proveedor puede devolver códigos HTTP 4xx/5xx pero con datos válidos en el body
+        if (error.response?.data?.codigo !== undefined) {
+          const { codigo, mensaje } = error.response.data;
+
+          this.logger.warn(
+            `Respuesta del proveedor con código HTTP ${error.response.status} - Código: ${codigo}, Mensaje: ${mensaje}`,
+          );
+
+          return {
+            codigo: Number(codigo),
+            mensaje: String(mensaje || 'Error desconocido del proveedor'),
+          };
+        }
+
         this.logger.error(
-          `Error HTTP al llamar al proveedor de firma: ${error.message}`,
+          `Error de comunicación con el proveedor: HTTP ${error.response?.status || 'sin respuesta'} - ${error.message}`,
           {
             status: error.response?.status,
+            statusText: error.response?.statusText,
             data: error.response?.data,
-            config: {
-              url: error.config?.url,
-              method: error.config?.method,
-            },
+            url: error.config?.url,
+            code: error.code, // ECONNREFUSED, ETIMEDOUT, etc.
           },
         );
 
-        // Si el proveedor devuelve un error con el formato esperado
-        if (error.response?.data?.codigo !== undefined) {
-          return {
-            codigo: Number(error.response.data.codigo),
-            mensaje: String(
-              error.response.data.mensaje || 'Error desconocido del proveedor',
-            ),
-          };
+        // Determinar mensaje de error según el tipo de fallo
+        let errorMessage = 'Error de comunicación con el proveedor';
+        if (error.code === 'ECONNREFUSED') {
+          errorMessage = 'No se pudo conectar con el proveedor de firma';
+        } else if (
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'ECONNABORTED'
+        ) {
+          errorMessage = 'Tiempo de espera agotado al contactar al proveedor';
+        } else if (error.response?.status) {
+          errorMessage = `El proveedor respondió con error HTTP ${error.response.status}`;
         }
 
         return {
           codigo: 0,
-          mensaje: `Error de comunicación con el proveedor: ${error.message}`,
+          mensaje: errorMessage,
         };
       }
 
