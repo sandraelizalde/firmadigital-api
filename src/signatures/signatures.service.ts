@@ -13,6 +13,10 @@ import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
 import { SignatureStatus, MovementType } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
+import {
+  SignatureListItemDto,
+  PaginatedSignatureListResponseDto,
+} from './dto/signature-list-response.dto';
 
 /**
  * Interface para la respuesta del proveedor de firmas
@@ -491,13 +495,13 @@ export class SignaturesService {
    * @param distributorId ID del distribuidor
    * @param page Número de página
    * @param limit Cantidad de resultados por página
-   * @returns Lista paginada de solicitudes de firma con fotos en Base64
+   * @returns Lista paginada de solicitudes de firma (sin fotos para rendimiento)
    */
   async getAllSignatureRequests(
     distributorId: string,
     page: number = 1,
     limit: number = 10,
-  ) {
+  ): Promise<PaginatedSignatureListResponseDto> {
     const skip = (page - 1) * limit;
 
     // Obtener el total de registros
@@ -513,81 +517,59 @@ export class SignaturesService {
       take: limit,
     });
 
-    // Convertir las fotos de S3 a Base64
-    const signatureRequestsWithBase64 = await Promise.all(
-      signatureRequests.map(async (request) => {
-        try {
-          return {
-            id: request.id,
-            numero_tramite: request.numero_tramite,
-            perfil_firma: request.perfil_firma,
-            nombres: request.nombres,
-            apellidos: request.apellidos,
-            cedula: request.cedula,
-            correo: request.correo,
-            codigo_dactilar: request.codigo_dactilar,
-            celular: request.celular,
-            provincia: request.provincia,
-            ciudad: request.ciudad,
-            parroquia: request.parroquia,
-            direccion: request.direccion,
-            dateOfBirth: request.dateOfBirth,
-            razon_social: request.razon_social,
-            rep_legal: request.rep_legal,
-            cargo: request.cargo,
-            pais: request.pais,
-            clavefirma: request.clavefirma,
-            ruc: request.ruc,
-            tipo_envio: request.tipo_envio,
-            status: request.status,
-            providerCode: request.providerCode,
-            providerMessage: request.providerMessage,
-            activeNotification: request.activeNotification,
-            createdAt: request.createdAt,
-            updatedAt: request.updatedAt,
-          };
-        } catch (error) {
-          this.logger.error(
-            `Error al obtener fotos de S3 para solicitud ${request.id}: ${error.message}`,
-          );
-          // En caso de error, devolver la solicitud sin las imágenes
-          return {
-            id: request.id,
-            numero_tramite: request.numero_tramite,
-            perfil_firma: request.perfil_firma,
-            nombres: request.nombres,
-            apellidos: request.apellidos,
-            cedula: request.cedula,
-            correo: request.correo,
-            codigo_dactilar: request.codigo_dactilar,
-            celular: request.celular,
-            provincia: request.provincia,
-            ciudad: request.ciudad,
-            parroquia: request.parroquia,
-            direccion: request.direccion,
-            dateOfBirth: request.dateOfBirth,
-            foto_frontal_base64: null,
-            foto_posterior_base64: null,
-            video_face: request.video_face,
-            pdf_sri_base64: null,
-            nombramiento_base64: null,
-            razon_social: request.razon_social,
-            rep_legal: request.rep_legal,
-            cargo: request.cargo,
-            pais: request.pais,
-            clavefirma: request.clavefirma,
-            ruc: request.ruc,
-            tipo_envio: request.tipo_envio,
-            status: request.status,
-            providerCode: request.providerCode,
-            providerMessage: request.providerMessage,
-            activeNotification: request.activeNotification,
-            createdAt: request.createdAt,
-            updatedAt: request.updatedAt,
-          };
+    const perfilInfo = await this.prisma.plan.findMany({
+      where: {
+        perfil: { in: signatureRequests.map((sr) => sr.perfil_firma) },
+      },
+    });
+
+    const planMap = new Map(perfilInfo.map((plan) => [plan.perfil, plan]));
+
+    // Procesar solicitudes y calcular días de expiración
+    const data: SignatureListItemDto[] = signatureRequests.map((request) => {
+      const plan = planMap.get(request.perfil_firma);
+      let expiredDays: number | null = null;
+
+      if (plan && request.status === SignatureStatus.COMPLETED) {
+        const updatedDate = new Date(request.updatedAt);
+        const durationInDays = this.parseDuration(
+          plan.duration,
+          plan.durationType,
+        );
+
+        if (durationInDays) {
+          const expirationDate = new Date(updatedDate);
+          expirationDate.setDate(expirationDate.getDate() + durationInDays);
+
+          // Calcular días restantes
+          const today = new Date();
+          const diffTime = expirationDate.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          expiredDays = diffDays;
         }
-      }),
-    );
+      }
+
+      return {
+        id: request.id,
+        numero_tramite: request.numero_tramite,
+        perfil_firma: request.perfil_firma,
+        nombres: request.nombres,
+        apellidos: request.apellidos,
+        rep_legal: request.rep_legal,
+        cedula: request.cedula,
+        correo: request.correo,
+        celular: request.celular,
+        ruc: request.ruc,
+        razon_social: request.razon_social,
+        status: request.status,
+        providerCode: request.providerCode,
+        providerMessage: request.providerMessage,
+        expiredDays,
+        createdAt: request.createdAt,
+        updatedAt: request.updatedAt,
+      };
+    });
 
     // Calcular información de paginación
     const totalPages = Math.ceil(total / limit);
@@ -595,7 +577,7 @@ export class SignaturesService {
     const hasPrevPage = page > 1;
 
     return {
-      data: signatureRequestsWithBase64,
+      data,
       pagination: {
         page,
         limit,
@@ -605,6 +587,32 @@ export class SignaturesService {
         hasPrevPage,
       },
     };
+  }
+
+  /**
+   * Convierte la duración del plan a días
+   * @param duration Duración (número como string)
+   * @param durationType Tipo de duración (D, M, MS, Y, YS)
+   * @returns Número de días
+   */
+  private parseDuration(duration: string, durationType: string): number | null {
+    const durationValue = parseInt(duration, 10);
+    if (isNaN(durationValue)) return null;
+
+    switch (durationType) {
+      case 'D': // Días
+        return durationValue;
+      case 'M': // Meses
+        return durationValue * 30;
+      case 'MS': // Meses (plural)
+        return durationValue * 30;
+      case 'Y': // Año
+        return durationValue * 365;
+      case 'YS': // Años (plural)
+        return durationValue * 365;
+      default:
+        return null;
+    }
   }
 
   /**
