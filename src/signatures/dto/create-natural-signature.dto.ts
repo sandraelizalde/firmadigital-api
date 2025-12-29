@@ -148,7 +148,5 @@ export class CreateNaturalSignatureDto {
   })
   @IsOptional()
   @IsString()
-  @Length(13, 13, { message: 'El RUC debe tener 13 dígitos' })
-  @Matches(/^[0-9]+$/, { message: 'El RUC debe contener solo números' })
   ruc?: string;
 }

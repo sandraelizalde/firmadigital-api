@@ -395,11 +395,6 @@ export class SignaturesService {
         `${this.signProviderAuthUsername}:${this.signProviderAuthPassword}`,
       ).toString('base64');
 
-      this.logger.log(
-        `Llamando al proveedor de firma para trámite: ${payload.numero_tramite}`,
-      );
-      this.logger.debug(`Payload: ${JSON.stringify(payload)}`);
-
       const response = await firstValueFrom(
         this.httpService.post<SignatureProviderResponse>(providerUrl, payload, {
           headers: {
@@ -412,15 +407,8 @@ export class SignaturesService {
 
       const { codigo, mensaje } = response.data;
 
-      this.logger.log(
-        `Respuesta del proveedor - Código: ${codigo}, Mensaje: ${mensaje}`,
-      );
-
       // Validar que la respuesta tenga el formato esperado
       if (typeof codigo === 'undefined' || typeof mensaje === 'undefined') {
-        this.logger.warn(
-          `Respuesta del proveedor con formato inesperado: ${JSON.stringify(response.data)}`,
-        );
         return {
           codigo: 0,
           mensaje: 'Formato de respuesta inválido del proveedor',
@@ -437,26 +425,11 @@ export class SignaturesService {
         if (error.response?.data?.codigo !== undefined) {
           const { codigo, mensaje } = error.response.data;
 
-          this.logger.warn(
-            `Respuesta del proveedor con código HTTP ${error.response.status} - Código: ${codigo}, Mensaje: ${mensaje}`,
-          );
-
           return {
             codigo: Number(codigo),
             mensaje: String(mensaje || 'Error desconocido del proveedor'),
           };
         }
-
-        this.logger.error(
-          `Error de comunicación con el proveedor: HTTP ${error.response?.status || 'sin respuesta'} - ${error.message}`,
-          {
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            data: error.response?.data,
-            url: error.config?.url,
-            code: error.code, // ECONNREFUSED, ETIMEDOUT, etc.
-          },
-        );
 
         // Determinar mensaje de error según el tipo de fallo
         let errorMessage = 'Error de comunicación con el proveedor';
@@ -625,9 +598,6 @@ export class SignaturesService {
       );
 
       const data = response.data;
-      this.logger.debug(
-        `Respuesta de verificación de email: ${JSON.stringify(data)}`,
-      );
 
       // Verificar que la API respondió exitosamente
       if (data.success === 'false' || data.success === false) {
