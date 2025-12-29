@@ -264,4 +264,24 @@ export class SignaturesController {
       paginationQuery.limit,
     );
   }
+
+  @Post('validate-email')
+  @Roles(Role.DISTRIBUTOR)
+  @ApiOperation({
+    summary: 'Validar si un correo electrónico es válido y activo',
+    description:
+      'Permite a un distribuidor validar si un correo electrónico proporcionado es válido y está activo utilizando un servicio externo de verificación de correos.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resultado de la validación del correo electrónico',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 403, description: 'Solo para distribuidores' })
+  async validateEmail(@Query('email') email: string) {
+    if (!email) {
+      throw new BadRequestException('El correo electrónico es requerido');
+    }
+    return this.signaturesService.verifyEmailBounce(email);
+  }
 }

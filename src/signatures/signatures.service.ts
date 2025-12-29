@@ -36,6 +36,8 @@ export class SignaturesService {
   private readonly signProviderAuthUsername: string | undefined;
   private readonly signProviderAuthPassword: string | undefined;
   private readonly signProviderCallback: string | undefined;
+  private readonly emailVerificationApiUrl: string | undefined;
+  private readonly emailVerificationApiKey: string | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -62,6 +64,12 @@ export class SignaturesService {
     );
     this.signProviderCallback = this.configService.get<string>(
       'SIGN_PROVIDER_CALLBACK',
+    );
+    this.emailVerificationApiUrl = this.configService.get<string>(
+      'EMAIL_VERIFICATION_API_URL',
+    );
+    this.emailVerificationApiKey = this.configService.get<string>(
+      'EMAIL_VERIFICATION_API_KEY',
     );
   }
 
@@ -228,6 +236,9 @@ export class SignaturesService {
       } else {
         status = SignatureStatus.FAILED;
       }
+      if (type === 'JURIDICA' && isSuccess) {
+        status = SignatureStatus.PENDING;
+      }
 
       // Procesar la solicitud en una transacción
       const result = await this.prisma.$transaction(async (tx) => {
@@ -323,7 +334,7 @@ export class SignaturesService {
             data: {
               distributorId,
               type: MovementType.EXPENSE,
-              detail: `Firma digital - Plan ${dto.perfil_firma} - ${dto.nombres} ${dto.apellidos}`,
+              detail: `Firma digital - Plan ${dto.perfil_firma} - ${dto.apellidos}`,
               amount: priceCharged,
               balanceAfter: newBalance,
               signatureId: signatureRequest.id,
@@ -587,6 +598,59 @@ export class SignaturesService {
         hasPrevPage,
       },
     };
+  }
+
+  /**
+   * Verifica si un email es válido y seguro para enviar
+   * @param email Email a verificar
+   * @returns Objeto con información de validez o false si hay error
+   */
+  async verifyEmailBounce(email: string): Promise<boolean | false> {
+    try {
+      if (!this.emailVerificationApiUrl || !this.emailVerificationApiKey) {
+        this.logger.warn(
+          'URL o API Key para verificación de email no configurados',
+        );
+        return false;
+      }
+
+      const response = await firstValueFrom(
+        this.httpService.get(`${this.emailVerificationApiUrl}`, {
+          params: {
+            email,
+            apikey: this.emailVerificationApiKey,
+          },
+          timeout: 10000, // 10 segundos de timeout
+        }),
+      );
+
+      const data = response.data;
+      this.logger.debug(
+        `Respuesta de verificación de email: ${JSON.stringify(data)}`,
+      );
+
+      // Verificar que la API respondió exitosamente
+      if (data.success === 'false' || data.success === false) {
+        this.logger.warn(
+          `Error de API de verificación de email: ${data.message || 'Sin mensaje'}`,
+        );
+        return false;
+      }
+
+      // Determinar si el email es válido y seguro
+      const isValid = data.result === 'valid';
+      const safeToSend =
+        data.safe_to_send === 'true' || data.safe_to_send === true;
+      const disposable = data.disposable === 'true' || data.disposable === true;
+
+      return isValid;
+    } catch (error) {
+      this.logger.error(
+        `Error al verificar rebote de email ${email}: ${error.message}`,
+        error.stack,
+      );
+      return false;
+    }
   }
 
   /**
