@@ -7,10 +7,15 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
 import { SignatureStatus } from '@prisma/client';
+import { FilesService } from 'src/files/files.service';
+import { UploadContractDto } from './dto/upload-contract.dto';
 
 @Injectable()
 export class DistributorsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly filesService: FilesService,
+  ) {}
 
   // Obtener información de un distribuidor con su info de facturación
   async getDistributorById(distributorId: string) {
@@ -23,6 +28,11 @@ export class DistributorsService {
           include: {
             plan: true,
           },
+          orderBy: {
+            plan: {
+              perfil: 'desc',
+            },
+          },
         },
       },
     });
@@ -34,9 +44,26 @@ export class DistributorsService {
       });
     }
 
+    // Obtener contrato en base64 si existe
+    let contractBase64: string | null = null;
+    if (distributor.contractSignedUrl) {
+      try {
+        contractBase64 = await this.filesService.getFile(
+          distributor.contractSignedUrl,
+          'contratos-distribuidores',
+        );
+      } catch (error) {
+        // Si hay error al obtener el contrato, continuar sin él
+        contractBase64 = null;
+      }
+    }
+
     return {
       success: true,
-      distributor,
+      distributor: {
+        ...distributor,
+        contractBase64,
+      },
     };
   }
 
@@ -162,28 +189,101 @@ export class DistributorsService {
     };
   }
 
-  // Listar todos los distribuidores
-  async getAllDistributors() {
-    const distributors = await this.prisma.distributor.findMany({
-      where: { active: true },
-      include: {
-        billingInfo: true,
-        planPrices: {
-          where: { isActive: true },
-          include: {
-            plan: true,
-          },
+  // Subir contrato de distribuidor
+  async uploadContract(distributorId: string, data: UploadContractDto) {
+    // Verificar que el distribuidor existe
+    try {
+      const distributor = await this.prisma.distributor.findUnique({
+        where: { id: distributorId },
+      });
+
+      if (!distributor) {
+        throw new NotFoundException({
+          message: 'Distribuidor no encontrado',
+          error: 'DISTRIBUTOR_NOT_FOUND',
+        });
+      }
+
+      // Subir contrato a S3 y obtener la key
+      const contractKey = await this.filesService.uploadFile(
+        data.contractBase64,
+        distributorId,
+        'pdf',
+        distributor.identification,
+        'contratos-distribuidores',
+      );
+
+      // Actualizar el distribuidor con la key del contrato
+      // TODO: Crear transaccion de prisma
+
+      const updatedDistributor = await this.prisma.distributor.update({
+        where: { id: distributorId },
+        data: {
+          contractSignedUrl: contractKey,
         },
-      },
+      });
+
+      await this.prisma.distributor.update({
+        where: { id: distributorId },
+        data: {
+          active: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Contrato subido exitosamente',
+        contractKey: updatedDistributor.contractSignedUrl,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Error al subir el contrato',
+        error: error.message,
+      };
+    }
+  }
+
+  // Listar todos los distribuidores con paginación
+  async getAllDistributors(page: number = 1, limit: number = 10) {
+    const skip = (page - 1) * limit;
+
+    // Obtener el total de distribuidores activos
+    const total = await this.prisma.distributor.count({});
+
+    // Obtener distribuidores paginados
+    const distributors = await this.prisma.distributor.findMany({
+      // include: {
+      //   billingInfo: true,
+      //   planPrices: {
+      //     where: { isActive: true },
+      //     include: {
+      //       plan: true,
+      //     },
+      //   },
+      // },
       orderBy: {
         createdAt: 'desc',
       },
+      skip,
+      take: limit,
     });
 
+    // Calcular información de paginación
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
     return {
-      success: true,
-      count: distributors.length,
-      distributors,
+      data: distributors,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
     };
   }
 

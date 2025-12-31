@@ -113,44 +113,107 @@ Content-Type: application/json
 ### 📋 Listar Todos los Distribuidores (ADMIN)
 **GET** `/distributors`
 
-Obtiene la lista completa de distribuidores activos.
+Obtiene la lista paginada de distribuidores activos con su información de facturación y planes asignados.
 
 **Headers:**
 ```
 Authorization: Bearer {token}
 ```
 
+**Query Parameters:**
+- `page` (number, opcional): Número de página (default: 1, mínimo: 1)
+- `limit` (number, opcional): Cantidad de resultados por página (default: 10, mínimo: 1, máximo: 100)
+
+**Ejemplo de Request:**
+```
+GET /distributors?page=1&limit=10
+```
+
 **Respuesta Exitosa (200):**
 ```json
-[
-  {
-    "id": "clxxx123abc",
-    "firstName": "Luis",
-    "lastName": "González",
-    "identification": "0123456789",
-    "email": "distribuidor@example.com",
-    "phone": "0987654321",
-    "address": "Av. Principal 123",
-    "balance": 50000,
-    "active": true,
-    "createdAt": "2025-12-01T10:00:00.000Z",
-    "billingInfo": {
-      "useDistributorData": true,
-      "businessName": "Distribuidora González S.A."
-    },
-    "distributorPlans": [
-      {
-        "customPrice": 1500,
-        "plan": {
-          "id": "plan123",
-          "name": "Plan Básico",
-          "description": "1GB de datos"
+{
+  "data": [
+    {
+      "id": "cm5abcd1234567890",
+      "firstName": "Luis",
+      "lastName": "González",
+      "socialReason": "Distribuidora González S.A.",
+      "identification": "0123456789",
+      "email": "distribuidor@example.com",
+      "phone": "0987654321",
+      "address": "Av. Principal 123",
+      "balance": 5000000,
+      "active": true,
+      "role": "DISTRIBUTOR",
+      "createdAt": "2025-12-01T10:00:00.000Z",
+      "updatedAt": "2025-12-29T15:30:00.000Z",
+      "billingInfo": {
+        "id": "billing123",
+        "useDistributorData": true,
+        "socialReason": null,
+        "identificationType": null,
+        "identification": null,
+        "email": null,
+        "phone": null,
+        "address": null
+      },
+      "planPrices": [
+        {
+          "id": "pp123",
+          "customPrice": 4500,
+          "customPricePromo": 3500,
+          "isActive": true,
+          "plan": {
+            "id": "plan1",
+            "perfil": "PN-TOKEN-2A",
+            "name": "Firma Persona Natural Token 2 años",
+            "description": "Token de firma electrónica por 2 años",
+            "basePrice": 5000,
+            "basePricePromo": 4000,
+            "isPromo": true,
+            "duration": "2",
+            "durationType": "YS",
+            "isActive": true
+          }
         }
-      }
-    ]
+      ]
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 45,
+    "totalPages": 5,
+    "hasNextPage": true,
+    "hasPrevPage": false
   }
-]
+}
 ```
+
+**Campos de respuesta:**
+- `data`: Array de distribuidores
+  - `id`: ID único del distribuidor
+  - `firstName`: Nombre del distribuidor
+  - `lastName`: Apellido del distribuidor
+  - `socialReason`: Razón social (null si es persona natural)
+  - `identification`: Cédula o RUC
+  - `email`: Correo electrónico
+  - `phone`: Teléfono de contacto
+  - `address`: Dirección física
+  - `balance`: Saldo disponible en centavos (5000000 = $50,000.00)
+  - `active`: Estado del distribuidor
+  - `role`: Rol del usuario (ADMIN, DISTRIBUTOR)
+  - `createdAt`: Fecha de creación
+  - `updatedAt`: Fecha de última actualización
+  - `billingInfo`: Información de facturación configurada
+  - `planPrices`: Planes asignados con precios personalizados
+- `pagination`: Información de paginación
+  - `page`: Página actual
+  - `limit`: Resultados por página
+  - `total`: Total de distribuidores
+  - `totalPages`: Total de páginas
+  - `hasNextPage`: Si hay página siguiente
+  - `hasPrevPage`: Si hay página anterior
 
 **Errores:**
 - `401`: No autorizado
@@ -161,7 +224,7 @@ Authorization: Bearer {token}
 ### 🔍 Obtener Distribuidor por ID
 **GET** `/distributors/:distributorId`
 
-Obtiene información detallada de un distribuidor específico.
+Obtiene información detallada de un distribuidor específico, incluyendo su contrato en Base64 si ha sido subido.
 
 **Headers:**
 ```
@@ -174,43 +237,63 @@ Authorization: Bearer {token}
 **Respuesta Exitosa (200):**
 ```json
 {
-  "id": "clxxx123abc",
-  "firstName": "Luis",
-  "lastName": "González",
-  "identification": "0123456789",
-  "email": "distribuidor@example.com",
-  "phone": "0987654321",
-  "address": "Av. Principal 123",
-  "socialReason": "Distribuidora González S.A.",
-  "identificationType": "RUC",
-  "balance": 50000,
-  "active": true,
-  "createdAt": "2025-12-01T10:00:00.000Z",
-  "updatedAt": "2025-12-15T14:30:00.000Z",
-  "billingInfo": {
-    "id": "billing123",
-    "useDistributorData": false,
-    "businessName": "Mi Empresa",
-    "ruc": "1234567890001",
-    "address": "Calle Comercial 456",
-    "phone": "0999888777",
-    "email": "facturacion@empresa.com"
-  },
-  "distributorPlans": [
-    {
-      "id": "dp123",
-      "customPrice": 1500,
-      "active": true,
-      "plan": {
-        "id": "plan123",
-        "name": "Plan Básico",
-        "basePrice": 2000,
-        "operator": "CLARO"
+  "success": true,
+  "distributor": {
+    "id": "cm5abcd1234567890",
+    "firstName": "Luis",
+    "lastName": "González",
+    "socialReason": "Distribuidora González S.A.",
+    "identificationType": "RUC",
+    "identification": "0123456789001",
+    "password": "encrypted_password_hash",
+    "email": "distribuidor@example.com",
+    "address": "Av. Principal 123",
+    "phone": "0987654321",
+    "createdBy": "admin123",
+    "createdByName": "Admin User",
+    "active": true,
+    "balance": 5000000,
+    "contractSignedUrl": "contratos-distribuidores/1735567890123.pdf",
+    "createdAt": "2025-12-01T10:00:00.000Z",
+    "updatedAt": "2025-12-29T15:30:00.000Z",
+    "contractBase64": "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo...",
+    "billingInfo": {
+      "id": "billing123",
+      "useDistributorData": false,
+      "socialReason": "Mi Empresa S.A.",
+      "identificationType": "RUC",
+      "identification": "1234567890001",
+      "email": "facturacion@empresa.com",
+      "phone": "0999888777",
+      "address": "Calle Comercial 456"
+    },
+    "planPrices": [
+      {
+        "id": "pp123",
+        "customPrice": 4500,
+        "customPricePromo": 3500,
+        "isActive": true,
+        "plan": {
+          "id": "plan1",
+          "perfil": "PN-TOKEN-2A",
+          "name": "Firma Persona Natural Token 2 años",
+          "basePrice": 5000,
+          "isActive": true
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ```
+
+**Campos de respuesta:**
+- `success`: Indica si la operación fue exitosa
+- `distributor`: Objeto con toda la información del distribuidor
+  - `contractBase64`: Contrato en formato Base64 (null si no ha sido subido)
+  - `contractSignedUrl`: Key del archivo en S3 (null si no ha sido subido)
+  - `balance`: Saldo en centavos (5000000 = $50,000.00)
+  - `billingInfo`: Información de facturación (null si no ha sido configurada)
+  - `planPrices`: Planes asignados con precios personalizados
 
 **Errores:**
 - `401`: No autorizado
@@ -245,6 +328,93 @@ Content-Type: application/json
   "useDistributorData": false,
   "businessName": "Mi Empresa S.A.",
   "ruc": "1234567890001",
+  "address": "Calle Comercial 456",
+  "phone": "0999888777",
+  "email": "facturacion@empresa.com"
+}
+```
+
+**Respuesta Exitosa (201):**
+```json
+{
+  "success": true,
+  "message": "Información de facturación creada exitosamente",
+  "billingInfo": {
+    "id": "billing123",
+    "distributorId": "dist123",
+    "useDistributorData": false,
+    "socialReason": "Mi Empresa S.A.",
+    "identificationType": "RUC",
+    "identification": "1234567890001",
+    "email": "facturacion@empresa.com",
+    "phone": "0999888777",
+    "address": "Calle Comercial 456"
+  }
+}
+```
+
+**Errores:**
+- `404`: Distribuidor no encontrado
+- `409`: El distribuidor ya tiene información de facturación
+
+---
+
+### 📄 Subir Contrato de Distribuidor (ADMIN)
+**POST** `/distributors/:distributorId/contract`
+
+Permite al administrador subir el contrato firmado de un distribuidor en formato PDF (Base64). El archivo se guarda en Wasabi S3 en el bucket "contratos-distribuidores" y solo la key del archivo se almacena en la base de datos.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Parámetros URL:**
+- `distributorId` (string): ID del distribuidor
+
+**Body:**
+```json
+{
+  "contractBase64": "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwo..."
+}
+```
+
+**Campos del Body:**
+- `contractBase64` (string, requerido): Contrato en formato Base64. Puede incluir o no el prefijo `data:application/pdf;base64,`
+
+**Respuesta Exitosa (201):**
+```json
+{
+  "success": true,
+  "message": "Contrato subido exitosamente",
+  "contractKey": "contratos-distribuidores/1735567890123.pdf"
+}
+```
+
+**Campos de respuesta:**
+- `success`: Indica si la operación fue exitosa
+- `message`: Mensaje descriptivo
+- `contractKey`: Key del archivo guardado en S3 (se almacena en el campo `contractSignedUrl` del distribuidor)
+
+**Almacenamiento:**
+- **Bucket S3**: `contratos-distribuidores`
+- **Formato de key**: `contratos-distribuidores/{timestamp}.pdf`
+- **Base de datos**: Solo se guarda la key en el campo `contractSignedUrl` de la tabla Distributor
+
+**Recuperación:**
+Cuando se consulta un distribuidor por ID (GET `/distributors/:distributorId`), el sistema:
+1. Lee la key desde `contractSignedUrl`
+2. Descarga el archivo desde S3 usando la key
+3. Convierte el contenido a Base64
+4. Lo devuelve en el campo `contractBase64` de la respuesta
+
+**Errores:**
+- `401`: No autorizado
+- `403`: Requiere rol ADMIN
+- `404`: Distribuidor no encontrado
+
+---
   "address": "Calle Comercial 456",
   "phone": "0999888777",
   "email": "facturacion@empresa.com"
@@ -505,7 +675,21 @@ Obtiene información detallada de un plan específico. **Endpoint público.**
 ### ➕ Asignar Planes a Distribuidor (ADMIN)
 **POST** `/plans/assign`
 
-Asigna múltiples planes a un distribuidor con precios personalizados.
+Asigna múltiples planes a un distribuidor con precios personalizados. **El administrador solo debe enviar los planes de Persona Jurídica (PJ-)**, el sistema automáticamente buscará y asignará los planes equivalentes de Persona Natural (PN-) con el mismo duration y durationType.
+
+**Lógica de Asignación Automática:**
+- Por cada plan PJ- enviado, el sistema busca su `duration` y `durationType`
+- Busca el plan PN- que tenga exactamente el mismo `duration` y `durationType`
+- Crea ambas asignaciones (PJ + PN) con el mismo precio personalizado
+
+**Ejemplo de Emparejamiento:**
+- PJ-019 (15 días) → PN-018 (15 días)
+- PJ-017 (1 mes) → PN-001 (1 mes)
+- PJ-003 (1 año) → PN-002 (1 año)
+- PJ-006 (2 años) → PN-005 (2 años)
+- PJ-009 (3 años) → PN-010 (3 años)
+- PJ-008 (4 años) → PN-007 (4 años)
+- PJ-013 (5 años) → PN-013 (5 años)
 
 **Headers:**
 ```
@@ -516,19 +700,16 @@ Content-Type: application/json
 **Body:**
 ```json
 {
-  "distributorId": "clxxx123abc",
+  "distributorId": "cm5abcd1234567890",
   "plans": [
     {
-      "planId": "plan123",
-      "customPrice": 1500
+      "planId": "pj-plan-id-2years",
+      "customPrice": 219900,
+      "customPricePromo": 199900
     },
     {
-      "planId": "plan456",
-      "customPrice": 3000
-    },
-    {
-      "planId": "plan789",
-      "customPrice": 5000
+      "planId": "pj-plan-id-3years",
+      "customPrice": 299900
     }
   ]
 }
@@ -536,46 +717,99 @@ Content-Type: application/json
 
 **Campos:**
 - `distributorId` (string, requerido): ID del distribuidor
-- `plans` (array, requerido): Lista de planes a asignar
-  - `planId` (string, requerido): ID del plan
-  - `customPrice` (number, requerido): Precio personalizado en centavos
+- `plans` (array, requerido): Lista de planes **de Persona Jurídica (PJ-)** a asignar
+  - `planId` (string, requerido): ID del plan PJ-
+  - `customPrice` (number, requerido): Precio personalizado en centavos para ambos planes (PJ y PN equivalente)
+  - `customPricePromo` (number, opcional): Precio promocional personalizado en centavos
+
+**Nota Importante:** Solo envíe planes de tipo Persona Jurídica (PJ-). El sistema rechazará la solicitud si incluye planes que no sean PJ-.
 
 **Respuesta Exitosa (201):**
 ```json
 {
   "success": true,
-  "message": "3 planes asignados exitosamente al distribuidor",
+  "message": "4 planes asignados exitosamente al distribuidor (2 jurídicos + 2 naturales equivalentes)",
   "distributor": {
-    "id": "clxxx123abc",
+    "id": "cm5abcd1234567890",
     "firstName": "Luis",
     "lastName": "González",
+    "socialReason": "Distribuidora González S.A.",
     "email": "distribuidor@example.com"
   },
   "assignments": [
     {
-      "id": "dp123",
-      "distributorId": "clxxx123abc",
-      "planId": "plan123",
-      "customPrice": 1500,
-      "active": true,
+      "id": "dpp123",
+      "distributorId": "cm5abcd1234567890",
+      "planId": "pj-plan-id-2years",
+      "customPrice": 219900,
+      "customPricePromo": 199900,
+      "isActive": true,
+      "createdBy": "admin123",
+      "createdByName": "Admin User",
+      "createdAt": "2025-12-31T10:00:00.000Z",
       "plan": {
-        "name": "Plan Básico 1GB",
-        "basePrice": 2000,
-        "operator": "CLARO"
-      },
-      "assignedBy": "admin456",
-      "createdAt": "2025-12-16T10:00:00.000Z"
+        "id": "pj-plan-id-2years",
+        "perfil": "PJ-006",
+        "duration": "2",
+        "durationType": "YS",
+        "basePrice": 219900,
+        "eligibleClientsType": ["PERSONA_JURIDICA"],
+        "isActive": true
+      }
+    },
+    {
+      "id": "dpp124",
+      "distributorId": "cm5abcd1234567890",
+      "planId": "pn-plan-id-2years",
+      "customPrice": 219900,
+      "customPricePromo": 199900,
+      "isActive": true,
+      "createdBy": "admin123",
+      "createdByName": "Admin User",
+      "createdAt": "2025-12-31T10:00:00.000Z",
+      "plan": {
+        "id": "pn-plan-id-2years",
+        "perfil": "PN-005",
+        "duration": "2",
+        "durationType": "YS",
+        "basePrice": 219900,
+        "eligibleClientsType": ["PERSONA_NATURAL_SIN_RUC", "PERSONA_NATURAL_CON_RUC"],
+        "isActive": true
+      }
+    },
+    {
+      "id": "dpp125",
+      "distributorId": "cm5abcd1234567890",
+      "planId": "pj-plan-id-3years",
+      "customPrice": 299900,
+      "isActive": true,
+      "plan": {
+        "perfil": "PJ-009",
+        "duration": "3",
+        "durationType": "YS"
+      }
+    },
+    {
+      "id": "dpp126",
+      "distributorId": "cm5abcd1234567890",
+      "planId": "pn-plan-id-3years",
+      "customPrice": 299900,
+      "isActive": true,
+      "plan": {
+        "perfil": "PN-010",
+        "duration": "3",
+        "durationType": "YS"
+      }
     }
   ]
 }
 ```
 
 **Errores:**
-- `400`: Uno o más planes no fueron encontrados o están inactivos
+- `400`: Algunos planes no existen o no son de tipo Persona Jurídica
 - `401`: No autorizado
 - `403`: Solo administradores pueden asignar planes
 - `404`: Distribuidor no encontrado
-- `409`: Algunos planes ya están asignados al distribuidor
 
 ---
 

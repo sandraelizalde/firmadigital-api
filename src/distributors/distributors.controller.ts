@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -23,6 +24,8 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
+import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { UploadContractDto } from './dto/upload-contract.dto';
 
 @ApiTags('Distribuidores')
 @Controller('distributors')
@@ -31,9 +34,9 @@ export class DistributorsController {
   constructor(private readonly distributorsService: DistributorsService) {}
 
   @ApiOperation({
-    summary: 'Listar todos los distribuidores',
+    summary: 'Listar todos los distribuidores con paginación',
     description:
-      'Obtiene la lista completa de distribuidores activos con su información de facturación y planes asignados',
+      'Obtiene la lista paginada de distribuidores activos con su información de facturación y planes asignados. Soporta paginación mediante query parameters.',
   })
   @ApiBearerAuth()
   @ApiResponse({
@@ -42,8 +45,11 @@ export class DistributorsController {
   })
   @Get()
   @Roles(Role.ADMIN)
-  async getAllDistributors() {
-    return await this.distributorsService.getAllDistributors();
+  async getAllDistributors(@Query() paginationQuery: PaginationQueryDto) {
+    return await this.distributorsService.getAllDistributors(
+      paginationQuery.page,
+      paginationQuery.limit,
+    );
   }
 
   @ApiOperation({
@@ -187,5 +193,47 @@ export class DistributorsController {
   @Roles(Role.ADMIN, Role.DISTRIBUTOR)
   async getBillingInfo(@Param('distributorId') distributorId: string) {
     return await this.distributorsService.getBillingInfo(distributorId);
+  }
+
+  @ApiOperation({
+    summary: 'Subir contrato de distribuidor (ADMIN)',
+    description:
+      'Permite al administrador subir el contrato firmado de un distribuidor en formato PDF (Base64). El archivo se guarda en Wasabi S3 y solo la key se almacena en la base de datos.',
+  })
+  @ApiParam({
+    name: 'distributorId',
+    description: 'ID del distribuidor',
+    type: String,
+  })
+  @ApiBody({ type: UploadContractDto })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 201,
+    description: 'Contrato subido exitosamente',
+    example: {
+      success: true,
+      message: 'Contrato subido exitosamente',
+      contractKey: 'contratos-distribuidores/1735567890123.pdf',
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Distribuidor no encontrado',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Requiere rol ADMIN',
+  })
+  @Post(':distributorId/contract')
+  @Roles(Role.ADMIN)
+  async uploadContract(
+    @Param('distributorId') distributorId: string,
+    @Body() data: UploadContractDto,
+  ) {
+    return await this.distributorsService.uploadContract(distributorId, data);
   }
 }

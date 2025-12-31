@@ -70,8 +70,9 @@ model Distributor {
   phone              String
   createdBy          String? // Admin que registró
   createdByName      String?
-  active             Boolean            @default(true)
+  active             Boolean            @default(false)
   balance            Int                @default(0) // Saldo actual del distribuidor en centavos
+  contractSignedUrl  String? // URL del contrato firmado
 
   planPrices        DistributorPlanPrice[]
   signatureRequests SignatureRequest[]

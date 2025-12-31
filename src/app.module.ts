@@ -15,6 +15,7 @@ import { AdvertisementsModule } from './advertisements/advertisements.module';
 import { SignaturesModule } from './signatures/signatures.module';
 import { ConsultationsModule } from './consultations/consultations.module';
 import { ConfigModule } from '@nestjs/config';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ConfigModule } from '@nestjs/config';
     AdvertisementsModule,
     SignaturesModule,
     ConsultationsModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [

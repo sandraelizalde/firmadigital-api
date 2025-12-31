@@ -149,8 +149,13 @@ export class ConsultationsService {
         }),
       );
 
+      console.log('Respuesta API Cédulas:', response.data);
+
       // Verificar si la consulta fue exitosa
-      if (!response.data.resultado?.resultado) {
+      if (
+        !response.data.resultado?.resultado ||
+        !response.data.datos?.Nombre
+      ) {
         const mensaje =
           response.data.resultado?.mensaje || 'Error en la consulta';
         this.logger.warn(`Consulta de cédula sin resultados: ${mensaje}`);

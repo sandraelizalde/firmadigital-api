@@ -8,15 +8,24 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { AssignPlansToDistributorDto } from './dto/assign-plan-to-distributor.dto';
 import { UpdateDistributorPlanPriceDto } from './dto/update-distributor-plan-price.dto';
 import { TypeClient } from '@prisma/client';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   // Listar todos los planes disponibles
   async getAllPlans() {
     return await this.prisma.plan.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        eligibleClientsType: {
+          has: TypeClient.PERSONA_JURIDICA,
+        },
+      },
       orderBy: { perfil: 'asc' },
     });
   }
@@ -54,58 +63,89 @@ export class PlansService {
       });
     }
 
-    // Validar que todos los planes existen
-    const planIds = data.plans.map((p) => p.planId);
-    const plans = await this.prisma.plan.findMany({
+    // Obtener todos los planes jurídicos enviados
+    const juridicalPlanIds = data.plans.map((p) => p.planId);
+    const juridicalPlans = await this.prisma.plan.findMany({
       where: {
-        id: { in: planIds },
-        isActive: true,
+        id: { in: juridicalPlanIds },
+        eligibleClientsType: {
+          has: TypeClient.PERSONA_JURIDICA,
+        },
       },
     });
 
-    if (plans.length !== planIds.length) {
+    // Validar que todos los planes enviados son de persona jurídica
+    if (juridicalPlans.length !== juridicalPlanIds.length) {
       throw new BadRequestException({
-        message: 'Uno o más planes no fueron encontrados o están inactivos',
+        message: 'Algunos planes no existen o no son de tipo Persona Jurídica',
         error: 'INVALID_PLANS',
       });
     }
 
-    // Verificar si ya existen asignaciones
-    const existingAssignments = await this.prisma.distributorPlanPrice.findMany(
-      {
-        where: {
-          distributorId: data.distributorId,
-          planId: { in: planIds },
-        },
-      },
-    );
+    // Preparar todas las asignaciones (PJ + PN)
+    const allAssignments: Array<{
+      distributorId: string;
+      planId: string;
+      customPrice: number;
+      customPricePromo: number | undefined;
+      createdBy: any;
+      createdByName: string;
+      isActive: boolean;
+    }> = [];
 
-    if (existingAssignments.length > 0) {
-      const existingPlanIds = existingAssignments.map((a) => a.planId);
-      const conflictingPlans = plans.filter((p) =>
-        existingPlanIds.includes(p.id),
+    for (const planData of data.plans) {
+      // Buscar el plan jurídico
+      const juridicalPlan = juridicalPlans.find(
+        (p) => p.id === planData.planId,
       );
 
-      throw new ConflictException({
-        message: 'Algunos planes ya están asignados al distribuidor',
-        error: 'PLANS_ALREADY_ASSIGNED',
-        conflictingPlans: conflictingPlans.map((p) => p.perfil),
+      if (!juridicalPlan) continue;
+
+      // Agregar el plan jurídico
+      allAssignments.push({
+        distributorId: data.distributorId,
+        planId: juridicalPlan.id,
+        customPrice: planData.customPrice,
+        customPricePromo: planData.customPricePromo,
+        createdBy: adminUser.userId,
+        createdByName: `${adminUser.firstName} ${adminUser.lastName}`,
+        isActive: true,
       });
+
+      // Buscar el plan natural equivalente con el mismo duration y durationType
+      const naturalPlan = await this.prisma.plan.findFirst({
+        where: {
+          duration: juridicalPlan.duration,
+          durationType: juridicalPlan.durationType,
+          eligibleClientsType: {
+            hasSome: [
+              TypeClient.PERSONA_NATURAL_SIN_RUC,
+              TypeClient.PERSONA_NATURAL_CON_RUC,
+            ],
+          },
+          isActive: true,
+        },
+      });
+
+      // Si existe plan natural equivalente, agregarlo también
+      if (naturalPlan) {
+        allAssignments.push({
+          distributorId: data.distributorId,
+          planId: naturalPlan.id,
+          customPrice: planData.customPrice,
+          customPricePromo: planData.customPricePromo,
+          createdBy: adminUser.userId,
+          createdByName: `${adminUser.firstName} ${adminUser.lastName}`,
+          isActive: true,
+        });
+      }
     }
 
     // Crear todas las asignaciones en una transacción
     const assignments = await this.prisma.$transaction(
-      data.plans.map((planData) =>
+      allAssignments.map((assignmentData) =>
         this.prisma.distributorPlanPrice.create({
-          data: {
-            distributorId: data.distributorId,
-            planId: planData.planId,
-            customPrice: planData.customPrice,
-            customPricePromo: planData.customPricePromo,
-            createdBy: adminUser.id,
-            createdByName: `${adminUser.firstName} ${adminUser.lastName}`,
-            isActive: true,
-          },
+          data: assignmentData,
           include: {
             plan: true,
           },
@@ -113,9 +153,22 @@ export class PlansService {
       ),
     );
 
+    // Enviar contrato por correo con solo los planes jurídicos
+    const juridicalAssignments = assignments.filter((a) =>
+      a.plan.eligibleClientsType.includes(TypeClient.PERSONA_JURIDICA),
+    );
+
+    try {
+      await this.mailService.sendContract(distributor, juridicalAssignments);
+      console.log('Contrato enviado por correo exitosamente');
+    } catch (error) {
+      // Log error pero no fallar la operación
+      console.error('Error al enviar contrato:', error);
+    }
+
     return {
       success: true,
-      message: `${assignments.length} planes asignados exitosamente al distribuidor`,
+      message: `${assignments.length} planes asignados exitosamente al distribuidor (${data.plans.length} jurídicos + ${assignments.length - data.plans.length} naturales)`,
       distributor: {
         id: distributor.id,
         firstName: distributor.firstName,

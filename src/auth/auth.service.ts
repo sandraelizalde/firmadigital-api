@@ -102,7 +102,7 @@ export class AuthService {
         password: encryptedPassword,
         createdBy: adminUser.userId,
         createdByName: `${adminUser.firstName} ${adminUser.lastName}`,
-        active: true,
+        active: false,
       },
     });
 
