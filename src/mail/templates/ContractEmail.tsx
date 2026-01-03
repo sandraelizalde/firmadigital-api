@@ -8,6 +8,7 @@ import {
   Section,
   Text,
   Hr,
+  Img,
 } from '@react-email/components';
 
 type Props = {
@@ -45,17 +46,13 @@ export default function ContractEmail({
           <Container
             style={{ maxWidth: '600px', margin: '0 auto', padding: '0 20px' }}
           >
-            <Text
-              style={{
-                margin: 0,
-                fontSize: '24px',
-                fontWeight: 'bold',
-                color: brand.white,
-                textAlign: 'center',
-              }}
-            >
-              Nexus Soluciones
-            </Text>
+            <Img
+              src="https://www.solucionesnexus.com/images/home/logo-full-white.png"
+              alt="Nexus Soluciones"
+              width={180}
+              height={48}
+              style={{ display: 'block', margin: '0 auto' }}
+            />
           </Container>
         </Section>
 

@@ -650,6 +650,87 @@ export class RechargesService {
   }
 
   /**
+   * ADMIN: Obtener recargas de un distribuidor específico
+   */
+  async getDistributorRecharges(
+    distributorId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    // Verificar que el distribuidor exista
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        socialReason: true,
+        email: true,
+        identification: true,
+        balance: true,
+      },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException('Distribuidor no encontrado');
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Obtener total de recargas
+    const total = await this.prisma.recharge.count({
+      where: { distributorId },
+    });
+
+    // Obtener recargas paginadas
+    const recharges = await this.prisma.recharge.findMany({
+      where: { distributorId },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        accountMovements: true,
+        distributor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            socialReason: true,
+            email: true,
+            identification: true,
+            balance: true,
+          },
+        },
+      },
+    });
+
+    // Convertir receiptFile a base64
+    const rechargesWithReceipt = await Promise.all(
+      recharges.map(async (recharge) => ({
+        ...recharge,
+        receiptFile: recharge.receiptFile
+          ? await this.filesService.getFile(
+              recharge.receiptFile,
+              'vouchers-nexus',
+            )
+          : null,
+      })),
+    );
+
+    return {
+      success: true,
+      distributor,
+      data: rechargesWithReceipt,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
    * ADMIN: Obtener movimientos de cuenta de un distribuidor
    */
   async getDistributorAccountMovements(

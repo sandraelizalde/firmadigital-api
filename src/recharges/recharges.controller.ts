@@ -25,6 +25,7 @@ import { ManualRechargeDto } from './dto/manual-recharge.dto';
 import { ReviewRechargeDto } from './dto/review-recharge.dto';
 import { InitCardRechargeDto } from './dto/init-card-recharge.dto';
 import { PayphoneConfirmationDto } from './dto/payphone-confirmation.dto';
+import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -131,20 +132,6 @@ export class RechargesController {
     description:
       'Retorna todas las recargas del distribuidor autenticado con paginación',
   })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Número de página (default: 1)',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Cantidad de elementos por página (default: 10)',
-    example: 10,
-  })
   @ApiResponse({
     status: 200,
     description: 'Lista de recargas del distribuidor con paginación',
@@ -152,15 +139,12 @@ export class RechargesController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async getMyRecharges(
     @Request() req,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() paginationDto: PaginationQueryDto,
   ) {
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 10;
     return this.rechargesService.getMyRecharges(
       req.user.userId,
-      pageNum,
-      limitNum,
+      paginationDto.page,
+      paginationDto.limit,
     );
   }
 
@@ -200,20 +184,6 @@ export class RechargesController {
     description:
       'Retorna todos los movimientos de cuenta (ingresos, egresos, ajustes) del distribuidor con paginación',
   })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Número de página (default: 1)',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Cantidad de elementos por página (default: 10)',
-    example: 10,
-  })
   @ApiResponse({
     status: 200,
     description: 'Lista de movimientos de cuenta con paginación',
@@ -221,38 +191,13 @@ export class RechargesController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async getMyAccountMovements(
     @Request() req,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() paginationDto: PaginationQueryDto,
   ) {
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 10;
     return this.rechargesService.getAccountMovements(
       req.user.userId,
-      pageNum,
-      limitNum,
+      paginationDto.page,
+      paginationDto.limit,
     );
-  }
-
-  /**
-   * Obtener resumen de recargas del distribuidor
-   * Balance total, recargas pendientes y ventas
-   */
-  @Get('summary')
-  @Roles(Role.DISTRIBUTOR)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Obtener resumen de recargas',
-    description:
-      'Retorna balance total, recargas pendientes (cantidad y monto) y ventas totales del distribuidor',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Resumen de recargas obtenido exitosamente',
-  })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
-  @ApiResponse({ status: 404, description: 'Distribuidor no encontrado' })
-  async getRechargesSummary(@Request() req) {
-    return this.rechargesService.getRechargesSummary(req.user.userId);
   }
 
   // ==========================================
@@ -277,20 +222,6 @@ export class RechargesController {
     enum: RechargeStatus,
     description: 'Filtrar por estado de recarga',
   })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Número de página (default: 1)',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Cantidad de elementos por página (default: 10)',
-    example: 10,
-  })
   @ApiResponse({
     status: 200,
     description: 'Lista de recargas con paginación',
@@ -298,13 +229,14 @@ export class RechargesController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
   async getAllRecharges(
-    @Query('status') status?: RechargeStatus,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query('status') status: RechargeStatus,
+    @Query() paginationDto: PaginationQueryDto,
   ) {
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 10;
-    return this.rechargesService.getAllRecharges(status, pageNum, limitNum);
+    return this.rechargesService.getAllRecharges(
+      status,
+      paginationDto.page,
+      paginationDto.limit,
+    );
   }
 
   /**
@@ -317,36 +249,17 @@ export class RechargesController {
     summary: '[ADMIN] Obtener recargas pendientes',
     description: 'Retorna solo las recargas en estado PENDING con paginación',
   })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Número de página (default: 1)',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Cantidad de elementos por página (default: 10)',
-    example: 10,
-  })
   @ApiResponse({
     status: 200,
     description: 'Lista de recargas pendientes con paginación',
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
-  async getPendingRecharges(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 10;
+  async getPendingRecharges(@Query() paginationDto: PaginationQueryDto) {
     return this.rechargesService.getAllRecharges(
       RechargeStatus.PENDING,
-      pageNum,
-      limitNum,
+      paginationDto.page,
+      paginationDto.limit,
     );
   }
 
@@ -437,6 +350,40 @@ export class RechargesController {
   }
 
   /**
+   * ADMIN: Ver recargas de un distribuidor específico
+   */
+  @Get('admin/distributor/:distributorId/recharges')
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '[ADMIN] Ver recargas de un distribuidor',
+    description:
+      'Retorna todas las recargas de un distribuidor específico con paginación, incluyendo imágenes en base64',
+  })
+  @ApiParam({
+    name: 'distributorId',
+    description: 'ID del distribuidor',
+    example: 'clxxx123456',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de recargas con imágenes en base64',
+  })
+  @ApiResponse({ status: 404, description: 'Distribuidor no encontrado' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
+  async getDistributorRecharges(
+    @Param('distributorId') distributorId: string,
+    @Query() paginationDto: PaginationQueryDto,
+  ) {
+    return this.rechargesService.getDistributorRecharges(
+      distributorId,
+      paginationDto.page,
+      paginationDto.limit,
+    );
+  }
+
+  /**
    * ADMIN: Ver movimientos de cuenta de un distribuidor específico
    */
   @Get('admin/distributor/:distributorId/movements')
@@ -452,20 +399,6 @@ export class RechargesController {
     description: 'ID del distribuidor',
     example: 'clxxx123456',
   })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Número de página (default: 1)',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Cantidad de elementos por página (default: 10)',
-    example: 10,
-  })
   @ApiResponse({
     status: 200,
     description: 'Lista de movimientos de cuenta con paginación',
@@ -475,15 +408,12 @@ export class RechargesController {
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
   async getDistributorAccountMovements(
     @Param('distributorId') distributorId: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() paginationDto: PaginationQueryDto,
   ) {
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 10;
     return this.rechargesService.getDistributorAccountMovements(
       distributorId,
-      pageNum,
-      limitNum,
+      paginationDto.page,
+      paginationDto.limit,
     );
   }
 }

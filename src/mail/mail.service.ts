@@ -8,7 +8,7 @@ import { PdfGeneratorService } from './pdf-generator.service';
 @Injectable()
 export class MailService {
   private readonly resend = new Resend(process.env.RESEND_API_KEY);
-  private readonly fromEmail = process.env.EMAIL_USER;
+  private readonly fromEmail = process.env.EMAIL_USER!;
 
   constructor(private readonly pdfGenerator: PdfGeneratorService) {}
 
@@ -61,6 +61,9 @@ export class MailService {
         email: distributor.email,
         phone: distributor.phone,
         address: distributor.address,
+        city: 'QUITO', // Por defecto
+        representativeName: `${distributor.firstName} ${distributor.lastName}`,
+        representativeId: distributor.identification,
         plans: juridicalPlans.map((plan) => ({
           perfil: plan.plan.perfil,
           customPrice: plan.customPrice,
@@ -84,7 +87,7 @@ export class MailService {
 
       // Enviar email con contrato adjunto
       await this.sendEmailWithFile(
-        'luisg@solucionesnexus.com',
+        this.fromEmail,
         `Nuevo Contrato de Distribuidor - ${contractData.distributorName}`,
         html,
         pdfBase64,

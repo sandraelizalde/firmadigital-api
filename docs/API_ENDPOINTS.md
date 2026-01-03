@@ -1741,7 +1741,109 @@ Content-Type: application/json
 
 ---
 
-### 💰 [ADMIN] Ver Movimientos de Cuenta de Distribuidor
+### � [ADMIN] Ver Recargas de Distribuidor
+**GET** `/recharges/admin/distributor/:distributorId/recharges`
+
+Retorna todas las recargas de un distribuidor específico con paginación e imágenes en base64.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros URL:**
+- `distributorId` (string): ID del distribuidor
+
+**Parámetros Query:**
+- `page` (number, opcional): Número de página (default: 1, mínimo: 1)
+- `limit` (number, opcional): Cantidad de elementos por página (default: 10, máximo: 100)
+
+**Ejemplo Request:**
+```
+GET /recharges/admin/distributor/clxxx123abc/recharges?page=1&limit=10
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "distributor": {
+    "id": "clxxx123abc",
+    "firstName": "Luis",
+    "lastName": "González",
+    "socialReason": "Distribuidora González S.A.",
+    "email": "distribuidor@example.com",
+    "identification": "0123456789",
+    "balance": 50000
+  },
+  "data": [
+    {
+      "id": "recharge123",
+      "distributorId": "clxxx123abc",
+      "method": "TRANSFER",
+      "requestedAmount": 10000,
+      "creditedAmount": 10000,
+      "commission": 0,
+      "status": "APPROVED",
+      "paymentReference": "TRANS-12345",
+      "transferDate": "2025-12-15T10:00:00.000Z",
+      "receiptFile": "iVBORw0KGgoAAAANSUhEUgAA...",
+      "adminId": "admin456",
+      "adminNote": "Pago verificado",
+      "createdAt": "2025-12-15T10:00:00.000Z",
+      "updatedAt": "2025-12-15T11:00:00.000Z",
+      "distributor": {
+        "id": "clxxx123abc",
+        "firstName": "Luis",
+        "lastName": "González",
+        "socialReason": "Distribuidora González S.A.",
+        "email": "distribuidor@example.com",
+        "identification": "0123456789",
+        "balance": 50000
+      },
+      "accountMovements": [
+        {
+          "id": "mov123",
+          "type": "INCOME",
+          "amount": 10000,
+          "detail": "Recarga aprobada - TRANSFER",
+          "balanceAfter": 10000,
+          "adminId": "admin456",
+          "createdAt": "2025-12-15T11:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "pagination": {
+    "total": 25,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 3
+  }
+}
+```
+
+**Campos de respuesta:**
+- `success`: Indica si la operación fue exitosa
+- `distributor`: Información básica del distribuidor
+- `data`: Array de recargas con toda la información
+  - `receiptFile`: Imagen del comprobante en base64 (null si no se subió)
+  - `method`: Método de pago (TRANSFER o CARD)
+  - `status`: Estado (PENDING, APPROVED, REJECTED, FAILED)
+  - `requestedAmount`: Monto solicitado en centavos
+  - `creditedAmount`: Monto acreditado en centavos (puede diferir por comisión)
+  - `commission`: Comisión aplicada en centavos
+  - `accountMovements`: Movimientos de cuenta asociados a la recarga
+- `pagination`: Información de paginación
+
+**Errores:**
+- `401`: No autorizado
+- `403`: Requiere rol de administrador
+- `404`: Distribuidor no encontrado
+
+---
+
+### �💰 [ADMIN] Ver Movimientos de Cuenta de Distribuidor
 **GET** `/recharges/admin/distributor/:distributorId/movements`
 
 Retorna todos los movimientos de cuenta de un distribuidor específico con paginación.
