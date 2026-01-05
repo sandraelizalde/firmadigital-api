@@ -34,6 +34,31 @@ export class DistributorsController {
   constructor(private readonly distributorsService: DistributorsService) {}
 
   @ApiOperation({
+    summary: 'Buscar distribuidores por nombre',
+    description:
+      'Busca distribuidores por nombre (firstName, lastName o socialReason). Retorna solo id y nombre completo para uso en combobox. Búsqueda case-insensitive.',
+  })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de distribuidores encontrados',
+    example: {
+      success: true,
+      distributors: [
+        {
+          id: 'clx123abc',
+          fullName: 'Juan Pérez - Empresa XYZ',
+        },
+      ],
+    },
+  })
+  @Get('search')
+  @Roles(Role.ADMIN)
+  async searchDistributors(@Query('name') name: string) {
+    return await this.distributorsService.searchDistributors(name);
+  }
+
+  @ApiOperation({
     summary: 'Listar todos los distribuidores con paginación',
     description:
       'Obtiene la lista paginada de distribuidores activos con su información de facturación y planes asignados. Soporta paginación mediante query parameters.',

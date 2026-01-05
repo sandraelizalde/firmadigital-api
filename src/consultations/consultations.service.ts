@@ -149,13 +149,8 @@ export class ConsultationsService {
         }),
       );
 
-      console.log('Respuesta API Cédulas:', response.data);
-
       // Verificar si la consulta fue exitosa
-      if (
-        !response.data.resultado?.resultado ||
-        !response.data.datos?.Nombre
-      ) {
+      if (!response.data.resultado?.resultado || !response.data.datos?.Nombre) {
         const mensaje =
           response.data.resultado?.mensaje || 'Error en la consulta';
         this.logger.warn(`Consulta de cédula sin resultados: ${mensaje}`);
@@ -169,8 +164,6 @@ export class ConsultationsService {
 
       // Transformar la respuesta
       const data = this.transformCedulaData(response.data.datos);
-
-      this.logger.log(`Cédula consultada exitosamente: ${cedula}`);
 
       return {
         success: true,
@@ -224,8 +217,6 @@ export class ConsultationsService {
 
       // Transformar la respuesta
       const data = this.transformRucData(response.data.datos);
-
-      this.logger.log(`RUC consultado exitosamente: ${ruc}`);
 
       return {
         success: true,

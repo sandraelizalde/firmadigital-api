@@ -239,6 +239,18 @@ export class RechargesController {
     enum: RechargeStatus,
     description: 'Filtrar por estado de recarga',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Cantidad de elementos por página',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de recargas con paginación',
@@ -246,13 +258,14 @@ export class RechargesController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
   async getAllRecharges(
-    @Query('status') status: RechargeStatus,
-    @Query() paginationDto: PaginationQueryDto,
+    @Query('status') status?: RechargeStatus,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
   ) {
     return this.rechargesService.getAllRecharges(
       status,
-      paginationDto.page,
-      paginationDto.limit,
+      page || 1,
+      limit || 10,
     );
   }
 

@@ -55,7 +55,7 @@ export class FilesService {
       const buffer = Buffer.from(base64Data, 'base64');
 
       const timestamp = Date.now();
-      const key = `${file}/${rechargeId}-${timestamp}.${extension}`;
+      const key = `${file}/${rechargeId}/${rechargeId}-${timestamp}.${extension}`;
 
       const command = new PutObjectCommand({
         Bucket: bucket,

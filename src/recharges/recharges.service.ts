@@ -380,26 +380,12 @@ export class RechargesService {
             balance: true,
           },
         },
-        accountMovements: true,
       },
     });
 
-    // Convertir receiptFile a base64
-    const rechargesWithReceipt = await Promise.all(
-      recharges.map(async (recharge) => ({
-        ...recharge,
-        receiptFile: recharge.receiptFile
-          ? await this.filesService.getFile(
-              recharge.receiptFile,
-              'vouchers-nexus',
-            )
-          : null,
-      })),
-    );
-
     return {
       success: true,
-      data: rechargesWithReceipt,
+      data: recharges,
       pagination: {
         total,
         page,
@@ -438,8 +424,8 @@ export class RechargesService {
     // Convertir receiptFile a base64
     return {
       ...recharge,
-      receiptFile: recharge.receiptFile
-        ? await this.filesService.getFile(
+      receiptFileUrl: recharge.receiptFile
+        ? await this.filesService.getFileUrl(
             recharge.receiptFile,
             'vouchers-nexus',
           )
@@ -688,39 +674,12 @@ export class RechargesService {
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
-      include: {
-        accountMovements: true,
-        distributor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            socialReason: true,
-            email: true,
-            identification: true,
-            balance: true,
-          },
-        },
-      },
     });
-
-    // Convertir receiptFile a base64
-    const rechargesWithReceipt = await Promise.all(
-      recharges.map(async (recharge) => ({
-        ...recharge,
-        receiptFile: recharge.receiptFile
-          ? await this.filesService.getFile(
-              recharge.receiptFile,
-              'vouchers-nexus',
-            )
-          : null,
-      })),
-    );
 
     return {
       success: true,
       distributor,
-      data: rechargesWithReceipt,
+      data: recharges,
       pagination: {
         total,
         page,

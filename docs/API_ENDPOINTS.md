@@ -110,7 +110,55 @@ Content-Type: application/json
 
 ## Distribuidores
 
-### 📋 Listar Todos los Distribuidores (ADMIN)
+### � Buscar Distribuidores por Nombre (ADMIN)
+**GET** `/distributors/search`
+
+Busca distribuidores por nombre para uso en combobox. Búsqueda rápida que retorna solo ID y nombre completo.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Query Parameters:**
+- `name` (string, requerido): Texto a buscar (mínimo 2 caracteres)
+
+**Ejemplo de Request:**
+```
+GET /distributors/search?name=Juan
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "distributors": [
+    {
+      "id": "cm5abcd1234567890",
+      "fullName": "Juan Pérez - Distribuidora ABC S.A."
+    },
+    {
+      "id": "cm5xyz9876543210",
+      "fullName": "Juan Carlos González"
+    }
+  ]
+}
+```
+
+**Características:**
+- Búsqueda case-insensitive
+- Busca en `firstName`, `lastName` y `socialReason`
+- Máximo 10 resultados
+- Solo distribuidores activos
+- Requiere mínimo 2 caracteres
+
+**Errores:**
+- `401`: No autorizado
+- `403`: Requiere rol ADMIN
+
+---
+
+### �📋 Listar Todos los Distribuidores (ADMIN)
 **GET** `/distributors`
 
 Obtiene la lista paginada de distribuidores activos con su información de facturación y planes asignados.
@@ -1494,7 +1542,6 @@ Authorization: Bearer {token}
       "commission": 0,
       "status": "APPROVED",
       "paymentReference": "TRANS-12345",
-      "receiptFile": "iVBORw0KGgoAAAANSUhEUgAA...",
       "adminNote": "Aprobado",
       "createdAt": "2025-12-15T10:00:00.000Z",
       "distributor": {
@@ -1506,7 +1553,6 @@ Authorization: Bearer {token}
         "identification": "0123456789",
         "balance": 50000
       },
-      "accountMovements": []
     }
   ],
   "pagination": {
@@ -1517,30 +1563,6 @@ Authorization: Bearer {token}
   }
 }
 ```
-
-**Errores:**
-- `401`: No autorizado
-- `403`: Requiere rol de administrador
-
----
-
-### ⏳ [ADMIN] Obtener Recargas Pendientes
-**GET** `/recharges/admin/pending`
-
-Retorna solo las recargas en estado PENDING con paginación.
-
-**Headers:**
-```
-Authorization: Bearer {token}
-```
-
-**Query Params:**
-- `page` (opcional): Número de página (default: 1)
-- `limit` (opcional): Cantidad de elementos por página (default: 10)
-
-**Ejemplo:** `/recharges/admin/pending?page=1&limit=10`
-
-**Respuesta:** Igual estructura que el endpoint anterior con paginación, pero filtrado por `status=PENDING`
 
 **Errores:**
 - `401`: No autorizado
@@ -1573,30 +1595,11 @@ Authorization: Bearer {token}
   "status": "APPROVED",
   "paymentReference": "TRANS-12345",
   "transferDate": "2025-12-15T10:00:00.000Z",
-  "receiptFile": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "receiptFileUrl": "http...",
   "adminId": "admin456",
   "adminNote": "Pago verificado correctamente",
   "createdAt": "2025-12-15T10:00:00.000Z",
   "updatedAt": "2025-12-15T11:00:00.000Z",
-  "distributor": {
-    "id": "clxxx123abc",
-    "firstName": "Luis",
-    "lastName": "González",
-    "socialReason": "Distribuidora González S.A.",
-    "email": "distribuidor@example.com",
-    "identification": "0123456789",
-    "balance": 50000
-  },
-  "accountMovements": [
-    {
-      "id": "mov123",
-      "type": "INCOME",
-      "amount": 10000,
-      "detail": "Recarga aprobada - TRANSFER",
-      "balanceAfter": 10000,
-      "adminId": "admin456"
-    }
-  ]
 }
 ```
 

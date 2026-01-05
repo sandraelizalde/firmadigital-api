@@ -17,6 +17,64 @@ export class DistributorsService {
     private readonly filesService: FilesService,
   ) {}
 
+  // Buscar distribuidores por nombre para combobox
+  async searchDistributors(name: string) {
+    if (!name || name.trim().length < 2) {
+      return {
+        success: true,
+        distributors: [],
+      };
+    }
+
+    const searchTerm = name.trim();
+
+    const distributors = await this.prisma.distributor.findMany({
+      where: {
+        active: true,
+        OR: [
+          {
+            firstName: {
+              contains: searchTerm,
+              mode: 'insensitive',
+            },
+          },
+          {
+            lastName: {
+              contains: searchTerm,
+              mode: 'insensitive',
+            },
+          },
+          {
+            socialReason: {
+              contains: searchTerm,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        socialReason: true,
+      },
+      take: 10,
+      orderBy: {
+        firstName: 'asc',
+      },
+    });
+
+    return {
+      success: true,
+      distributors: distributors.map((d) => ({
+        id: d.id,
+        fullName: d.socialReason
+          ? `${d.firstName} ${d.lastName} - ${d.socialReason}`
+          : `${d.firstName} ${d.lastName}`,
+      })),
+    };
+  }
+
   // Obtener información de un distribuidor con su info de facturación
   async getDistributorById(distributorId: string) {
     const distributor = await this.prisma.distributor.findUnique({
@@ -28,11 +86,23 @@ export class DistributorsService {
           include: {
             plan: true,
           },
-          orderBy: {
-            plan: {
-              perfil: 'desc',
+          orderBy: [
+            {
+              plan: {
+                durationType: 'asc',
+              },
             },
-          },
+            {
+              plan: {
+                duration: 'asc',
+              },
+            },
+            {
+              plan: {
+                perfil: 'asc',
+              },
+            },
+          ],
         },
       },
     });
@@ -45,16 +115,16 @@ export class DistributorsService {
     }
 
     // Obtener contrato en base64 si existe
-    let contractBase64: string | null = null;
+    let contract_url: string | null = null;
     if (distributor.contractSignedUrl) {
       try {
-        contractBase64 = await this.filesService.getFile(
+        contract_url = await this.filesService.getFileUrl(
           distributor.contractSignedUrl,
           'contratos-distribuidores',
         );
       } catch (error) {
         // Si hay error al obtener el contrato, continuar sin él
-        contractBase64 = null;
+        contract_url = null;
       }
     }
 
@@ -62,7 +132,7 @@ export class DistributorsService {
       success: true,
       distributor: {
         ...distributor,
-        contractBase64,
+        contract_url,
       },
     };
   }
