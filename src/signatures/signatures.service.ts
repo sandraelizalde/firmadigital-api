@@ -87,7 +87,7 @@ export class SignaturesService {
       distributorId,
       {
         ...dto,
-        ruc: undefined,
+        ruc: dto.ruc || undefined,
         razon_social: undefined,
         rep_legal: undefined,
         cargo: undefined,
