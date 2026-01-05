@@ -547,6 +547,7 @@ export class RechargesService {
           commission: 0,
           status: RechargeStatus.APPROVED,
           adminId,
+          paymentReference: dto.note || 'Recarga manual por administrador',
           adminNote: dto.note || 'Recarga manual por administrador',
         },
       });
