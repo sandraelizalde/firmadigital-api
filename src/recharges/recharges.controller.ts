@@ -200,6 +200,23 @@ export class RechargesController {
     );
   }
 
+  @Get('summary')
+  @Roles(Role.DISTRIBUTOR)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Obtener resumen de recargas y balance',
+    description:
+      'Retorna el balance total, recargas pendientes y ventas del distribuidor autenticado',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen de recargas y balance',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  async getRechargeSummary(@Request() req) {
+    return this.rechargesService.getRechargesSummary(req.user.userId);
+  }
+
   // ==========================================
   // ENDPOINTS PARA ADMIN
   // ==========================================

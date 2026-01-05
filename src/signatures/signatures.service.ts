@@ -35,6 +35,8 @@ export class SignaturesService {
   private readonly signProviderPassword: string | undefined;
   private readonly signProviderAuthUsername: string | undefined;
   private readonly signProviderAuthPassword: string | undefined;
+  private readonly signProviderAuthUsernameBiometria: string | undefined;
+  private readonly signProviderAuthPasswordBiometria: string | undefined;
   private readonly signProviderCallback: string | undefined;
   private readonly emailVerificationApiUrl: string | undefined;
   private readonly emailVerificationApiKey: string | undefined;
@@ -61,6 +63,12 @@ export class SignaturesService {
     );
     this.signProviderAuthPassword = this.configService.get<string>(
       'SIGN_PROVIDER_AUTH_PASSWORD',
+    );
+    this.signProviderAuthUsernameBiometria = this.configService.get<string>(
+      'SIGN_PROVIDER_AUTH_USERNAME_BIOMETRIA',
+    );
+    this.signProviderAuthPasswordBiometria = this.configService.get<string>(
+      'SIGN_PROVIDER_AUTH_PASSWORD_BIOMETRIA',
     );
     this.signProviderCallback = this.configService.get<string>(
       'SIGN_PROVIDER_CALLBACK',
@@ -222,6 +230,7 @@ export class SignaturesService {
       const providerResponse = await this.callSignatureProvider(
         providerPayload,
         providerUrl,
+        type,
       );
 
       // Determinar el estado basado en el código del proveedor
@@ -378,11 +387,13 @@ export class SignaturesService {
    * Llama al API del proveedor de firma digital
    * @param payload Datos a enviar al proveedor
    * @param providerUrl URL del proveedor (natural o jurídica)
+   * @param type Tipo de firma: NATURAL o JURIDICA
    * @returns Respuesta del proveedor con formato {codigo: number, mensaje: string}
    */
   private async callSignatureProvider(
     payload: any,
     providerUrl: string | undefined,
+    type: 'NATURAL' | 'JURIDICA',
   ): Promise<{ codigo: number; mensaje: string }> {
     try {
       if (!providerUrl) {
@@ -391,9 +402,19 @@ export class SignaturesService {
         );
       }
 
-      const basicAuth = Buffer.from(
-        `${this.signProviderAuthUsername}:${this.signProviderAuthPassword}`,
-      ).toString('base64');
+      // Usar credenciales de biometría para jurídicas, normales para naturales
+      const authUsername =
+        type === 'JURIDICA'
+          ? this.signProviderAuthUsernameBiometria
+          : this.signProviderAuthUsername;
+      const authPassword =
+        type === 'JURIDICA'
+          ? this.signProviderAuthPasswordBiometria
+          : this.signProviderAuthPassword;
+
+      const basicAuth = Buffer.from(`${authUsername}:${authPassword}`).toString(
+        'base64',
+      );
 
       const response = await firstValueFrom(
         this.httpService.post<SignatureProviderResponse>(providerUrl, payload, {
@@ -401,7 +422,6 @@ export class SignaturesService {
             'Content-Type': 'application/json',
             Authorization: `Basic ${basicAuth}`,
           },
-          timeout: 30000, // 30 segundos de timeout
         }),
       );
 
@@ -653,7 +673,7 @@ export class SignaturesService {
    * Obtiene una solicitud de firma específica
    * @param id ID de la solicitud
    * @param distributorId ID del distribuidor (para verificar permisos)
-   * @returns Solicitud de firma con fotos en Base64
+   * @returns Solicitud de firma con fotos en Base64, fecha de expiración y duración
    */
   async getSignatureRequest(id: string, distributorId: string) {
     const signatureRequest = await this.prisma.signatureRequest.findFirst({
@@ -667,30 +687,74 @@ export class SignaturesService {
       throw new BadRequestException('Solicitud de firma no encontrada');
     }
 
+    // Buscar el plan del distribuidor con el perfil de la firma
+    const distributorPlan = await this.prisma.distributorPlanPrice.findFirst({
+      where: {
+        distributorId,
+        isActive: true,
+        plan: {
+          perfil: signatureRequest.perfil_firma,
+          isActive: true,
+        },
+      },
+      include: {
+        plan: true,
+      },
+    });
+
+    // Calcular fecha de expiración y duración si el plan existe y la firma está completada
+    let expirationDate: Date | null = null;
+    let duration: string | null = null;
+    let durationType: string | null = null;
+
+    if (
+      distributorPlan &&
+      signatureRequest.status === SignatureStatus.COMPLETED
+    ) {
+      const plan = distributorPlan.plan;
+      duration = plan.duration;
+      durationType = plan.durationType;
+
+      // Calcular fecha de expiración basada en updatedAt
+      const updatedDate = new Date(signatureRequest.updatedAt);
+      const durationInDays = this.parseDuration(
+        plan.duration,
+        plan.durationType,
+      );
+
+      if (durationInDays) {
+        expirationDate = new Date(updatedDate);
+        expirationDate.setDate(expirationDate.getDate() + durationInDays);
+      }
+    }
+
     // Convertir las fotos de S3 a Base64
     try {
-      const [foto_frontal_base64, foto_posterior_base64] = await Promise.all([
-        this.filesService.getFile(
+      const [foto_frontal_url, foto_posterior_url] = await Promise.all([
+        this.filesService.getFileUrl(
           signatureRequest.foto_frontal,
           'fotos-cedulas',
         ),
-        this.filesService.getFile(
+        this.filesService.getFileUrl(
           signatureRequest.foto_posterior,
           'fotos-cedulas',
         ),
         Promise.resolve(null),
       ]);
 
-      let pdf_sri_base64;
-      let nombramiento_base64;
+      let pdf_sri_url;
+      let nombramiento_url;
 
       if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
-        pdf_sri_base64 = signatureRequest.pdf_sri
-          ? await this.filesService.getFile(signatureRequest.pdf_sri, 'pdf-sri')
+        pdf_sri_url = signatureRequest.pdf_sri
+          ? await this.filesService.getFileUrl(
+              signatureRequest.pdf_sri,
+              'pdf-sri',
+            )
           : null;
 
-        nombramiento_base64 = signatureRequest.nombramiento
-          ? await this.filesService.getFile(
+        nombramiento_url = signatureRequest.nombramiento
+          ? await this.filesService.getFileUrl(
               signatureRequest.nombramiento,
               'pdf-nombramiento',
             )
@@ -712,11 +776,11 @@ export class SignaturesService {
         parroquia: signatureRequest.parroquia,
         direccion: signatureRequest.direccion,
         dateOfBirth: signatureRequest.dateOfBirth,
-        foto_frontal_base64,
-        foto_posterior_base64,
+        foto_frontal_url,
+        foto_posterior_url,
         video_face: signatureRequest.video_face,
-        pdf_sri_base64,
-        nombramiento_base64,
+        pdf_sri_url,
+        nombramiento_url,
         razon_social: signatureRequest.razon_social,
         rep_legal: signatureRequest.rep_legal,
         cargo: signatureRequest.cargo,
@@ -728,6 +792,9 @@ export class SignaturesService {
         providerCode: signatureRequest.providerCode,
         providerMessage: signatureRequest.providerMessage,
         activeNotification: signatureRequest.activeNotification,
+        expirationDate,
+        duration,
+        durationType,
         createdAt: signatureRequest.createdAt,
         updatedAt: signatureRequest.updatedAt,
       };

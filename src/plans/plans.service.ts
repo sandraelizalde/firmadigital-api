@@ -268,11 +268,18 @@ export class PlansService {
       include: {
         plan: true,
       },
-      orderBy: {
-        plan: {
-          perfil: 'asc',
+      orderBy: [
+        {
+          plan: {
+            durationType: 'asc',
+          },
         },
-      },
+        {
+          plan: {
+            duration: 'asc',
+          },
+        },
+      ],
     });
 
     return {
@@ -422,11 +429,18 @@ export class PlansService {
       include: {
         plan: true,
       },
-      orderBy: {
-        plan: {
-          perfil: 'asc',
+      orderBy: [
+        {
+          plan: {
+            durationType: 'asc',
+          },
         },
-      },
+        {
+          plan: {
+            duration: 'asc',
+          },
+        },
+      ],
     });
 
     return {
@@ -476,11 +490,18 @@ export class PlansService {
       include: {
         plan: true,
       },
-      orderBy: {
-        plan: {
-          perfil: 'asc',
+      orderBy: [
+        {
+          plan: {
+            durationType: 'asc',
+          },
         },
-      },
+        {
+          plan: {
+            duration: 'asc',
+          },
+        },
+      ],
     });
 
     return {

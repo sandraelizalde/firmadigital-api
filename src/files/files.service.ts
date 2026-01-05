@@ -5,6 +5,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 @Injectable()
 export class FilesService {
@@ -100,6 +101,25 @@ export class FilesService {
     } catch (error) {
       this.logger.error(`Error al obtener ${key}: ${error.message}`);
       throw new Error(`Error al obtener ${key}: ${error.message}`);
+    }
+  }
+
+  async getFileUrl(key: string, bucket: string): Promise<string> {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      });
+
+      // Generar URL firmada con expiración de 1 hora (3600 segundos)
+      const signedUrl = await getSignedUrl(this.s3Client, command, {
+        expiresIn: 3600,
+      });
+
+      return signedUrl;
+    } catch (error) {
+      this.logger.error(`Error al obtener URL de ${key}: ${error.message}`);
+      throw new Error(`Error al obtener URL de ${key}: ${error.message}`);
     }
   }
 
