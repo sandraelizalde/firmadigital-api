@@ -31,7 +31,7 @@ async function bootstrap() {
   if (process.env.ENVIRONMENT === 'development') {
     allowedOrigins = ['*'];
   } else if (process.env.ENVIRONMENT === 'production') {
-    allowedOrigins = [process.env.FRONTEND_URL];
+    allowedOrigins = [process.env.FRONTEND_URL, process.env.NEXUS_FRONTEND_URL];
   }
 
   app.enableCors({
