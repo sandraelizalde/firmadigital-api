@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
@@ -11,7 +10,6 @@ import {
   RechargeMethod,
   RechargeStatus,
   MovementType,
-  Role,
 } from '@prisma/client';
 import { CreateRechargeDto } from './dto/create-recharge.dto';
 import { ManualRechargeDto } from './dto/manual-recharge.dto';
@@ -541,7 +539,7 @@ export class RechargesService {
       const recharge = await tx.recharge.create({
         data: {
           distributorId: dto.distributorId,
-          method: RechargeMethod.TRANSFER, // Por defecto
+          method: RechargeMethod.MANUAL, // Por defecto
           requestedAmount: dto.amount,
           creditedAmount: dto.amount,
           commission: 0,

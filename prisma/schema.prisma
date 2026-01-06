@@ -34,6 +34,7 @@ enum SignatureStatus {
 enum RechargeMethod {
   CARD // Tarjeta crédito/débito
   TRANSFER // Transferencia bancaria
+  MANUAL // Recarga manual por admin
 }
 
 enum RechargeStatus {
