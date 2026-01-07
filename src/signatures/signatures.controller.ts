@@ -20,6 +20,9 @@ import { SignaturesService } from './signatures.service';
 import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { AdminSignatureFilterDto } from './dto/admin-signature-filter.dto';
+import { AnnulSignatureDto } from './dto/annul-signature.dto';
+import { ApproveSignatureDto } from './dto/approve-signature.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -283,5 +286,242 @@ export class SignaturesController {
       throw new BadRequestException('El correo electrónico es requerido');
     }
     return this.signaturesService.verifyEmailBounce(email);
+  }
+
+  // ========================
+  // ENDPOINTS PARA ADMINISTRADOR
+  // ========================
+
+  @Get('admin/all')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Obtener todas las solicitudes de firma (Admin)',
+    description:
+      'Retorna todas las solicitudes de firma digital con información del distribuidor, con filtros y paginación. Solo para administradores.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Lista paginada de solicitudes de firma digital con info del distribuidor',
+    schema: {
+      example: {
+        data: [
+          {
+            id: 'clx1234567890',
+            numero_tramite: '17034425678900001',
+            perfil_firma: 'PN-001',
+            nombres: 'LUIS XAVIER',
+            apellidos: 'GONZALEZ JIMENEZ',
+            cedula: '1752549467',
+            correo: 'correo@email.com',
+            celular: '0991234567',
+            ruc: null,
+            razon_social: null,
+            status: 'COMPLETED',
+            providerCode: '1',
+            providerMessage: 'Solicitud enviada correctamente',
+            expiredDays: 365,
+            createdAt: '2024-12-23T10:30:00.000Z',
+            updatedAt: '2024-12-23T10:30:00.000Z',
+            distributor: {
+              id: 'clx9876543210',
+              firstName: 'Luis',
+              lastName: 'González',
+              socialReason: null,
+              identification: '1752549467',
+              email: 'distribuidor@email.com',
+              phone: '0991234567',
+            },
+          },
+        ],
+        pagination: {
+          page: 1,
+          limit: 10,
+          total: 100,
+          totalPages: 10,
+          hasNextPage: true,
+          hasPrevPage: false,
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo para administradores',
+  })
+  async getAllSignatureRequestsAdmin(
+    @Query() filterDto: AdminSignatureFilterDto,
+  ) {
+    return this.signaturesService.getAllSignatureRequestsAdmin(filterDto);
+  }
+
+  @Get('admin/unique')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary:
+      'Obtener detalle completo de una solicitud de firma por ID (Admin)',
+    description:
+      'Retorna los detalles completos de una solicitud de firma específica, incluyendo todas las fotos, documentos e información del distribuidor. Solo para administradores.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Detalle completo de la solicitud de firma con fotos e info del distribuidor',
+    schema: {
+      example: {
+        id: 'clx1234567890',
+        numero_tramite: 'DIST1703342567890001',
+        perfil_firma: '018',
+        nombres: 'FERNANDO MATIAS',
+        apellidos: 'TURIZO FERNANDEZ',
+        cedula: '1752549468',
+        correo: 'luisg@solucionesnexus.com',
+        codigo_dactilar: 'V43I4444',
+        celular: '0990602199',
+        provincia: 'PICHINCHA',
+        ciudad: 'QUITO',
+        parroquia: 'IÑAQUITO',
+        direccion: 'QUITUS COLONIAL',
+        dateOfBirth: '1990-05-15T00:00:00.000Z',
+        foto_frontal_url: 'https://s3.wasabisys.com/...',
+        foto_posterior_url: 'https://s3.wasabisys.com/...',
+        video_face: null,
+        pdf_sri_url: null,
+        nombramiento_url: null,
+        razon_social: null,
+        rep_legal: null,
+        cargo: null,
+        pais: 'ECUADOR',
+        clavefirma: 'GONZALEZ1752',
+        ruc: null,
+        tipo_envio: 'NATURAL',
+        status: 'COMPLETED',
+        providerCode: '1',
+        providerMessage: 'Solicitud enviada correctamente',
+        annulledBy: 'Juan Perez',
+        annulledNote: 'Solicitud anulada por error',
+        activeNotification: true,
+        expirationDate: '2025-12-23T10:30:00.000Z',
+        duration: '1',
+        durationType: 'Y',
+        createdAt: '2024-12-23T10:30:00.000Z',
+        updatedAt: '2024-12-23T10:30:00.000Z',
+        distributor: {
+          id: 'clx9876543210',
+          firstName: 'Luis',
+          lastName: 'González',
+          socialReason: null,
+          identification: '1752549467',
+          identificationType: 'CEDULA',
+          email: 'distribuidor@email.com',
+          phone: '0991234567',
+          address: 'Quito, Ecuador',
+          balance: 450000,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Solicitud no encontrada o error al obtener las imágenes',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo para administradores',
+  })
+  async getSignatureRequestAdmin(@Query('id') id: string) {
+    if (!id) {
+      throw new BadRequestException('El parámetro id es requerido');
+    }
+    return this.signaturesService.getSignatureRequestAdmin(id);
+  }
+
+  @Post('admin/annul')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Anular una solicitud de firma y reembolsar al distribuidor',
+    description:
+      'Permite al administrador anular una solicitud de firma digital. Si la firma había sido cobrada, se reembolsa automáticamente el monto al balance del distribuidor y se crea el movimiento correspondiente.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Firma anulada exitosamente con reembolso procesado',
+    schema: {
+      example: {
+        success: true,
+        message:
+          'Firma anulada exitosamente y se reembolsaron $7.99 al distribuidor',
+        data: {
+          signatureId: 'clx1234567890',
+          distributorId: 'clx9876543210',
+          refundedAmount: 79900,
+          newDistributorBalance: 529900,
+          movementId: 'clx1122334455',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Firma no encontrada, ya anulada o en estado no válido para anulación',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo para administradores',
+  })
+  async annulSignatureRequest(@Request() req, @Body() dto: AnnulSignatureDto) {
+    return this.signaturesService.annulSignatureRequest(
+      dto.signatureId,
+      req.user.userId,
+      req.user.firstName + ' ' + req.user.lastName,
+      dto.note,
+    );
+  }
+
+  @Post('admin/approve')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Aprobar una solicitud de firma jurídica',
+    description:
+      'Permite al administrador aprobar una solicitud de firma jurídica que está en estado PENDING. Solo cambia el estado a COMPLETED, no afecta el balance del distribuidor.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Firma jurídica aprobada exitosamente',
+    schema: {
+      example: {
+        success: true,
+        message: 'Firma jurídica aprobada exitosamente',
+        data: {
+          signatureId: 'clx1234567890',
+          previousStatus: 'PENDING',
+          newStatus: 'COMPLETED',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Firma no encontrada, no es jurídica o no está en estado PENDING',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo para administradores',
+  })
+  async approveJuridicalSignature(
+    @Request() req,
+    @Body() dto: ApproveSignatureDto,
+  ) {
+    return this.signaturesService.approveJuridicalSignature(
+      dto.signatureId,
+      req.user.firstName + ' ' + req.user.lastName,
+      dto.note,
+    );
   }
 }

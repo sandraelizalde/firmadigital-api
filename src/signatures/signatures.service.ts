@@ -17,6 +17,11 @@ import {
   SignatureListItemDto,
   PaginatedSignatureListResponseDto,
 } from './dto/signature-list-response.dto';
+import {
+  AdminSignatureListItemDto,
+  PaginatedAdminSignatureListResponseDto,
+} from './dto/admin-signature-list.dto';
+import { AdminSignatureFilterDto } from './dto/admin-signature-filter.dto';
 
 /**
  * Interface para la respuesta del proveedor de firmas
@@ -814,5 +819,480 @@ export class SignaturesService {
       return perfil.slice(3);
     }
     return perfil;
+  }
+
+  // ========================
+  // MÉTODOS PARA ADMINISTRADOR
+  // ========================
+
+  /**
+   * Obtiene todas las solicitudes de firma para el administrador con paginación y filtros
+   * @param filterDto Filtros y paginación
+   * @returns Lista paginada de solicitudes de firma con información del distribuidor
+   */
+  async getAllSignatureRequestsAdmin(
+    filterDto: AdminSignatureFilterDto,
+  ): Promise<PaginatedAdminSignatureListResponseDto> {
+    const {
+      page = 1,
+      limit = 10,
+      distributorId,
+      status,
+      cedula,
+      distributorIdentification,
+    } = filterDto;
+    const skip = (page - 1) * limit;
+
+    // Construir condiciones de filtrado
+    const where: any = {};
+
+    if (distributorId) {
+      where.distributorId = distributorId;
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (cedula) {
+      where.cedula = { contains: cedula, mode: 'insensitive' };
+    }
+
+    if (distributorIdentification) {
+      where.distributor = {
+        identification: {
+          contains: distributorIdentification,
+          mode: 'insensitive',
+        },
+      };
+    }
+
+    // Obtener el total de registros
+    const total = await this.prisma.signatureRequest.count({ where });
+
+    // Obtener las solicitudes paginadas con información del distribuidor
+    const signatureRequests = await this.prisma.signatureRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        distributor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            socialReason: true,
+            identification: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    const perfilInfo = await this.prisma.plan.findMany({
+      where: {
+        perfil: { in: signatureRequests.map((sr) => sr.perfil_firma) },
+      },
+    });
+
+    const planMap = new Map(perfilInfo.map((plan) => [plan.perfil, plan]));
+
+    // Procesar solicitudes y calcular días de expiración
+    const data: AdminSignatureListItemDto[] = signatureRequests.map(
+      (request) => {
+        const plan = planMap.get(request.perfil_firma);
+        let expiredDays: number | null = null;
+
+        if (plan && request.status === SignatureStatus.COMPLETED) {
+          const updatedDate = new Date(request.updatedAt);
+          const durationInDays = this.parseDuration(
+            plan.duration,
+            plan.durationType,
+          );
+
+          if (durationInDays) {
+            const expirationDate = new Date(updatedDate);
+            expirationDate.setDate(expirationDate.getDate() + durationInDays);
+
+            const today = new Date();
+            const diffTime = expirationDate.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            expiredDays = diffDays;
+          }
+        }
+
+        return {
+          id: request.id,
+          numero_tramite: request.numero_tramite,
+          perfil_firma: request.perfil_firma,
+          nombres: request.nombres,
+          apellidos: request.apellidos,
+          rep_legal: request.rep_legal,
+          cedula: request.cedula,
+          correo: request.correo,
+          celular: request.celular,
+          ruc: request.ruc,
+          razon_social: request.razon_social,
+          status: request.status,
+          providerCode: request.providerCode,
+          providerMessage: request.providerMessage,
+          annulledBy: request.annulledBy,
+          annulledNote: request.annulledNote,
+          expiredDays,
+          createdAt: request.createdAt,
+          updatedAt: request.updatedAt,
+          distributor: request.distributor
+            ? {
+                id: request.distributor.id,
+                firstName: request.distributor.firstName,
+                lastName: request.distributor.lastName,
+                socialReason: request.distributor.socialReason,
+                identification: request.distributor.identification,
+                email: request.distributor.email,
+                phone: request.distributor.phone,
+              }
+            : null,
+        };
+      },
+    );
+
+    // Calcular información de paginación
+    const totalPages = Math.ceil(total / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPrevPage,
+      },
+    };
+  }
+
+  /**
+   * Obtiene una solicitud de firma específica para el administrador (sin restricción de distribuidor)
+   * @param id ID de la solicitud
+   * @returns Solicitud de firma con fotos en Base64, fecha de expiración, duración e info del distribuidor
+   */
+  async getSignatureRequestAdmin(id: string) {
+    const signatureRequest = await this.prisma.signatureRequest.findFirst({
+      where: { id },
+      include: {
+        distributor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            socialReason: true,
+            identification: true,
+            identificationType: true,
+            email: true,
+            phone: true,
+            address: true,
+            balance: true,
+          },
+        },
+      },
+    });
+
+    if (!signatureRequest) {
+      throw new BadRequestException('Solicitud de firma no encontrada');
+    }
+
+    // Buscar el plan para calcular duración
+    const plan = await this.prisma.plan.findFirst({
+      where: {
+        perfil: signatureRequest.perfil_firma,
+        isActive: true,
+      },
+    });
+
+    // Calcular fecha de expiración y duración si el plan existe y la firma está completada
+    let expirationDate: Date | null = null;
+    let duration: string | null = null;
+    let durationType: string | null = null;
+
+    if (plan && signatureRequest.status === SignatureStatus.COMPLETED) {
+      duration = plan.duration;
+      durationType = plan.durationType;
+
+      const updatedDate = new Date(signatureRequest.updatedAt);
+      const durationInDays = this.parseDuration(
+        plan.duration,
+        plan.durationType,
+      );
+
+      if (durationInDays) {
+        expirationDate = new Date(updatedDate);
+        expirationDate.setDate(expirationDate.getDate() + durationInDays);
+      }
+    }
+
+    // Convertir las fotos de S3 a URLs
+    try {
+      const [foto_frontal_url, foto_posterior_url] = await Promise.all([
+        this.filesService.getFileUrl(
+          signatureRequest.foto_frontal,
+          'fotos-cedulas',
+        ),
+        this.filesService.getFileUrl(
+          signatureRequest.foto_posterior,
+          'fotos-cedulas',
+        ),
+      ]);
+
+      let pdf_sri_url: string | null = null;
+      let nombramiento_url: string | null = null;
+
+      if (signatureRequest.pdf_sri) {
+        pdf_sri_url = await this.filesService.getFileUrl(
+          signatureRequest.pdf_sri,
+          'pdf-sri',
+        );
+      }
+
+      if (signatureRequest.nombramiento) {
+        nombramiento_url = await this.filesService.getFileUrl(
+          signatureRequest.nombramiento,
+          'pdf-nombramiento',
+        );
+      }
+
+      return {
+        id: signatureRequest.id,
+        numero_tramite: signatureRequest.numero_tramite,
+        perfil_firma: signatureRequest.perfil_firma,
+        nombres: signatureRequest.nombres,
+        apellidos: signatureRequest.apellidos,
+        cedula: signatureRequest.cedula,
+        correo: signatureRequest.correo,
+        codigo_dactilar: signatureRequest.codigo_dactilar,
+        celular: signatureRequest.celular,
+        provincia: signatureRequest.provincia,
+        ciudad: signatureRequest.ciudad,
+        parroquia: signatureRequest.parroquia,
+        direccion: signatureRequest.direccion,
+        dateOfBirth: signatureRequest.dateOfBirth,
+        foto_frontal_url,
+        foto_posterior_url,
+        video_face: signatureRequest.video_face,
+        pdf_sri_url,
+        nombramiento_url,
+        razon_social: signatureRequest.razon_social,
+        rep_legal: signatureRequest.rep_legal,
+        cargo: signatureRequest.cargo,
+        pais: signatureRequest.pais,
+        clavefirma: signatureRequest.clavefirma,
+        ruc: signatureRequest.ruc,
+        tipo_envio: signatureRequest.tipo_envio,
+        status: signatureRequest.status,
+        providerCode: signatureRequest.providerCode,
+        providerMessage: signatureRequest.providerMessage,
+        annulledBy: signatureRequest.annulledBy,
+        annulledNote: signatureRequest.annulledNote,
+        activeNotification: signatureRequest.activeNotification,
+        expirationDate,
+        duration,
+        durationType,
+        createdAt: signatureRequest.createdAt,
+        updatedAt: signatureRequest.updatedAt,
+        distributor: signatureRequest.distributor,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error al obtener fotos de S3 para solicitud ${id}: ${error.message}`,
+      );
+      throw new BadRequestException(
+        'Error al obtener las imágenes de la solicitud',
+      );
+    }
+  }
+
+  /**
+   * Anula una solicitud de firma y reembolsa el dinero al distribuidor
+   * @param signatureId ID de la solicitud de firma
+   * @param adminId ID del administrador que realiza la anulación
+   * @param note Nota opcional con el motivo de la anulación
+   * @returns Resultado de la anulación con información del reembolso
+   */
+  async annulSignatureRequest(
+    signatureId: string,
+    adminId: string,
+    adminName: string,
+    note?: string,
+  ) {
+    // Buscar la solicitud de firma
+    const signatureRequest = await this.prisma.signatureRequest.findUnique({
+      where: { id: signatureId },
+      include: {
+        distributor: true,
+      },
+    });
+
+    if (!signatureRequest) {
+      throw new BadRequestException('Solicitud de firma no encontrada');
+    }
+
+    if (!signatureRequest.distributorId || !signatureRequest.distributor) {
+      throw new BadRequestException(
+        'La solicitud de firma no tiene un distribuidor asociado',
+      );
+    }
+
+    // Verificar que la firma no esté ya anulada
+    if (signatureRequest.status === SignatureStatus.ANNULLED) {
+      throw new BadRequestException('La solicitud de firma ya está anulada');
+    }
+
+    // // Verificar que la firma esté en estado COMPLETED o PENDING para poder anular
+    // if (
+    //   signatureRequest.status !== SignatureStatus.COMPLETED &&
+    //   signatureRequest.status !== SignatureStatus.PENDING
+    // ) {
+    //   throw new BadRequestException(
+    //     `No se puede anular una firma en estado ${signatureRequest.status}. Solo se pueden anular firmas COMPLETED o PENDING`,
+    //   );
+    // }
+
+    // Buscar el precio que se cobró al distribuidor por esta firma
+    const originalMovement = await this.prisma.accountMovement.findFirst({
+      where: {
+        signatureId: signatureRequest.id,
+        type: MovementType.EXPENSE,
+      },
+    });
+
+    // Si no hay movimiento de cobro, significa que no se cobró (ej: fue rechazada)
+    const refundAmount = originalMovement ? originalMovement.amount : 0;
+
+    // Ejecutar la anulación en una transacción
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Calcular el nuevo balance del distribuidor
+      const newBalance = signatureRequest.distributor!.balance + refundAmount;
+
+      // Actualizar el estado de la firma a ANNULLED
+      await tx.signatureRequest.update({
+        where: { id: signatureId },
+        data: {
+          status: SignatureStatus.ANNULLED,
+          annulledBy: adminName,
+          annulledNote: note || 'Anulada por administrador',
+        },
+      });
+
+      // Si hay monto a reembolsar, actualizar balance y crear movimiento
+      let movement: { id: string } | null = null;
+      if (refundAmount > 0) {
+        // Actualizar el balance del distribuidor
+        await tx.distributor.update({
+          where: { id: signatureRequest.distributorId! },
+          data: { balance: newBalance },
+        });
+
+        // Crear el movimiento de reembolso (INCOME)
+        movement = await tx.accountMovement.create({
+          data: {
+            distributorId: signatureRequest.distributorId!,
+            type: MovementType.INCOME,
+            detail: `Reembolso por anulación de firma - ${signatureRequest.apellidos}`,
+            amount: refundAmount,
+            balanceAfter: newBalance,
+            signatureId: signatureRequest.id,
+            adminId,
+            note: note || `Anulación de firma`,
+          },
+        });
+      }
+
+      return {
+        signatureId,
+        distributorId: signatureRequest.distributorId,
+        refundedAmount: refundAmount,
+        newDistributorBalance: newBalance,
+        movementId: movement?.id || null,
+      };
+    });
+
+    return {
+      success: true,
+      message:
+        refundAmount > 0
+          ? `Firma anulada exitosamente y se reembolsaron $${(refundAmount / 100).toFixed(2)} al distribuidor`
+          : 'Firma anulada exitosamente (sin reembolso porque no se había cobrado)',
+      data: result,
+    };
+  }
+
+  /**
+   * Aprueba una solicitud de firma jurídica (cambia estado de PENDING a COMPLETED)
+   * @param signatureId ID de la solicitud de firma
+   * @param adminId ID del administrador que realiza la aprobación
+   * @param note Nota opcional sobre la aprobación
+   * @returns Resultado de la aprobación
+   */
+  async approveJuridicalSignature(
+    signatureId: string,
+    adminName: string,
+    note?: string,
+  ) {
+    // Buscar la solicitud de firma
+    const signatureRequest = await this.prisma.signatureRequest.findUnique({
+      where: { id: signatureId },
+    });
+
+    if (!signatureRequest) {
+      throw new BadRequestException('Solicitud de firma no encontrada');
+    }
+
+    // Verificar que sea una firma jurídica (tipo_envio '1' con campos de jurídica o perfil PJ-)
+    const isJuridica =
+      signatureRequest.razon_social !== null ||
+      signatureRequest.rep_legal !== null ||
+      signatureRequest.perfil_firma.startsWith('PJ-');
+
+    if (!isJuridica) {
+      throw new BadRequestException(
+        'Solo se pueden aprobar solicitudes de firma jurídica',
+      );
+    }
+
+    // Verificar que la firma esté en estado PENDING
+    if (signatureRequest.status !== SignatureStatus.PENDING) {
+      throw new BadRequestException(
+        `Solo se pueden aprobar firmas en estado PENDING. Estado actual: ${signatureRequest.status}`,
+      );
+    }
+
+    const previousStatus = signatureRequest.status;
+
+    // Actualizar el estado de la firma a COMPLETED
+    await this.prisma.signatureRequest.update({
+      where: { id: signatureId },
+      data: {
+        status: SignatureStatus.COMPLETED,
+        providerMessage:
+          note + ' ' + adminName
+            ? `Aprobada por ${adminName}: ${note}`
+            : 'Aprobada por administrador',
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Firma jurídica aprobada exitosamente',
+      data: {
+        signatureId,
+        previousStatus,
+        newStatus: SignatureStatus.COMPLETED,
+      },
+    };
   }
 }

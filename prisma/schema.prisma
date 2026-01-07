@@ -29,6 +29,7 @@ enum SignatureStatus {
   PENDING
   REJECTED
   FAILED
+  ANNULLED
 }
 
 enum RechargeMethod {
@@ -186,6 +187,8 @@ model SignatureRequest {
   providerCode       String?
   providerMessage    String?
   activeNotification Boolean         @default(true)
+  annulledBy         String? // Nombre del admin que anuló la firma
+  annulledNote       String? // Nota/motivo de la anulación
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   distributor        Distributor?    @relation(fields: [distributorId], references: [id])

@@ -2638,6 +2638,307 @@ GET /signatures/clx1234567890
 
 ---
 
+### � Listar Todas las Solicitudes de Firma (ADMIN)
+**GET** `/signatures/admin/all`
+
+Obtiene todas las solicitudes de firma digital con información del distribuidor, filtros y paginación. Solo para administradores.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Query Parameters:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `page` | number | No | Número de página (default: 1) |
+| `limit` | number | No | Cantidad por página (default: 10, máx: 100) |
+| `distributorId` | string | No | Filtrar por ID del distribuidor |
+| `status` | string | No | Filtrar por estado: COMPLETED, PENDING, REJECTED, FAILED, ANNULLED |
+| `cedula` | string | No | Buscar por cédula del solicitante |
+| `distributorIdentification` | string | No | Buscar por identificación del distribuidor |
+
+**Ejemplo de Request:**
+```
+GET /signatures/admin/all?page=1&limit=10&status=COMPLETED&distributorIdentification=1752549467
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "data": [
+    {
+      "id": "clx1234567890",
+      "numero_tramite": "17034425678900001",
+      "perfil_firma": "PN-001",
+      "nombres": "LUIS XAVIER",
+      "apellidos": "GONZALEZ JIMENEZ",
+      "cedula": "1752549467",
+      "correo": "correo@email.com",
+      "celular": "0991234567",
+      "ruc": null,
+      "razon_social": null,
+      "rep_legal": null,
+      "status": "COMPLETED",
+      "providerCode": "1",
+      "providerMessage": "Solicitud enviada correctamente",
+      "expiredDays": 365,
+      "createdAt": "2024-12-23T10:30:00.000Z",
+      "updatedAt": "2024-12-23T10:30:00.000Z",
+      "distributor": {
+        "id": "clx9876543210",
+        "firstName": "Luis",
+        "lastName": "González",
+        "socialReason": null,
+        "identification": "1752549467",
+        "email": "distribuidor@email.com",
+        "phone": "0991234567"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 100,
+    "totalPages": 10,
+    "hasNextPage": true,
+    "hasPrevPage": false
+  }
+}
+```
+
+**Errores:**
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (solo para administradores)
+
+---
+
+### 🔍 Obtener Detalle de Solicitud de Firma (ADMIN)
+**GET** `/signatures/admin/unique`
+
+Obtiene el detalle completo de una solicitud de firma específica, incluyendo fotos, documentos e información del distribuidor. Solo para administradores.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Query Parameters:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `id` | string | Sí | ID de la solicitud de firma |
+
+**Ejemplo de Request:**
+```
+GET /signatures/admin/unique?id=clx1234567890
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "id": "clx1234567890",
+  "numero_tramite": "DIST1703342567890001",
+  "perfil_firma": "018",
+  "nombres": "FERNANDO MATIAS",
+  "apellidos": "TURIZO FERNANDEZ",
+  "cedula": "1752549468",
+  "correo": "luisg@solucionesnexus.com",
+  "codigo_dactilar": "V43I4444",
+  "celular": "0990602199",
+  "provincia": "PICHINCHA",
+  "ciudad": "QUITO",
+  "parroquia": "IÑAQUITO",
+  "direccion": "QUITUS COLONIAL",
+  "dateOfBirth": "1990-05-15T00:00:00.000Z",
+  "foto_frontal_url": "https://s3.wasabisys.com/...",
+  "foto_posterior_url": "https://s3.wasabisys.com/...",
+  "video_face": null,
+  "pdf_sri_url": null,
+  "nombramiento_url": null,
+  "razon_social": null,
+  "rep_legal": null,
+  "cargo": null,
+  "pais": "ECUADOR",
+  "clavefirma": "GONZALEZ1752",
+  "ruc": null,
+  "tipo_envio": "NATURAL",
+  "status": "COMPLETED",
+  "providerCode": "1",
+  "providerMessage": "Solicitud enviada correctamente",
+  "activeNotification": true,
+  "expirationDate": "2025-12-23T10:30:00.000Z",
+  "duration": "1",
+  "durationType": "Y",
+  "createdAt": "2024-12-23T10:30:00.000Z",
+  "updatedAt": "2024-12-23T10:30:00.000Z",
+  "distributor": {
+    "id": "clx9876543210",
+    "firstName": "Luis",
+    "lastName": "González",
+    "socialReason": null,
+    "identification": "1752549467",
+    "identificationType": "CEDULA",
+    "email": "distribuidor@email.com",
+    "phone": "0991234567",
+    "address": "Quito, Ecuador",
+    "balance": 450000
+  }
+}
+```
+
+**Errores:**
+- `400`: El parámetro id es requerido o solicitud no encontrada
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (solo para administradores)
+
+---
+
+### ❌ Anular Solicitud de Firma (ADMIN)
+**POST** `/signatures/admin/annul`
+
+Permite al administrador anular una solicitud de firma digital. Si la firma había sido cobrada, se reembolsa automáticamente el monto al balance del distribuidor y se crea el movimiento de cuenta correspondiente.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "signatureId": "clx1234567890",
+  "note": "Solicitud duplicada por error del cliente"
+}
+```
+
+**Campos:**
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `signatureId` | string | Sí | ID de la solicitud de firma a anular |
+| `note` | string | No | Motivo o nota de la anulación |
+
+**Respuesta Exitosa (200) - Con Reembolso:**
+```json
+{
+  "success": true,
+  "message": "Firma anulada exitosamente y se reembolsaron $7.99 al distribuidor",
+  "data": {
+    "signatureId": "clx1234567890",
+    "distributorId": "clx9876543210",
+    "refundedAmount": 79900,
+    "newDistributorBalance": 529900,
+    "movementId": "clx1122334455"
+  }
+}
+```
+
+**Respuesta Exitosa (200) - Sin Reembolso:**
+```json
+{
+  "success": true,
+  "message": "Firma anulada exitosamente (sin reembolso porque no se había cobrado)",
+  "data": {
+    "signatureId": "clx1234567890",
+    "distributorId": "clx9876543210",
+    "refundedAmount": 0,
+    "newDistributorBalance": 450000,
+    "movementId": null
+  }
+}
+```
+
+**Comportamiento:**
+- Cambia el estado de la firma a `ANNULLED`
+- Guarda en la firma quién la anuló (`annulledBy`) y la nota de anulación (`annulledNote`)
+- **No modifica** el `providerMessage` original del proveedor
+- Si la firma fue cobrada (tiene un movimiento EXPENSE asociado):
+  - Se reembolsa el monto al balance del distribuidor
+  - Se crea un movimiento de tipo `INCOME` con detalle del reembolso
+- Si la firma no fue cobrada (rechazada o fallida):
+  - Solo se cambia el estado, sin crear movimiento
+
+**Campos agregados a la firma anulada:**
+| Campo | Descripción |
+|-------|-------------|
+| `annulledBy` | Nombre del administrador que anuló la firma |
+| `annulledNote` | Motivo o nota de la anulación |
+
+**Estados válidos para anulación:**
+- Cualquier estado excepto `ANNULLED`
+
+**Estados NO válidos para anulación:**
+- `ANNULLED`: Ya está anulada
+
+**Errores:**
+- `400`: 
+  - Firma no encontrada
+  - La firma no tiene distribuidor asociado
+  - La firma ya está anulada
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (solo para administradores)
+
+---
+
+### ✅ Aprobar Solicitud de Firma Jurídica (ADMIN)
+**POST** `/signatures/admin/approve`
+
+Permite al administrador aprobar una solicitud de firma jurídica que está en estado PENDING. Solo cambia el estado a COMPLETED, no afecta el balance del distribuidor (el cobro ya se realizó al crear la solicitud).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{
+  "signatureId": "clx1234567890",
+  "note": "Documentación verificada correctamente"
+}
+```
+
+**Campos:**
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `signatureId` | string | Sí | ID de la solicitud de firma jurídica a aprobar |
+| `note` | string | No | Comentario o nota sobre la aprobación |
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "message": "Firma jurídica aprobada exitosamente",
+  "data": {
+    "signatureId": "clx1234567890",
+    "previousStatus": "PENDING",
+    "newStatus": "COMPLETED"
+  }
+}
+```
+
+**Comportamiento:**
+- Solo aplica para firmas jurídicas (con `razon_social`, `rep_legal` o perfil `PJ-`)
+- Solo se puede aprobar firmas en estado `PENDING`
+- Cambia el estado de `PENDING` a `COMPLETED`
+- NO afecta el balance del distribuidor (el cobro ya se hizo al crear la solicitud)
+- Actualiza el `providerMessage` con la nota de aprobación
+
+**Restricciones:**
+- Solo firmas jurídicas pueden ser aprobadas con este endpoint
+- Las firmas de persona natural no requieren aprobación manual
+
+**Errores:**
+- `400`: 
+  - Firma no encontrada
+  - No es una firma jurídica (solo aplica para firmas con razón social/rep. legal o perfil PJ-)
+  - La firma no está en estado PENDING
+- `401`: No autorizado (token inválido o expirado)
+- `403`: Acceso denegado (solo para administradores)
+
+---
+
 ### 📌 Notas sobre Firmas Digitales
 
 **Tipos de firma:**
@@ -2667,8 +2968,10 @@ GET /signatures/clx1234567890
 
 **Estados de solicitud:**
 - `COMPLETED`: Proveedor aceptó y procesó la solicitud (código = 1)
+- `PENDING`: Solicitud en proceso (jurídicas)
 - `REJECTED`: Proveedor rechazó la solicitud (código = 0)
 - `FAILED`: Error en la comunicación o código desconocido del proveedor
+- `ANNULLED`: Anulada por administrador (con reembolso si aplica)
 
 **Proveedor ENEXT:**
 - Autenticación: Basic Auth (credenciales diferentes para payload vs headers)
