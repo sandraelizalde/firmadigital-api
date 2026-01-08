@@ -904,8 +904,13 @@ export class SignaturesService {
       (request) => {
         const plan = planMap.get(request.perfil_firma);
         let expiredDays: number | null = null;
+        let duration: string | null = null;
+        let durationType: string | null = null;
 
         if (plan && request.status === SignatureStatus.COMPLETED) {
+          duration = plan.duration;
+          durationType = plan.durationType;
+
           const updatedDate = new Date(request.updatedAt);
           const durationInDays = this.parseDuration(
             plan.duration,
@@ -942,6 +947,8 @@ export class SignaturesService {
           annulledBy: request.annulledBy,
           annulledNote: request.annulledNote,
           expiredDays,
+          duration,
+          durationType,
           createdAt: request.createdAt,
           updatedAt: request.updatedAt,
           distributor: request.distributor

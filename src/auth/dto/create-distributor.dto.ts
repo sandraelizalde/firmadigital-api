@@ -97,4 +97,31 @@ export class CreateDistributorDto {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @ApiPropertyOptional({
+    description: 'Foto frontal de la cédula en formato base64',
+    example: '/9j/4AAQSkZJRgABAQAAAQABAAD...',
+    type: String,
+  })
+  @IsOptional()
+  @IsString()
+  identificationFront?: string;
+
+  @ApiPropertyOptional({
+    description: 'Foto posterior de la cédula en formato base64',
+    example: '/9j/4AAQSkZJRgABAQAAAQABAAD...',
+    type: String,
+  })
+  @IsOptional()
+  @IsString()
+  identificationBack?: string;
+
+  @ApiProperty({
+    description: 'Ciudad donde se encuentra el distribuidor',
+    example: 'QUITO',
+    type: String,
+  })
+  @IsNotEmpty()
+  @IsString()
+  city: string;
 }

@@ -60,21 +60,24 @@ enum Role {
 // DISTRIBUIDORES
 // ---------------------------
 model Distributor {
-  id                 String             @id @default(cuid())
-  firstName          String?
-  lastName           String?
-  socialReason       String?
-  identificationType IdentificationType
-  identification     String             @unique
-  password           String
-  email              String             @unique
-  address            String
-  phone              String
-  createdBy          String? // Admin que registró
-  createdByName      String?
-  active             Boolean            @default(false)
-  balance            Int                @default(0) // Saldo actual del distribuidor en centavos
-  contractSignedUrl  String? // URL del contrato firmado
+  id                     String             @id @default(cuid())
+  firstName              String?
+  lastName               String?
+  socialReason           String?
+  identificationType     IdentificationType
+  identification         String             @unique
+  password               String
+  email                  String             @unique
+  address                String
+  city                   String             @default("QUITO")
+  phone                  String
+  createdBy              String? // Admin que registró
+  createdByName          String?
+  active                 Boolean            @default(false)
+  balance                Int                @default(0) // Saldo actual del distribuidor en centavos
+  contractSignedUrl      String? // URL del contrato firmado
+  identificationFrontUrl String?
+  identificationBackUrl  String?
 
   planPrices        DistributorPlanPrice[]
   signatureRequests SignatureRequest[]

@@ -3,9 +3,10 @@ import { DistributorsController } from './distributors.controller';
 import { DistributorsService } from './distributors.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { FilesModule } from 'src/files/files.module';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, FilesModule],
+  imports: [PrismaModule, FilesModule, AuthModule],
   controllers: [DistributorsController],
   providers: [DistributorsService],
   exports: [DistributorsService],

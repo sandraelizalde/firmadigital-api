@@ -9,11 +9,13 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import * as crypto from 'crypto';
 import { CreateDistributorDto } from './dto/create-distributor.dto';
 import { Role } from '@prisma/client';
+import { FilesService } from 'src/files/files.service';
 @Injectable()
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly filesService: FilesService,
   ) {}
 
   encryptPassword(password: string): string {
@@ -89,6 +91,30 @@ export class AuthService {
 
     const encryptedPassword = this.encryptPassword(data.password);
 
+    // Subir fotos de identificación a S3 si están presentes
+    let identificationFrontUrl: string | undefined;
+    let identificationBackUrl: string | undefined;
+
+    if (data.identificationFront) {
+      identificationFrontUrl = await this.filesService.uploadFile(
+        data.identificationFront,
+        data.identification,
+        'jpg',
+        `identificaciones-distribuidores/${data.identification}`,
+        'fotos-cedulas',
+      );
+    }
+
+    if (data.identificationBack) {
+      identificationBackUrl = await this.filesService.uploadFile(
+        data.identificationBack,
+        data.identification,
+        'jpg',
+        `identificaciones-distribuidores/${data.identification}`,
+        'fotos-cedulas',
+      );
+    }
+
     const newDistributor = await this.prisma.distributor.create({
       data: {
         firstName: data.firstName,
@@ -98,11 +124,14 @@ export class AuthService {
         identification: data.identification,
         email: data.email,
         address: data.address,
+        city: data.city,
         phone: data.phone,
         password: encryptedPassword,
         createdBy: adminUser.userId,
         createdByName: `${adminUser.firstName} ${adminUser.lastName}`,
         active: false,
+        identificationFrontUrl,
+        identificationBackUrl,
       },
     });
 

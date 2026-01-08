@@ -9,12 +9,14 @@ import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
 import { SignatureStatus } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { UploadContractDto } from './dto/upload-contract.dto';
+import { AuthService } from 'src/auth/auth.service';
 
 @Injectable()
 export class DistributorsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly filesService: FilesService,
+    private readonly authService: AuthService,
   ) {}
 
   // Buscar distribuidores por nombre para combobox
@@ -128,11 +130,45 @@ export class DistributorsService {
       }
     }
 
+    // Obtener URLs firmadas de las fotos de identificación
+    let identificationFront_url: string | null = null;
+    let identificationBack_url: string | null = null;
+
+    if (distributor.identificationFrontUrl) {
+      try {
+        identificationFront_url = await this.filesService.getFileUrl(
+          distributor.identificationFrontUrl,
+          'fotos-cedulas',
+        );
+      } catch (error) {
+        identificationFront_url = null;
+      }
+    }
+
+    if (distributor.identificationBackUrl) {
+      try {
+        identificationBack_url = await this.filesService.getFileUrl(
+          distributor.identificationBackUrl,
+          'fotos-cedulas',
+        );
+      } catch (error) {
+        identificationBack_url = null;
+      }
+    }
+
+    // Decodificar la contraseña
+    const decryptedPassword = this.authService.decryptPassword(
+      distributor.password,
+    );
+
     return {
       success: true,
       distributor: {
         ...distributor,
+        password: decryptedPassword,
         contract_url,
+        identificationFront_url,
+        identificationBack_url,
       },
     };
   }

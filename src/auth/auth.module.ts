@@ -6,6 +6,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { FilesModule } from 'src/files/files.module';
 
 @Module({
   controllers: [AuthController],
@@ -13,6 +14,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   imports: [
     PassportModule,
     PrismaModule,
+    FilesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -27,5 +29,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       }),
     }),
   ],
+  exports: [AuthService],
 })
 export class AuthModule {}
