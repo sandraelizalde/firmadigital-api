@@ -10,6 +10,7 @@ import { SignatureStatus } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { UploadContractDto } from './dto/upload-contract.dto';
 import { AuthService } from 'src/auth/auth.service';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class DistributorsService {
@@ -17,6 +18,7 @@ export class DistributorsService {
     private readonly prisma: PrismaService,
     private readonly filesService: FilesService,
     private readonly authService: AuthService,
+    private readonly mailService: MailService,
   ) {}
 
   // Buscar distribuidores por nombre para combobox
@@ -319,26 +321,41 @@ export class DistributorsService {
         'contratos-distribuidores',
       );
 
-      // Actualizar el distribuidor con la key del contrato
-      // TODO: Crear transaccion de prisma
+      // Obtener la contraseña desencriptada para enviarla por email
+      const decryptedPassword = this.authService.decryptPassword(
+        distributor.password,
+      );
 
-      const updatedDistributor = await this.prisma.distributor.update({
-        where: { id: distributorId },
-        data: {
-          contractSignedUrl: contractKey,
-        },
+      // Actualizar el distribuidor con la key del contrato y activarlo en una transacción
+      const updatedDistributor = await this.prisma.$transaction(async (tx) => {
+        return await tx.distributor.update({
+          where: { id: distributorId },
+          data: {
+            contractSignedUrl: contractKey,
+            active: true,
+          },
+        });
       });
 
-      await this.prisma.distributor.update({
-        where: { id: distributorId },
-        data: {
-          active: true,
-        },
-      });
+      // Enviar email de bienvenida con las credenciales
+      const distributorName =
+        distributor.socialReason ||
+        `${distributor.firstName} ${distributor.lastName}`;
+
+      try {
+        await this.mailService.sendWelcomeDistributor(
+          distributor.email,
+          distributorName,
+          decryptedPassword,
+        );
+      } catch (emailError) {
+        // Si falla el envío del email, registrar el error pero no fallar la operación
+        console.error('Error al enviar email de bienvenida:', emailError);
+      }
 
       return {
         success: true,
-        message: 'Contrato subido exitosamente',
+        message: 'Contrato subido exitosamente y distribuidor activado',
         contractKey: updatedDistributor.contractSignedUrl,
       };
     } catch (error) {

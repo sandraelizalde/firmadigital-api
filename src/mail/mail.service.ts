@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { render } from '@react-email/render';
-import DocumentSignedEmail from './templates/DocumentSignedEmail';
 import ContractEmail from './templates/ContractEmail';
+import WelcomeDistributorEmail from './templates/WelcomeDistributorEmail';
 import { Resend } from 'resend';
 import { PdfGeneratorService } from './pdf-generator.service';
 
@@ -95,6 +95,33 @@ export class MailService {
       );
     } catch (error) {
       console.error('Error al enviar contrato:', error);
+      throw error;
+    }
+  }
+
+  async sendWelcomeDistributor(
+    distributorEmail: string,
+    distributorName: string,
+    password: string,
+  ) {
+    try {
+      // Generar HTML del email
+      const html = await render(
+        WelcomeDistributorEmail({
+          distributorName,
+          email: distributorEmail,
+          password,
+        }),
+      );
+
+      // Enviar email
+      await this.sendEmail(
+        distributorEmail,
+        'Bienvenido/a como distribuidor de Nexus Soluciones',
+        html,
+      );
+    } catch (error) {
+      console.error('Error al enviar email de bienvenida:', error);
       throw error;
     }
   }
