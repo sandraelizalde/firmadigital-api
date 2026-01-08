@@ -346,6 +346,7 @@ export class DistributorsService {
         await this.mailService.sendWelcomeDistributor(
           distributor.email,
           distributorName,
+          distributor.identification,
           decryptedPassword,
         );
       } catch (emailError) {

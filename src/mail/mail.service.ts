@@ -102,6 +102,7 @@ export class MailService {
   async sendWelcomeDistributor(
     distributorEmail: string,
     distributorName: string,
+    identification: string,
     password: string,
   ) {
     try {
@@ -109,7 +110,7 @@ export class MailService {
       const html = await render(
         WelcomeDistributorEmail({
           distributorName,
-          email: distributorEmail,
+          identification,
           password,
         }),
       );

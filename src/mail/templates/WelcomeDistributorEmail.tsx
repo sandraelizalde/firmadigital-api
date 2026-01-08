@@ -14,13 +14,13 @@ import {
 
 type Props = {
   distributorName: string;
-  email: string;
+  identification: string;
   password: string;
 };
 
 export default function WelcomeDistributorEmail({
   distributorName,
-  email,
+  identification,
   password,
 }: Props) {
   const brand = {
@@ -184,7 +184,7 @@ export default function WelcomeDistributorEmail({
                     fontFamily: 'monospace',
                   }}
                 >
-                  {email}
+                  {identification}
                 </Text>
 
                 <Text
