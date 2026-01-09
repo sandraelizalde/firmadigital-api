@@ -15,6 +15,7 @@ import { SignaturesModule } from './signatures/signatures.module';
 import { ConsultationsModule } from './consultations/consultations.module';
 import { ConfigModule } from '@nestjs/config';
 import { MailModule } from './mail/mail.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { MailModule } from './mail/mail.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ScheduleModule.forRoot(),
 
     PrismaModule,
     AuthModule,

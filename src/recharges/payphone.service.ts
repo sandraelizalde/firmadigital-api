@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
+import { Cron } from '@nestjs/schedule';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { RechargeMethod, RechargeStatus } from '@prisma/client';
 
 interface PayphoneConfirmRequest {
   id: number;
@@ -43,7 +46,7 @@ export class PayphoneService {
   private readonly token: string | undefined;
   private readonly storeId: string | undefined;
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     this.baseUrl = process.env.PAYPHONE_BASE_URL;
     this.token = process.env.PAYPHONE_TOKEN;
     this.storeId = process.env.PAYPHONE_STORE_ID;
@@ -100,4 +103,25 @@ export class PayphoneService {
     }
   }
 
+  @Cron('0 0 1 * * *', {
+    timeZone: 'America/Guayaquil',
+  })
+  async deleteTransactionPending() {
+    const now = new Date();
+    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+
+    const rechargesPending = await this.prisma.recharge.deleteMany({
+      where: {
+        status: RechargeStatus.PENDING,
+        method: RechargeMethod.CARD,
+        createdAt: {
+          lt: fortyEightHoursAgo,
+        },
+      },
+    });
+
+    this.logger.log(
+      `Recargas pendientes eliminadas: ${rechargesPending.count}`,
+    );
+  }
 }
