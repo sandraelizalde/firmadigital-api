@@ -762,4 +762,123 @@ export class DistributorsService {
       },
     };
   }
+
+  /**
+   * Obtener distribuidores que tienen asignado un plan específico por duration y durationType
+   * @param duration Duración del plan
+   * @param durationType Tipo de duración del plan
+   * @returns Lista de distribuidores con sus precios personalizados
+   */
+  async getDistributorsByPlan(duration: string, durationType: string) {
+    // Buscar todos los planes que coincidan con duration y durationType
+    const plans = await this.prisma.plan.findMany({
+      where: {
+        duration,
+        durationType,
+        isActive: true,
+      },
+    });
+
+    if (plans.length === 0) {
+      return {
+        success: true,
+        distributors: [],
+        message: `No se encontraron planes con duración ${duration} ${durationType}`,
+      };
+    }
+
+    const planIds = plans.map((p) => p.id);
+
+    // Obtener todos los distribuidores que tienen asignados estos planes
+    const assignments = await this.prisma.distributorPlanPrice.findMany({
+      where: {
+        planId: { in: planIds },
+        isActive: true,
+        distributor: {
+          active: true,
+        },
+      },
+      include: {
+        distributor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            socialReason: true,
+            identification: true,
+            email: true,
+            phone: true,
+            balance: true,
+          },
+        },
+        plan: {
+          select: {
+            id: true,
+            perfil: true,
+            eligibleClientsType: true,
+          },
+        },
+      },
+      orderBy: [
+        {
+          distributor: {
+            firstName: 'asc',
+          },
+        },
+        {
+          distributor: {
+            lastName: 'asc',
+          },
+        },
+      ],
+    });
+
+    // Agrupar por distribuidor
+    const distributorMap = new Map<
+      string,
+      {
+        distributor: any;
+        plans: Array<{
+          planId: string;
+          perfil: string;
+          eligibleClientsType: any[];
+          customPrice: number;
+          customPricePromo: number | null;
+        }>;
+      }
+    >();
+
+    assignments.forEach((assignment) => {
+      const distId = assignment.distributor.id;
+
+      if (!distributorMap.has(distId)) {
+        distributorMap.set(distId, {
+          distributor: assignment.distributor,
+          plans: [],
+        });
+      }
+
+      distributorMap.get(distId)!.plans.push({
+        planId: assignment.plan.id,
+        perfil: assignment.plan.perfil,
+        eligibleClientsType: assignment.plan.eligibleClientsType,
+        customPrice: assignment.customPrice,
+        customPricePromo: assignment.customPricePromo,
+      });
+    });
+
+    // Convertir Map a array
+    const distributors = Array.from(distributorMap.values()).map((entry) => ({
+      ...entry.distributor,
+      plans: entry.plans,
+    }));
+
+    return {
+      success: true,
+      distributors,
+      total: distributors.length,
+      duration,
+      durationType,
+    };
+  }
 }

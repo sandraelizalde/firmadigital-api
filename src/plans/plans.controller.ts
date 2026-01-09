@@ -22,6 +22,7 @@ import { Role } from '@prisma/client';
 import { AssignPlansToDistributorDto } from './dto/assign-plan-to-distributor.dto';
 import { UpdateDistributorPlanPriceDto } from './dto/update-distributor-plan-price.dto';
 import { UpdatePlansToDistributorDto } from './dto/update-plans-to-distributor.dto';
+import { CreatePromotionsDto } from './dto/create-promotions.dto';
 
 @ApiTags('Planes')
 @Controller('plans')
@@ -167,9 +168,7 @@ export class PlansController {
   })
   @Patch('update-plans')
   @Roles(Role.ADMIN)
-  async updatePlansToDistributor(
-    @Body() data: UpdatePlansToDistributorDto,
-  ) {
+  async updatePlansToDistributor(@Body() data: UpdatePlansToDistributorDto) {
     return await this.plansService.updatePlansToDistributor(data);
   }
 
@@ -430,5 +429,56 @@ export class PlansController {
     return await this.plansService.getDistributorJuridicalPlans(
       req.user.userId,
     );
+  }
+
+  @ApiOperation({
+    summary: 'Crear promociones para los planes de los distribuidores',
+    description:
+      'Permite a un administrador actualizar promociones para los planes de los distribuidores, estableciendo precios promocionales personalizados para cada distribuidor.',
+  })
+  @ApiBody({ type: CreatePromotionsDto })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Promociones creadas exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: {
+          type: 'string',
+          example: 'Promociones creadas exitosamente para 10 distribuidores',
+        },
+        updatedCount: {
+          type: 'number',
+          example: 10,
+          description: 'Número total de asignaciones de planes actualizadas',
+        },
+        distributorsProcessed: {
+          type: 'number',
+          example: 10,
+          description: 'Número de distribuidores procesados',
+        },
+        priceGroupsProcessed: {
+          type: 'number',
+          example: 3,
+          description: 'Número de grupos de precios únicos procesados',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos inválidos - Verifique el formato y los valores proporcionados',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - Token JWT inválido o faltante',
+  })
+  @Roles(Role.ADMIN)
+  @Post('create-promotions')
+  async createPromotionsForDistributors(@Body() data: CreatePromotionsDto) {
+    return await this.plansService.createPromotionsForDistributors(data);
   }
 }

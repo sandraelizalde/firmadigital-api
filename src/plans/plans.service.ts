@@ -3,16 +3,20 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AssignPlansToDistributorDto } from './dto/assign-plan-to-distributor.dto';
 import { UpdateDistributorPlanPriceDto } from './dto/update-distributor-plan-price.dto';
 import { UpdatePlansToDistributorDto } from './dto/update-plans-to-distributor.dto';
+import { CreatePromotionsDto } from './dto/create-promotions.dto';
 import { TypeClient } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class PlansService {
+  private readonly logger = new Logger(PlansService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
@@ -644,6 +648,68 @@ export class PlansService {
     return {
       success: true,
       message: `${data.plans.length} plan(es) actualizados exitosamente`,
+    };
+  }
+
+  /**
+   * Crear promociones para múltiples distribuidores
+   * Optimizado con updateMany agrupando por precio
+   */
+  async createPromotionsForDistributors(data: CreatePromotionsDto) {
+    const { duration, durationType, distributors } = data;
+
+    this.logger.log(
+      `Iniciando creación de promociones para ${distributors.length} distribuidores`,
+    );
+
+    // Agrupar distribuidores por precio promocional
+    const priceGroups = new Map<number, string[]>();
+    distributors.forEach((d) => {
+      if (!priceGroups.has(d.customPricePromo)) {
+        priceGroups.set(d.customPricePromo, []);
+      }
+      priceGroups.get(d.customPricePromo)!.push(d.distributorId);
+    });
+
+    this.logger.log(
+      `Distribuidores agrupados en ${priceGroups.size} grupos de precios`,
+    );
+
+    let totalUpdated = 0;
+
+    // Ejecutar updateMany por cada grupo de precio
+    for (const [pricePromo, distributorIds] of priceGroups) {
+      this.logger.log(
+        `Actualizando ${distributorIds.length} distribuidores con precio promo $${(pricePromo / 100).toFixed(2)}`,
+      );
+
+      const result = await this.prisma.distributorPlanPrice.updateMany({
+        where: {
+          distributorId: { in: distributorIds },
+          isActive: true,
+          plan: {
+            duration,
+            durationType,
+            isActive: true,
+          },
+        },
+        data: {
+          customPricePromo: pricePromo,
+        },
+      });
+
+      totalUpdated += result.count;
+      this.logger.log(
+        `Actualizadas ${result.count} asignaciones para este grupo`,
+      );
+    }
+
+    return {
+      success: true,
+      message: `Promociones creadas exitosamente para ${distributors.length} distribuidores`,
+      updatedCount: totalUpdated,
+      distributorsProcessed: distributors.length,
+      priceGroupsProcessed: priceGroups.size,
     };
   }
 }

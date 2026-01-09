@@ -60,6 +60,49 @@ export class DistributorsController {
   }
 
   @ApiOperation({
+    summary: 'Obtener distribuidores por plan',
+    description:
+      'Obtiene la lista de distribuidores que tienen asignado un plan específico basado en duration y durationType. Incluye sus precios personalizados.',
+  })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de distribuidores con el plan especificado',
+    example: {
+      success: true,
+      distributors: [
+        {
+          id: 'clx123abc',
+          firstName: 'Juan',
+          lastName: 'Pérez',
+          plans: [
+            {
+              planId: 'plan123',
+              perfil: 'PERSONA_NATURAL',
+              customPrice: 5000,
+              customPricePromo: null,
+            },
+          ],
+        },
+      ],
+      total: 1,
+      duration: '1',
+      durationType: 'AÑO',
+    },
+  })
+  @Get('by-plan')
+  @Roles(Role.ADMIN)
+  async getDistributorsByPlan(
+    @Query('duration') duration: string,
+    @Query('durationType') durationType: string,
+  ) {
+    return await this.distributorsService.getDistributorsByPlan(
+      duration,
+      durationType,
+    );
+  }
+
+  @ApiOperation({
     summary: 'Listar todos los distribuidores con paginación',
     description:
       'Obtiene la lista paginada de distribuidores activos con su información de facturación y planes asignados. Soporta paginación mediante query parameters.',
