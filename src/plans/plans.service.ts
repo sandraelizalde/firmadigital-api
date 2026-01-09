@@ -7,6 +7,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AssignPlansToDistributorDto } from './dto/assign-plan-to-distributor.dto';
 import { UpdateDistributorPlanPriceDto } from './dto/update-distributor-plan-price.dto';
+import { UpdatePlansToDistributorDto } from './dto/update-plans-to-distributor.dto';
 import { TypeClient } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
 
@@ -521,6 +522,128 @@ export class PlansService {
         isActive: a.isActive,
         createdAt: a.createdAt,
       })),
+    };
+  }
+
+  /**
+   * Actualizar múltiples planes de un distribuidor con precios personalizados
+   * Similar a assignPlansToDistributor pero para actualizar planes ya asignados
+   */
+  async updatePlansToDistributor(data: UpdatePlansToDistributorDto) {
+    // Obtener todos los planes jurídicos enviados
+    const juridicalPlanIds = data.plans.map((p) => p.planId);
+    const juridicalPlans = await this.prisma.plan.findMany({
+      where: {
+        id: { in: juridicalPlanIds },
+        eligibleClientsType: {
+          has: TypeClient.PERSONA_JURIDICA,
+        },
+      },
+    });
+
+    // Pre-cargar todos los planes naturales equivalentes en una sola consulta
+    const durationCombinations = juridicalPlans.map((p) => ({
+      duration: p.duration,
+      durationType: p.durationType,
+    }));
+
+    const naturalPlans = await this.prisma.plan.findMany({
+      where: {
+        OR: durationCombinations.map((combo) => ({
+          duration: combo.duration,
+          durationType: combo.durationType,
+        })),
+        eligibleClientsType: {
+          hasSome: [
+            TypeClient.PERSONA_NATURAL_SIN_RUC,
+            TypeClient.PERSONA_NATURAL_CON_RUC,
+          ],
+        },
+        isActive: true,
+      },
+    });
+
+    // Pre-cargar todas las asignaciones naturales del distribuidor
+    const naturalPlanIds = naturalPlans.map((p) => p.id);
+    const naturalAssignments = await this.prisma.distributorPlanPrice.findMany({
+      where: {
+        distributorId: data.distributorId,
+        planId: { in: naturalPlanIds },
+      },
+    });
+    const naturalAssignmentMap = new Map(
+      naturalAssignments.map((a) => [a.planId, a]),
+    );
+
+    // Preparar todas las actualizaciones (PJ + PN)
+    const allUpdates: Array<{
+      distributorId: string;
+      planId: string;
+      customPrice: number;
+    }> = [];
+
+    for (const planData of data.plans) {
+      // Buscar el plan jurídico
+      const juridicalPlan = juridicalPlans.find(
+        (p) => p.id === planData.planId,
+      );
+
+      if (!juridicalPlan) continue;
+
+      // Agregar el plan jurídico
+      allUpdates.push({
+        distributorId: data.distributorId,
+        planId: juridicalPlan.id,
+        customPrice: planData.customPrice,
+      });
+
+      // Buscar el plan natural equivalente (ya pre-cargado)
+      const naturalPlan = naturalPlans.find(
+        (p) =>
+          p.duration === juridicalPlan.duration &&
+          p.durationType === juridicalPlan.durationType,
+      );
+
+      // Si existe plan natural equivalente y está asignado, actualizarlo también
+      if (naturalPlan && naturalAssignmentMap.has(naturalPlan.id)) {
+        allUpdates.push({
+          distributorId: data.distributorId,
+          planId: naturalPlan.id,
+          customPrice: planData.customPrice,
+        });
+      }
+    }
+
+    // Actualizar todos los planes en una transacción con timeout extendido
+    const updatedAssignments = await this.prisma.$transaction(
+      async (tx) => {
+        return await Promise.all(
+          allUpdates.map((updateData) =>
+            tx.distributorPlanPrice.update({
+              where: {
+                distributorId_planId: {
+                  distributorId: updateData.distributorId,
+                  planId: updateData.planId,
+                },
+              },
+              data: {
+                customPrice: updateData.customPrice,
+              },
+              include: {
+                plan: true,
+              },
+            }),
+          ),
+        );
+      },
+      {
+        timeout: 60000,
+      },
+    );
+
+    return {
+      success: true,
+      message: `${data.plans.length} plan(es) actualizados exitosamente`,
     };
   }
 }

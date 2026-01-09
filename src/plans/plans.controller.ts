@@ -21,7 +21,7 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AssignPlansToDistributorDto } from './dto/assign-plan-to-distributor.dto';
 import { UpdateDistributorPlanPriceDto } from './dto/update-distributor-plan-price.dto';
-import { Public } from 'src/auth/decorators/public.decorator';
+import { UpdatePlansToDistributorDto } from './dto/update-plans-to-distributor.dto';
 
 @ApiTags('Planes')
 @Controller('plans')
@@ -37,7 +37,7 @@ export class PlansController {
     description: 'Lista de planes obtenida exitosamente',
   })
   @Get()
-  @Public()
+  @Roles(Role.ADMIN)
   async getAllPlans() {
     return await this.plansService.getAllPlans();
   }
@@ -60,7 +60,7 @@ export class PlansController {
     description: 'Plan no encontrado',
   })
   @Get(':planId')
-  @Public()
+  @Roles(Role.ADMIN, Role.DISTRIBUTOR)
   async getPlanById(@Param('planId') planId: string) {
     return await this.plansService.getPlanById(planId);
   }
@@ -123,6 +123,54 @@ export class PlansController {
     @Request() req: any,
   ) {
     return await this.plansService.assignPlansToDistributor(data, req.user);
+  }
+
+  @ApiOperation({
+    summary:
+      'Actualizar múltiples planes de un distribuidor con precios personalizados',
+    description:
+      'Permite a un administrador actualizar los precios de múltiples planes ya asignados a un distribuidor. Si el plan jurídico tiene un plan natural equivalente asignado, también se actualiza automáticamente.',
+  })
+  @ApiBody({ type: UpdatePlansToDistributorDto })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Planes actualizados exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: {
+          type: 'string',
+          example:
+            '6 planes actualizados exitosamente (3 jurídicos + 3 naturales)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Uno o más planes no fueron encontrados, no son jurídicos o no están asignados',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Distribuidor no encontrado',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - Token JWT inválido o faltante',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - Solo administradores pueden actualizar planes',
+  })
+  @Patch('update-plans')
+  @Roles(Role.ADMIN)
+  async updatePlansToDistributor(
+    @Body() data: UpdatePlansToDistributorDto,
+  ) {
+    return await this.plansService.updatePlansToDistributor(data);
   }
 
   @ApiOperation({

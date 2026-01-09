@@ -838,8 +838,10 @@ export class SignaturesService {
       limit = 10,
       distributorId,
       status,
-      cedula,
+      identification,
       distributorIdentification,
+      startDate,
+      endDate,
     } = filterDto;
     const skip = (page - 1) * limit;
 
@@ -854,8 +856,12 @@ export class SignaturesService {
       where.status = status;
     }
 
-    if (cedula) {
-      where.cedula = { contains: cedula, mode: 'insensitive' };
+    // Buscar por identificación: si tiene RUC busca en ruc, sino en cédula
+    if (identification) {
+      where.OR = [
+        { ruc: { contains: identification, mode: 'insensitive' } },
+        { cedula: { contains: identification, mode: 'insensitive' } },
+      ];
     }
 
     if (distributorIdentification) {
@@ -865,6 +871,21 @@ export class SignaturesService {
           mode: 'insensitive',
         },
       };
+    }
+
+    console.log({ startDate, endDate });
+
+    // Filtro por rango de fechas
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        const startDateTime = new Date(startDate + 'T00:00:00');
+        where.createdAt.gte = startDateTime;
+      }
+      if (endDate) {
+        const endDateTime = new Date(endDate + 'T23:59:59.999');
+        where.createdAt.lte = endDateTime;
+      }
     }
 
     // Obtener el total de registros

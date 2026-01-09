@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -260,5 +261,49 @@ export class DistributorsController {
     @Body() data: UploadContractDto,
   ) {
     return await this.distributorsService.uploadContract(distributorId, data);
+  }
+
+  @ApiOperation({
+    summary: 'Eliminar un distribuidor (ADMIN)',
+    description:
+      'Elimina un distribuidor y todos sus datos relacionados: información de facturación, planes asignados, solicitudes de firma, recargas, movimientos de cuenta y archivos del bucket S3 (contrato, fotos de identificación, fotos de firmas, PDFs y vouchers).',
+  })
+  @ApiParam({
+    name: 'distributorId',
+    description: 'ID del distribuidor a eliminar',
+    type: String,
+  })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Distribuidor eliminado exitosamente',
+    example: {
+      success: true,
+      message: 'Distribuidor eliminado exitosamente',
+      data: {
+        distributorId: 'clx123abc',
+        deletedFilesCount: 15,
+        failedFilesCount: 0,
+        deletedSignatures: 5,
+        deletedRecharges: 3,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Distribuidor no encontrado',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Requiere rol ADMIN',
+  })
+  @Delete(':distributorId')
+  @Roles(Role.ADMIN)
+  async deleteDistributor(@Param('distributorId') distributorId: string) {
+    return await this.distributorsService.deleteDistributor(distributorId);
   }
 }

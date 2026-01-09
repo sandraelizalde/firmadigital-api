@@ -2,11 +2,13 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
-import { SignatureStatus } from '@prisma/client';
+import { SignatureStatus, TypeClient } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { UploadContractDto } from './dto/upload-contract.dto';
 import { AuthService } from 'src/auth/auth.service';
@@ -14,6 +16,8 @@ import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class DistributorsService {
+  private readonly logger = new Logger(DistributorsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly filesService: FilesService,
@@ -86,7 +90,14 @@ export class DistributorsService {
       include: {
         billingInfo: true,
         planPrices: {
-          where: { isActive: true },
+          where: {
+            isActive: true,
+            plan: {
+              eligibleClientsType: {
+                has: TypeClient.PERSONA_JURIDICA,
+              },
+            },
+          },
           include: {
             plan: true,
           },
@@ -521,6 +532,233 @@ export class DistributorsService {
           amount: movement.amount,
           date: movement.createdAt,
         })),
+      },
+    };
+  }
+
+  /**
+   * Elimina un distribuidor y todos sus datos relacionados
+   * @param distributorId ID del distribuidor a eliminar
+   * @returns Resultado de la eliminación
+   */
+  async deleteDistributor(distributorId: string) {
+    // Verificar que el distribuidor existe
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId },
+      include: {
+        signatureRequests: {
+          select: {
+            id: true,
+            foto_frontal: true,
+            foto_posterior: true,
+            pdf_sri: true,
+            nombramiento: true,
+          },
+        },
+        recargas: {
+          select: {
+            id: true,
+            receiptFile: true,
+          },
+        },
+      },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException({
+        message: 'Distribuidor no encontrado',
+        error: 'DISTRIBUTOR_NOT_FOUND',
+      });
+    }
+
+    // Eliminar archivos del bucket S3
+    const deletedFiles: string[] = [];
+    const failedFiles: string[] = [];
+
+    // 1. Eliminar contrato del distribuidor
+    if (distributor.contractSignedUrl) {
+      try {
+        await this.filesService.deleteFile(
+          distributor.contractSignedUrl,
+          'contratos-distribuidores',
+        );
+        deletedFiles.push(`contrato: ${distributor.contractSignedUrl}`);
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo eliminar contrato: ${distributor.contractSignedUrl}`,
+        );
+        failedFiles.push(`contrato: ${distributor.contractSignedUrl}`);
+      }
+    }
+
+    // 2. Eliminar fotos de identificación del distribuidor
+    if (distributor.identificationFrontUrl) {
+      try {
+        await this.filesService.deleteFile(
+          distributor.identificationFrontUrl,
+          'fotos-cedulas',
+        );
+        deletedFiles.push(
+          `foto frontal: ${distributor.identificationFrontUrl}`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo eliminar foto frontal: ${distributor.identificationFrontUrl}`,
+        );
+        failedFiles.push(`foto frontal: ${distributor.identificationFrontUrl}`);
+      }
+    }
+
+    if (distributor.identificationBackUrl) {
+      try {
+        await this.filesService.deleteFile(
+          distributor.identificationBackUrl,
+          'fotos-cedulas',
+        );
+        deletedFiles.push(
+          `foto posterior: ${distributor.identificationBackUrl}`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo eliminar foto posterior: ${distributor.identificationBackUrl}`,
+        );
+        failedFiles.push(
+          `foto posterior: ${distributor.identificationBackUrl}`,
+        );
+      }
+    }
+
+    // 3. Eliminar archivos de las solicitudes de firma
+    for (const signature of distributor.signatureRequests) {
+      // Foto frontal de la firma
+      if (signature.foto_frontal) {
+        try {
+          await this.filesService.deleteFile(
+            signature.foto_frontal,
+            'fotos-cedulas',
+          );
+          deletedFiles.push(`firma foto frontal: ${signature.foto_frontal}`);
+        } catch (error) {
+          this.logger.warn(
+            `No se pudo eliminar foto frontal de firma: ${signature.foto_frontal}`,
+          );
+          failedFiles.push(`firma foto frontal: ${signature.foto_frontal}`);
+        }
+      }
+
+      // Foto posterior de la firma
+      if (signature.foto_posterior) {
+        try {
+          await this.filesService.deleteFile(
+            signature.foto_posterior,
+            'fotos-cedulas',
+          );
+          deletedFiles.push(
+            `firma foto posterior: ${signature.foto_posterior}`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `No se pudo eliminar foto posterior de firma: ${signature.foto_posterior}`,
+          );
+          failedFiles.push(`firma foto posterior: ${signature.foto_posterior}`);
+        }
+      }
+
+      // PDF SRI
+      if (signature.pdf_sri) {
+        try {
+          await this.filesService.deleteFile(signature.pdf_sri, 'pdf-sri');
+          deletedFiles.push(`firma pdf sri: ${signature.pdf_sri}`);
+        } catch (error) {
+          this.logger.warn(
+            `No se pudo eliminar pdf sri de firma: ${signature.pdf_sri}`,
+          );
+          failedFiles.push(`firma pdf sri: ${signature.pdf_sri}`);
+        }
+      }
+
+      // Nombramiento
+      if (signature.nombramiento) {
+        try {
+          await this.filesService.deleteFile(
+            signature.nombramiento,
+            'pdf-nombramiento',
+          );
+          deletedFiles.push(`firma nombramiento: ${signature.nombramiento}`);
+        } catch (error) {
+          this.logger.warn(
+            `No se pudo eliminar nombramiento de firma: ${signature.nombramiento}`,
+          );
+          failedFiles.push(`firma nombramiento: ${signature.nombramiento}`);
+        }
+      }
+    }
+
+    // 4. Eliminar vouchers de recargas
+    for (const recharge of distributor.recargas) {
+      if (recharge.receiptFile) {
+        try {
+          await this.filesService.deleteFile(
+            recharge.receiptFile,
+            'vouchers-recargas',
+          );
+          deletedFiles.push(`voucher recarga: ${recharge.receiptFile}`);
+        } catch (error) {
+          this.logger.warn(
+            `No se pudo eliminar voucher de recarga: ${recharge.receiptFile}`,
+          );
+          failedFiles.push(`voucher recarga: ${recharge.receiptFile}`);
+        }
+      }
+    }
+
+    // Eliminar registros de la base de datos en una transacción
+    await this.prisma.$transaction(async (tx) => {
+      // Eliminar movimientos de cuenta (primero por las FK)
+      await tx.accountMovement.deleteMany({
+        where: { distributorId },
+      });
+
+      // Eliminar recargas
+      await tx.recharge.deleteMany({
+        where: { distributorId },
+      });
+
+      // Eliminar solicitudes de firma
+      await tx.signatureRequest.deleteMany({
+        where: { distributorId },
+      });
+
+      // Eliminar precios de planes (aunque tiene onDelete: Cascade, lo hacemos explícito)
+      await tx.distributorPlanPrice.deleteMany({
+        where: { distributorId },
+      });
+
+      // Eliminar información de facturación
+      await tx.billingInfo.deleteMany({
+        where: { distributorId },
+      });
+
+      // Finalmente eliminar el distribuidor
+      await tx.distributor.delete({
+        where: { id: distributorId },
+      });
+    });
+
+    this.logger.log(
+      `Distribuidor ${distributorId} eliminado exitosamente. Archivos eliminados: ${deletedFiles.length}, fallidos: ${failedFiles.length}`,
+    );
+
+    return {
+      success: true,
+      message: 'Distribuidor eliminado exitosamente',
+      data: {
+        distributorId,
+        deletedFilesCount: deletedFiles.length,
+        failedFilesCount: failedFiles.length,
+        deletedSignatures: distributor.signatureRequests.length,
+        deletedRecharges: distributor.recargas.length,
+        failedFiles: failedFiles.length > 0 ? failedFiles : undefined,
       },
     };
   }
