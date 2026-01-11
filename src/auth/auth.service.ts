@@ -62,6 +62,7 @@ export class AuthService {
 
     const decryptedPassword = this.decryptPassword(foundDistributor.password);
     const isPasswordValid = decryptedPassword === data.password;
+    console.log(decryptedPassword, data.password);
 
     if (isPasswordValid && foundDistributor.active) {
       return this.jwtService.sign({
