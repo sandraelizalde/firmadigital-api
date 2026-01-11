@@ -92,8 +92,14 @@ export class AuthService {
     console.log('   - Longitud recibida:', data.password.length);
     console.log('   - Desencriptada JSON:', JSON.stringify(decryptedPassword));
     console.log('   - Recibida JSON:', JSON.stringify(data.password));
-    console.log('   - Bytes desencriptada:', Buffer.from(decryptedPassword).toString('hex'));
-    console.log('   - Bytes recibida:', Buffer.from(data.password).toString('hex'));
+    console.log(
+      '   - Bytes desencriptada:',
+      Buffer.from(decryptedPassword).toString('hex'),
+    );
+    console.log(
+      '   - Bytes recibida:',
+      Buffer.from(data.password).toString('hex'),
+    );
 
     if (isPasswordValid && foundDistributor.active) {
       console.log('5. Generando token JWT - Login exitoso');
