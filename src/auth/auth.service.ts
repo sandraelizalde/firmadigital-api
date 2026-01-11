@@ -51,12 +51,6 @@ export class AuthService {
   // validateUser method removed - User model does not exist in schema
 
   async validateDistributor(data: LoginDto) {
-    console.log('=== INICIO VALIDACIÓN DISTRIBUIDOR ===');
-    console.log('1. Datos recibidos:', {
-      identification: data.identification,
-      password: data.password,
-    });
-
     const foundDistributor = await this.prisma.distributor.findUnique({
       where: {
         identification: data.identification,
@@ -64,45 +58,12 @@ export class AuthService {
       },
     });
 
-    console.log(
-      '2. Distribuidor encontrado:',
-      foundDistributor
-        ? {
-            id: foundDistributor.id,
-            identification: foundDistributor.identification,
-            active: foundDistributor.active,
-            email: foundDistributor.email,
-          }
-        : 'NULL - No encontrado o no activo',
-    );
-
-    if (!foundDistributor) {
-      console.log('3. Retornando NULL - Distribuidor no encontrado');
-      return null;
-    }
+    if (!foundDistributor) return null;
 
     const decryptedPassword = this.decryptPassword(foundDistributor.password);
     const isPasswordValid = decryptedPassword === data.password;
-    console.log('4. Validación de contraseña:');
-    console.log('   - Contraseña desencriptada:', decryptedPassword);
-    console.log('   - Contraseña recibida:', data.password);
-    console.log('   - ¿Son iguales?:', isPasswordValid);
-    console.log('   - Active:', foundDistributor.active);
-    console.log('   - Longitud desencriptada:', decryptedPassword.length);
-    console.log('   - Longitud recibida:', data.password.length);
-    console.log('   - Desencriptada JSON:', JSON.stringify(decryptedPassword));
-    console.log('   - Recibida JSON:', JSON.stringify(data.password));
-    console.log(
-      '   - Bytes desencriptada:',
-      Buffer.from(decryptedPassword).toString('hex'),
-    );
-    console.log(
-      '   - Bytes recibida:',
-      Buffer.from(data.password).toString('hex'),
-    );
 
     if (isPasswordValid && foundDistributor.active) {
-      console.log('5. Generando token JWT - Login exitoso');
       return this.jwtService.sign({
         id: foundDistributor.id,
         firstName: foundDistributor.firstName,
@@ -112,11 +73,6 @@ export class AuthService {
         role: Role.DISTRIBUTOR,
       });
     }
-
-    console.log(
-      '6. Retornando NULL - Contraseña inválida o distribuidor inactivo',
-    );
-    return null;
   }
 
   async registerDistributor(data: CreateDistributorDto, adminUser: any) {
