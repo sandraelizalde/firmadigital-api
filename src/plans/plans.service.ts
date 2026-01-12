@@ -545,7 +545,6 @@ export class PlansService {
       },
     });
 
-    // Pre-cargar todos los planes naturales equivalentes en una sola consulta
     const durationCombinations = juridicalPlans.map((p) => ({
       duration: p.duration,
       durationType: p.durationType,
@@ -658,12 +657,8 @@ export class PlansService {
   async createPromotionsForDistributors(data: CreatePromotionsDto) {
     const { duration, durationType, distributors } = data;
 
-    this.logger.log(
-      `Iniciando creación de promociones para ${distributors.length} distribuidores`,
-    );
-
     // Agrupar distribuidores por precio promocional
-    const priceGroups = new Map<number, string[]>();
+    const priceGroups = new Map<number | undefined, string[]>();
     distributors.forEach((d) => {
       if (!priceGroups.has(d.customPricePromo)) {
         priceGroups.set(d.customPricePromo, []);
@@ -671,18 +666,10 @@ export class PlansService {
       priceGroups.get(d.customPricePromo)!.push(d.distributorId);
     });
 
-    this.logger.log(
-      `Distribuidores agrupados en ${priceGroups.size} grupos de precios`,
-    );
-
     let totalUpdated = 0;
 
     // Ejecutar updateMany por cada grupo de precio
     for (const [pricePromo, distributorIds] of priceGroups) {
-      this.logger.log(
-        `Actualizando ${distributorIds.length} distribuidores con precio promo $${(pricePromo / 100).toFixed(2)}`,
-      );
-
       const result = await this.prisma.distributorPlanPrice.updateMany({
         where: {
           distributorId: { in: distributorIds },

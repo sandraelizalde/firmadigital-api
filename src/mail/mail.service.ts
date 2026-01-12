@@ -61,7 +61,7 @@ export class MailService {
         email: distributor.email,
         phone: distributor.phone,
         address: distributor.address,
-        city: 'QUITO', // Por defecto
+        city: distributor.city,
         representativeName: `${distributor.firstName} ${distributor.lastName}`,
         representativeId: distributor.identification,
         plans: juridicalPlans.map((plan) => ({

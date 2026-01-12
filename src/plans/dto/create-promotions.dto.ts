@@ -2,6 +2,7 @@ import {
   IsArray,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   Min,
   ValidateNested,
@@ -24,11 +25,12 @@ export class DistributorPromotionDto {
     example: 9.99,
     type: Number,
     minimum: 0,
+    required: false,
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  customPricePromo: number;
+  customPricePromo?: number;
 }
 
 export class CreatePromotionsDto {

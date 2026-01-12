@@ -10,7 +10,7 @@ export class LoginDto {
     maxLength: 13,
   })
   @IsNotEmpty({ message: 'La identificación es requerida' })
-  @IsString({ message: 'La identificación debe ser un texto' })
+  @IsString({ message: 'La identificación debe ser una cadena de texto' })
   identification: string;
 
   @ApiProperty({
