@@ -10,6 +10,13 @@ export class AnnulSignatureDto {
   @IsNotEmpty({ message: 'El ID de la firma es requerido' })
   signatureId: string;
 
+  @ApiProperty({
+    description: 'Si se genera o no el movimiento de reembolso',
+    example: true,
+  })
+  @IsNotEmpty({ message: 'El campo generateRefund es requerido' })
+  generateRefund: boolean;
+
   @ApiPropertyOptional({
     description: 'Nota o motivo de la anulación',
     example: 'Solicitud duplicada por error del cliente',

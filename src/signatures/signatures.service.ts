@@ -867,6 +867,7 @@ export class SignaturesService {
         status: signatureRequest.status,
         providerCode: signatureRequest.providerCode,
         providerMessage: signatureRequest.providerMessage,
+        annulledNote: signatureRequest.annulledNote,
         activeNotification: signatureRequest.activeNotification,
         expirationDate,
         duration,
@@ -1226,6 +1227,7 @@ export class SignaturesService {
     signatureId: string,
     adminId: string,
     adminName: string,
+    generateRefund: boolean,
     note?: string,
   ) {
     // Buscar la solicitud de firma
@@ -1274,8 +1276,7 @@ export class SignaturesService {
 
     // Ejecutar la anulación en una transacción
     const result = await this.prisma.$transaction(async (tx) => {
-      // Calcular el nuevo balance del distribuidor
-      const newBalance = signatureRequest.distributor!.balance + refundAmount;
+      let newBalance = signatureRequest.distributor!.balance;
 
       // Actualizar el estado de la firma a ANNULLED
       await tx.signatureRequest.update({
@@ -1287,9 +1288,14 @@ export class SignaturesService {
         },
       });
 
-      // Si hay monto a reembolsar, actualizar balance y crear movimiento
+      // Si hay monto a reembolsar Y se debe generar el reembolso, actualizar balance y crear movimiento
       let movement: { id: string } | null = null;
-      if (refundAmount > 0) {
+      let actualRefundAmount = 0;
+
+      if (generateRefund && refundAmount > 0) {
+        newBalance = signatureRequest.distributor!.balance + refundAmount;
+        actualRefundAmount = refundAmount;
+
         // Actualizar el balance del distribuidor
         await tx.distributor.update({
           where: { id: signatureRequest.distributorId! },
@@ -1314,7 +1320,7 @@ export class SignaturesService {
       return {
         signatureId,
         distributorId: signatureRequest.distributorId,
-        refundedAmount: refundAmount,
+        refundedAmount: actualRefundAmount,
         newDistributorBalance: newBalance,
         movementId: movement?.id || null,
       };
@@ -1323,9 +1329,9 @@ export class SignaturesService {
     return {
       success: true,
       message:
-        refundAmount > 0
-          ? `Firma anulada exitosamente y se reembolsaron $${(refundAmount / 100).toFixed(2)} al distribuidor`
-          : 'Firma anulada exitosamente (sin reembolso porque no se había cobrado)',
+        generateRefund && result.refundedAmount > 0
+          ? `Firma anulada exitosamente y se reembolsaron $${(result.refundedAmount / 100).toFixed(2)} al distribuidor`
+          : 'Firma anulada exitosamente sin reembolso',
       data: result,
     };
   }
