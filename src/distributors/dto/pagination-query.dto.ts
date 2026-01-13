@@ -18,7 +18,6 @@ export class PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Cantidad de resultados por página',
     minimum: 1,
-    maximum: 100,
     default: 10,
     example: 10,
   })
@@ -26,6 +25,5 @@ export class PaginationQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
   limit?: number = 10;
 }

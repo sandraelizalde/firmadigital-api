@@ -20,7 +20,6 @@ export class PaginationQueryDto {
     description: 'Cantidad de elementos por página',
     example: 10,
     minimum: 1,
-    maximum: 100,
     required: false,
     default: 10,
   })
@@ -28,6 +27,5 @@ export class PaginationQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
   limit?: number = 10;
 }
