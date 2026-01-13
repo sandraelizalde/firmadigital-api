@@ -25,7 +25,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
-import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { DistributorFilterDto } from './dto/distributor-filter.dto';
 import { UploadContractDto } from './dto/upload-contract.dto';
 
 @ApiTags('Distribuidores')
@@ -103,9 +103,9 @@ export class DistributorsController {
   }
 
   @ApiOperation({
-    summary: 'Listar todos los distribuidores con paginación',
+    summary: 'Listar todos los distribuidores con paginación y filtros',
     description:
-      'Obtiene la lista paginada de distribuidores activos con su información de facturación y planes asignados. Soporta paginación mediante query parameters.',
+      'Obtiene la lista paginada de distribuidores con su información de facturación y planes asignados. Soporta paginación y filtros por identificación y nombre mediante query parameters.',
   })
   @ApiBearerAuth()
   @ApiResponse({
@@ -114,11 +114,8 @@ export class DistributorsController {
   })
   @Get()
   @Roles(Role.ADMIN)
-  async getAllDistributors(@Query() paginationQuery: PaginationQueryDto) {
-    return await this.distributorsService.getAllDistributors(
-      paginationQuery.page,
-      paginationQuery.limit,
-    );
+  async getAllDistributors(@Query() filterDto: DistributorFilterDto) {
+    return await this.distributorsService.getAllDistributors(filterDto);
   }
 
   @ApiOperation({

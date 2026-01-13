@@ -379,24 +379,40 @@ export class DistributorsService {
     }
   }
 
-  // Listar todos los distribuidores con paginación
-  async getAllDistributors(page: number = 1, limit: number = 10) {
+  // Listar todos los distribuidores con paginación y filtros
+  async getAllDistributors(filterDto: {
+    page?: number;
+    limit?: number;
+    identification?: string;
+    name?: string;
+  }) {
+    const { page = 1, limit = 10, identification, name } = filterDto;
     const skip = (page - 1) * limit;
 
-    // Obtener el total de distribuidores activos
-    const total = await this.prisma.distributor.count({});
+    // Construir condiciones de filtrado
+    const where: any = {};
 
-    // Obtener distribuidores paginados
+    if (identification) {
+      where.identification = {
+        contains: identification,
+        mode: 'insensitive',
+      };
+    }
+
+    if (name) {
+      where.OR = [
+        { firstName: { contains: name, mode: 'insensitive' } },
+        { lastName: { contains: name, mode: 'insensitive' } },
+        { socialReason: { contains: name, mode: 'insensitive' } },
+      ];
+    }
+
+    // Obtener el total de distribuidores con los filtros aplicados
+    const total = await this.prisma.distributor.count({ where });
+
+    // Obtener distribuidores paginados con filtros
     const distributors = await this.prisma.distributor.findMany({
-      // include: {
-      //   billingInfo: true,
-      //   planPrices: {
-      //     where: { isActive: true },
-      //     include: {
-      //       plan: true,
-      //     },
-      //   },
-      // },
+      where,
       orderBy: {
         createdAt: 'desc',
       },
