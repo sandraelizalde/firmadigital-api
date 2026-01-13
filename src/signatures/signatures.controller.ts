@@ -3,18 +3,21 @@ import {
   Post,
   Get,
   Body,
-  Param,
   Query,
   UseGuards,
   Request,
   BadRequestException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
-  ApiParam,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { SignaturesService } from './signatures.service';
 import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
@@ -37,10 +40,58 @@ export class SignaturesController {
 
   @Post('natural')
   @Roles(Role.DISTRIBUTOR)
+  @UseInterceptors(FileInterceptor('video_face'))
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Crear solicitud de firma digital para persona natural',
     description:
-      'Permite a un distribuidor crear una solicitud de firma digital para persona natural. Los datos son enviados al proveedor ENEXT. Se valida el balance del distribuidor y se cobra automáticamente si la solicitud es exitosa.',
+      'Permite a un distribuidor crear una solicitud de firma digital para persona natural. Los datos son enviados al proveedor ENEXT. Se valida el balance del distribuidor y se cobra automáticamente si la solicitud es exitosa. El video es opcional pero obligatorio si la persona tiene 80 años o más.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: [
+        'nombres',
+        'apellidos',
+        'cedula',
+        'codigo_dactilar',
+        'correo',
+        'provincia',
+        'ciudad',
+        'parroquia',
+        'direccion',
+        'celular',
+        'clavefirma',
+        'foto_frontal',
+        'foto_posterior',
+        'perfil_firma',
+        'dateOfBirth',
+      ],
+      properties: {
+        nombres: { type: 'string', example: 'LUIS XAVIER' },
+        apellidos: { type: 'string', example: 'GONZALEZ JIMENEZ' },
+        cedula: { type: 'string', example: '1752549467' },
+        codigo_dactilar: { type: 'string', example: 'V43I4444' },
+        correo: { type: 'string', example: 'luisg@solucionesnexus.com' },
+        provincia: { type: 'string', example: 'PICHINCHA' },
+        ciudad: { type: 'string', example: 'QUITO' },
+        parroquia: { type: 'string', example: 'IÑAQUITO' },
+        direccion: { type: 'string', example: 'QUITUS COLONIAL' },
+        celular: { type: 'string', example: '0990602199' },
+        clavefirma: { type: 'string', example: 'GONZALEZ1752' },
+        foto_frontal: { type: 'string', example: 'base64_string...' },
+        foto_posterior: { type: 'string', example: 'base64_string...' },
+        perfil_firma: { type: 'string', example: 'PN-001' },
+        dateOfBirth: { type: 'string', example: '1990-05-15' },
+        ruc: { type: 'string', example: '1752549467001' },
+        video_face: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'Video facial (opcional, obligatorio si edad >= 80 años). Formatos: mp4, mov, avi, webm',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 201,
@@ -88,26 +139,90 @@ export class SignaturesController {
   @ApiResponse({
     status: 400,
     description:
-      'Balance insuficiente, plan no asignado o distribuidor inactivo',
+      'Balance insuficiente, plan no asignado, distribuidor inactivo o video requerido para persona mayor de 80 años',
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Solo para distribuidores' })
   async createNaturalSignature(
     @Request() req,
     @Body() dto: CreateNaturalSignatureDto,
+    @UploadedFile() video_face?: Express.Multer.File,
   ) {
     return this.signaturesService.createNaturalSignatureRequest(
       req.user.userId,
       dto,
+      video_face,
     );
   }
 
   @Post('juridica')
   @Roles(Role.DISTRIBUTOR)
+  @UseInterceptors(FileInterceptor('video_face'))
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Crear solicitud de firma digital para persona jurídica',
     description:
-      'Permite a un distribuidor crear una solicitud de firma digital para empresa/persona jurídica. Requiere datos adicionales como RUC, razón social, representante legal y nombramiento. Se valida el balance y se cobra automáticamente si es exitosa.',
+      'Permite a un distribuidor crear una solicitud de firma digital para empresa/persona jurídica. Requiere datos adicionales como RUC, razón social, representante legal y nombramiento. Se valida el balance y se cobra automáticamente si es exitosa. El video es opcional pero obligatorio si el representante legal tiene 80 años o más.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: [
+        'nombres',
+        'apellidos',
+        'cedula',
+        'codigo_dactilar',
+        'correo',
+        'provincia',
+        'ciudad',
+        'parroquia',
+        'direccion',
+        'celular',
+        'clavefirma',
+        'foto_frontal',
+        'foto_posterior',
+        'perfil_firma',
+        'dateOfBirth',
+        'ruc',
+        'razon_social',
+        'rep_legal',
+        'cargo',
+        'pdfSriBase64',
+        'nombramientoBase64',
+      ],
+      properties: {
+        nombres: { type: 'string', example: 'LUIS XAVIER' },
+        apellidos: { type: 'string', example: 'GONZALEZ JIMENEZ' },
+        cedula: { type: 'string', example: '1752549467' },
+        codigo_dactilar: { type: 'string', example: 'V43I4444' },
+        correo: { type: 'string', example: 'luisg@solucionesnexus.com' },
+        provincia: { type: 'string', example: 'PICHINCHA' },
+        ciudad: { type: 'string', example: 'QUITO' },
+        parroquia: { type: 'string', example: 'IÑAQUITO' },
+        direccion: { type: 'string', example: 'QUITUS COLONIAL' },
+        celular: { type: 'string', example: '0990602199' },
+        clavefirma: { type: 'string', example: 'GONZALEZ1752' },
+        foto_frontal: { type: 'string', example: 'base64_string...' },
+        foto_posterior: { type: 'string', example: 'base64_string...' },
+        perfil_firma: { type: 'string', example: 'PJ-003' },
+        dateOfBirth: { type: 'string', example: '1990-05-15' },
+        ruc: { type: 'string', example: '1752549467001' },
+        razon_social: {
+          type: 'string',
+          example: 'DISTRIBUIDORA GONZALEZ S.A.',
+        },
+        rep_legal: { type: 'string', example: 'LUIS XAVIER GONZALEZ JIMENEZ' },
+        cargo: { type: 'string', example: 'GERENTE GENERAL' },
+        pdfSriBase64: { type: 'string', example: 'base64_string...' },
+        nombramientoBase64: { type: 'string', example: 'base64_string...' },
+        video_face: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'Video facial (opcional, obligatorio si edad >= 80 años). Formatos: mp4, mov, avi, webm',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 201,
@@ -158,17 +273,19 @@ export class SignaturesController {
   @ApiResponse({
     status: 400,
     description:
-      'Balance insuficiente, plan no asignado o distribuidor inactivo',
+      'Balance insuficiente, plan no asignado, distribuidor inactivo o video requerido para persona mayor de 80 años',
   })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Solo para distribuidores' })
   async createJuridicalSignature(
     @Request() req,
     @Body() dto: CreateJuridicalSignatureDto,
+    @UploadedFile() video_face?: Express.Multer.File,
   ) {
     return this.signaturesService.createJuridicalSignatureRequest(
       req.user.userId,
       dto,
+      video_face,
     );
   }
 
@@ -199,11 +316,11 @@ export class SignaturesController {
         parroquia: 'IÑAQUITO',
         direccion: 'QUITUS COLONIAL',
         dateOfBirth: '1990-05-15T00:00:00.000Z',
-        foto_frontal_base64: '/9j/4AAQSkZJRgABAQAAAQABAAD...',
-        foto_posterior_base64: '/9j/4AAQSkZJRgABAQAAAQABAAD...',
-        video_face: null,
-        pdf_sri_base64: null,
-        nombramiento_base64: null,
+        foto_frontal_url: '/9j/4AAQSkZJRgABAQAAAQABAAD...',
+        foto_posterior_url: '/9j/4AAQSkZJRgABAQAAAQABAAD...',
+        video_face_url: null,
+        pdf_sri_url: null,
+        nombramiento_url: null,
         razon_social: null,
         rep_legal: null,
         cargo: null,

@@ -90,11 +90,13 @@ export class SignaturesService {
    * Crea una solicitud de firma digital para persona natural
    * @param distributorId ID del distribuidor que hace la solicitud
    * @param dto Datos de la solicitud de firma
+   * @param video_face Video facial opcional (obligatorio si edad >= 80)
    * @returns Solicitud de firma creada
    */
   async createNaturalSignatureRequest(
     distributorId: string,
     dto: CreateNaturalSignatureDto,
+    video_face?: Express.Multer.File,
   ) {
     return this.createSignatureRequest(
       distributorId,
@@ -107,6 +109,7 @@ export class SignaturesService {
         nombramiento: undefined,
       },
       'NATURAL',
+      video_face,
     );
   }
 
@@ -114,11 +117,13 @@ export class SignaturesService {
    * Crea una solicitud de firma digital para persona jurídica
    * @param distributorId ID del distribuidor que hace la solicitud
    * @param dto Datos de la solicitud de firma
+   * @param video_face Video facial opcional (obligatorio si edad >= 80)
    * @returns Solicitud de firma creada
    */
   async createJuridicalSignatureRequest(
     distributorId: string,
     dto: CreateJuridicalSignatureDto,
+    video_face?: Express.Multer.File,
   ) {
     return this.createSignatureRequest(
       distributorId,
@@ -126,6 +131,7 @@ export class SignaturesService {
         ...dto,
       },
       'JURIDICA',
+      video_face,
     );
   }
 
@@ -134,14 +140,56 @@ export class SignaturesService {
    * @param distributorId ID del distribuidor que hace la solicitud
    * @param dto Datos de la solicitud de firma
    * @param type Tipo de firma: NATURAL o JURIDICA
+   * @param video_face Video facial opcional (obligatorio si edad >= 80)
    * @returns Solicitud de firma creada
    */
   private async createSignatureRequest(
     distributorId: string,
     dto: any,
     type: 'NATURAL' | 'JURIDICA',
+    video_face?: Express.Multer.File,
   ) {
     try {
+      // Calcular edad del solicitante
+      const birthDate = new Date(dto.dateOfBirth);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        age--;
+      }
+
+      // Validar que el video sea obligatorio si edad >= 80
+      if (age >= 80 && !video_face) {
+        throw new BadRequestException(
+          'El video facial es obligatorio para personas de 80 años o más',
+        );
+      }
+
+      // Validar formato de video si se proporciona
+      if (video_face) {
+        const allowedMimeTypes = [
+          'video/mp4',
+          'video/quicktime',
+          'video/x-msvideo',
+          'video/webm',
+        ];
+        if (!allowedMimeTypes.includes(video_face.mimetype)) {
+          throw new BadRequestException(
+            'Formato de video no válido. Use: mp4, mov, avi o webm',
+          );
+        }
+
+        // Validar tamaño (máximo 50MB)
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (video_face.size > maxSize) {
+          throw new BadRequestException('El video no puede superar los 50MB');
+        }
+      }
+
       // Verificar que el distribuidor existe y está activo
       const distributor = await this.prisma.distributor.findUnique({
         where: { id: distributorId },
@@ -254,7 +302,59 @@ export class SignaturesService {
         status = SignatureStatus.PENDING;
       }
 
-      // Procesar la solicitud en una transacción
+      // Subir archivos ANTES de la transacción para evitar timeout
+      const foto_frontal_key = await this.filesService.uploadFile(
+        dto.foto_frontal,
+        distributorId.toString(),
+        'jpg',
+        'fotos-distribuidores',
+        'fotos-cedulas',
+      );
+
+      const foto_posterior_key = await this.filesService.uploadFile(
+        dto.foto_posterior,
+        distributorId.toString(),
+        'jpg',
+        'fotos-distribuidores',
+        'fotos-cedulas',
+      );
+
+      let pdf_sri_key: string | undefined;
+      let nombramiento_key: string | undefined;
+      let video_face_key: string | undefined;
+
+      if (dto.pdfSriBase64) {
+        pdf_sri_key = await this.filesService.uploadFile(
+          dto.pdfSriBase64,
+          distributorId.toString(),
+          'pdf',
+          'pdfs-distribuidores',
+          'pdf-sri',
+        );
+      }
+
+      if (dto.nombramientoBase64) {
+        nombramiento_key = await this.filesService.uploadFile(
+          dto.nombramientoBase64,
+          distributorId.toString(),
+          'pdf',
+          'pdfs-distribuidores',
+          'pdf-nombramiento',
+        );
+      }
+
+      // Subir video si existe
+      if (video_face) {
+        const videoExtension = this.getFileExtension(video_face.mimetype);
+        video_face_key = await this.filesService.uploadFileFromBuffer(
+          video_face.buffer,
+          distributorId.toString(),
+          videoExtension,
+          'fotos-distribuidores',
+          'fotos-cedulas',
+        );
+      }
+
       const result = await this.prisma.$transaction(async (tx) => {
         let newBalance = distributor.balance;
         let priceCharged = 0;
@@ -269,43 +369,6 @@ export class SignaturesService {
             where: { id: distributorId },
             data: { balance: newBalance },
           });
-        }
-
-        const foto_frontal_key = await this.filesService.uploadFile(
-          dto.foto_frontal,
-          distributorId.toString(),
-          'jpg',
-          'fotos-distribuidores',
-          'fotos-cedulas',
-        );
-
-        const foto_posterior_key = await this.filesService.uploadFile(
-          dto.foto_posterior,
-          distributorId.toString(),
-          'jpg',
-          'fotos-distribuidores',
-          'fotos-cedulas',
-        );
-        let pdf_sri_key;
-        let nombramiento_key;
-
-        if (dto.pdfSriBase64) {
-          pdf_sri_key = await this.filesService.uploadFile(
-            dto.pdfSriBase64,
-            distributorId.toString(),
-            'pdf',
-            'pdfs-distribuidores',
-            'pdf-sri',
-          );
-        }
-        if (dto.nombramientoBase64) {
-          nombramiento_key = await this.filesService.uploadFile(
-            dto.nombramientoBase64,
-            distributorId.toString(),
-            'pdf',
-            'pdfs-distribuidores',
-            'pdf-nombramiento',
-          );
         }
 
         // Crear la solicitud de firma (siempre, sin importar el resultado)
@@ -326,6 +389,7 @@ export class SignaturesService {
             dateOfBirth: new Date(dto.dateOfBirth),
             foto_frontal: foto_frontal_key,
             foto_posterior: foto_posterior_key,
+            video_face: video_face_key || null,
             clavefirma: dto.clavefirma,
             ruc: dto.ruc || null,
             razon_social: dto.razon_social?.toUpperCase() || null,
@@ -432,7 +496,6 @@ export class SignaturesService {
 
       const { codigo, mensaje } = response.data;
 
-      // Validar que la respuesta tenga el formato esperado
       if (typeof codigo === 'undefined' || typeof mensaje === 'undefined') {
         return {
           codigo: 0,
@@ -446,7 +509,6 @@ export class SignaturesService {
       };
     } catch (error) {
       if (error instanceof AxiosError) {
-        // El proveedor puede devolver códigos HTTP 4xx/5xx pero con datos válidos en el body
         if (error.response?.data?.codigo !== undefined) {
           const { codigo, mensaje } = error.response.data;
 
@@ -747,6 +809,15 @@ export class SignaturesService {
         Promise.resolve(null),
       ]);
 
+      let video_face_url;
+
+      if (signatureRequest.video_face) {
+        video_face_url = await this.filesService.getFileUrl(
+          signatureRequest.video_face,
+          'fotos-cedulas',
+        );
+      }
+
       let pdf_sri_url;
       let nombramiento_url;
 
@@ -783,7 +854,7 @@ export class SignaturesService {
         dateOfBirth: signatureRequest.dateOfBirth,
         foto_frontal_url,
         foto_posterior_url,
-        video_face: signatureRequest.video_face,
+        video_face_url,
         pdf_sri_url,
         nombramiento_url,
         razon_social: signatureRequest.razon_social,
@@ -1322,5 +1393,21 @@ export class SignaturesService {
         newStatus: SignatureStatus.COMPLETED,
       },
     };
+  }
+
+  /**
+   * Obtiene la extensión del archivo basado en el mimetype
+   * @param mimetype MIME type del archivo
+   * @returns Extensión del archivo
+   */
+  private getFileExtension(mimetype: string): string {
+    const mimeToExt: Record<string, string> = {
+      'video/mp4': 'mp4',
+      'video/quicktime': 'mov',
+      'video/x-msvideo': 'avi',
+      'video/webm': 'webm',
+    };
+
+    return mimeToExt[mimetype] || 'mp4';
   }
 }

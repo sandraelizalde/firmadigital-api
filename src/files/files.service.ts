@@ -143,6 +143,43 @@ export class FilesService {
   }
 
   /**
+   * Sube un archivo desde Buffer (para multipart/form-data) al bucket de S3
+   * @param buffer - Buffer del archivo
+   * @param ownerId - ID del dueño (rechargeId, distributorId, etc.)
+   * @param extension - Extensión del archivo (jpg, png, pdf, mp4, etc.)
+   * @param folder - Carpeta dentro del bucket
+   * @param bucket - Nombre del bucket
+   * @returns Key/URL del archivo subido
+   */
+  async uploadFileFromBuffer(
+    buffer: Buffer,
+    ownerId: number | string,
+    extension: string,
+    folder: string,
+    bucket: string,
+  ): Promise<string> {
+    try {
+      const timestamp = Date.now();
+      const key = `${folder}/${ownerId}/${ownerId}-${timestamp}.${extension}`;
+
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: this.getContentType(extension),
+      });
+
+      await this.s3Client.send(command);
+
+      this.logger.log(`Archivo subido exitosamente en ${bucket}: ${key}`);
+      return key;
+    } catch (error) {
+      this.logger.error(`Error al subir archivo a ${bucket}: ${error.message}`);
+      throw new Error(`Error al subir archivo a ${bucket}: ${error.message}`);
+    }
+  }
+
+  /**
    * Obtiene el Content-Type según la extensión del archivo
    * @param extension - Extensión del archivo
    * @returns Content-Type
@@ -155,6 +192,10 @@ export class FilesService {
       gif: 'image/gif',
       pdf: 'application/pdf',
       webp: 'image/webp',
+      mp4: 'video/mp4',
+      mov: 'video/quicktime',
+      avi: 'video/x-msvideo',
+      webm: 'video/webm',
     };
 
     return contentTypes[extension.toLowerCase()] || 'application/octet-stream';
