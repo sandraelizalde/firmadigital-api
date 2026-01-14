@@ -432,7 +432,15 @@ export class PlansService {
         },
       },
       include: {
-        plan: true,
+        plan: {
+          select: {
+            id: true,
+            perfil: true,
+            duration: true,
+            durationType: true,
+            eligibleClientsType: true,
+          },
+        },
       },
       orderBy: [
         {
@@ -453,12 +461,8 @@ export class PlansService {
       plans: assignments.map((a) => ({
         id: a.plan.id,
         perfil: a.plan.perfil,
-        basePrice: a.plan.basePrice,
-        basePricePromo: a.plan.basePricePromo,
         duration: a.plan.duration,
         durationType: a.plan.durationType,
-        durationPromo: a.plan.durationPromo,
-        isPromo: a.plan.isPromo,
         eligibleClientsType: a.plan.eligibleClientsType,
         customPrice: a.customPrice,
         customPricePromo: a.customPricePromo,
@@ -493,7 +497,15 @@ export class PlansService {
         },
       },
       include: {
-        plan: true,
+        plan: {
+          select: {
+            id: true,
+            perfil: true,
+            duration: true,
+            durationType: true,
+            eligibleClientsType: true,
+          },
+        },
       },
       orderBy: [
         {
@@ -514,12 +526,8 @@ export class PlansService {
       plans: assignments.map((a) => ({
         id: a.plan.id,
         perfil: a.plan.perfil,
-        basePrice: a.plan.basePrice,
-        basePricePromo: a.plan.basePricePromo,
         duration: a.plan.duration,
         durationType: a.plan.durationType,
-        durationPromo: a.plan.durationPromo,
-        isPromo: a.plan.isPromo,
         eligibleClientsType: a.plan.eligibleClientsType,
         customPrice: a.customPrice,
         customPricePromo: a.customPricePromo,

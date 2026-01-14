@@ -45,10 +45,17 @@ enum RechargeStatus {
   FAILED
 }
 
+enum CreditStatus {
+  ACTIVE
+  PAID
+  EXPIRED
+}
+
 enum MovementType {
   INCOME
   EXPENSE
   ADJUSTMENT
+  CREDIT
 }
 
 enum Role {
@@ -79,11 +86,12 @@ model Distributor {
   identificationFrontUrl String?
   identificationBackUrl  String?
 
-  planPrices        DistributorPlanPrice[]
-  signatureRequests SignatureRequest[]
-  recargas          Recharge[]
-  accountMovements  AccountMovement[]
-  billingInfo       BillingInfo?
+  planPrices         DistributorPlanPrice[]
+  signatureRequests  SignatureRequest[]
+  recargas           Recharge[]
+  distributorCredits DistributorCredit[]
+  accountMovements   AccountMovement[]
+  billingInfo        BillingInfo?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -224,6 +232,25 @@ model Recharge {
   accountMovements AccountMovement[]
 }
 
+// ----------------------------
+// CREDITOS DE DISTRIBUIDOR
+// ----------------------------
+model DistributorCredit {
+  id            String      @id @default(cuid())
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+  distributorId String
+
+  usedAmount Int          @default(0) // Lo que ya ha usado
+  dueDate    DateTime // Fecha de vencimiento del crédito
+  status     CreditStatus @default(ACTIVE)
+  assignedBy String? // Admin que asignó el crédito
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accountMovements AccountMovement[]
+}
+
 // ---------------------------
 // ESTADO DE CUENTA
 // ---------------------------
@@ -241,8 +268,10 @@ model AccountMovement {
   adminId      String? // Si ajuste manual
   note         String? // Comentarios opcionales
 
-  createdAt DateTime  @default(now())
-  recharge  Recharge? @relation(fields: [rechargeId], references: [id])
+  createdAt           DateTime           @default(now())
+  recharge            Recharge?          @relation(fields: [rechargeId], references: [id])
+  distributorCredit   DistributorCredit? @relation(fields: [distributorCreditId], references: [id])
+  distributorCreditId String?
 }
 
 // ---------------------------

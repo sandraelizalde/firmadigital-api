@@ -16,6 +16,7 @@ import { ConsultationsModule } from './consultations/consultations.module';
 import { ConfigModule } from '@nestjs/config';
 import { MailModule } from './mail/mail.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { CreditsModule } from './credits/credits.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     SignaturesModule,
     ConsultationsModule,
     MailModule,
+    CreditsModule,
   ],
   controllers: [AppController],
   providers: [
