@@ -8,8 +8,6 @@ import {
   UseGuards,
   Request,
   Patch,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,

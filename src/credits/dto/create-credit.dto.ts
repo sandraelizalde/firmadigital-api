@@ -12,12 +12,12 @@ export class CreateCreditDto {
   distributorId: string;
 
   @ApiProperty({
-    description:
-      'Fecha de vencimiento del crédito. Puede enviarse solo la fecha (2026-02-14)',
-    example: '2026-02-14',
-    type: String,
+    description: 'Cantidad de días de crédito a asignar (default: 2)',
+    example: 2,
+    default: 2,
   })
-  @IsNotEmpty()
-  @Type(() => Date)
-  dueDate: Date;
+  @IsNumber()
+  @Min(1)
+  @Type(() => Number)
+  creditDays: number = 2;
 }
