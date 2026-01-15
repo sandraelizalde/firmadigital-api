@@ -21,6 +21,7 @@ export class CreditsService {
       dueDateObj.getUTCMinutes() === 0 &&
       dueDateObj.getUTCSeconds() === 0
     ) {
+      dueDateObj.setUTCDate(dueDateObj.getUTCDate() + 1);
       dueDateObj.setUTCHours(4, 59, 59, 999);
     }
 

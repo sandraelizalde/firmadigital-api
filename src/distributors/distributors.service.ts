@@ -8,7 +8,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
-import { SignatureStatus, TypeClient } from '@prisma/client';
+import { CreditStatus, SignatureStatus, TypeClient } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { UploadContractDto } from './dto/upload-contract.dto';
 import { AuthService } from 'src/auth/auth.service';
@@ -525,6 +525,18 @@ export class DistributorsService {
       },
     });
 
+    //Obtener y devolver si tiene informacion del ultimo credito
+    const lastCredit = await this.prisma.distributorCredit.findFirst({
+      where: { distributorId, status: CreditStatus.ACTIVE },
+      select: {
+        id: true,
+        dueDate: true,
+        status: true,
+        usedAmount: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
       success: true,
       dashboard: {
@@ -541,6 +553,7 @@ export class DistributorsService {
         totalSignatures,
         monthlySpent: monthlySpent._sum.creditedAmount || 0,
         advertisements,
+        lastCredit: lastCredit || null,
         recentMovements: recentMovements.map((movement) => ({
           id: movement.id,
           type: movement.type,
