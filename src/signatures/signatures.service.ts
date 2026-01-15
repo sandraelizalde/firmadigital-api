@@ -225,10 +225,9 @@ export class SignaturesService {
       }
 
       // Determinar el precio a cobrar (si hay promo, usar promo, sino usar normal)
-      const priceToCharge =
-        planPrice.plan.isPromo && planPrice.customPricePromo
-          ? planPrice.customPricePromo
-          : planPrice.customPrice;
+      const priceToCharge = planPrice.customPricePromo
+        ? planPrice.customPricePromo
+        : planPrice.customPrice;
 
       // Verificar que el distribuidor tenga balance suficiente
       if (distributor.balance < priceToCharge) {
