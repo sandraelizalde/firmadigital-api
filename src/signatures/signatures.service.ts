@@ -531,21 +531,21 @@ export class SignaturesService {
         'base64',
       );
 
-      // const response = await firstValueFrom(
-      //   this.httpService.post<SignatureProviderResponse>(providerUrl, payload, {
-      //     headers: {
-      //       'Content-Type': 'application/json',
-      //       Authorization: `Basic ${basicAuth}`,
-      //     },
-      //   }),
-      // );
+      const response = await firstValueFrom(
+        this.httpService.post<SignatureProviderResponse>(providerUrl, payload, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Basic ${basicAuth}`,
+          },
+        }),
+      );
       // response para testing sin llamar al proveedor
-      const response = {
-        data: {
-          codigo: 1,
-          mensaje: 'SIMULACION Firma creada exitosamente',
-        },
-      };
+      // const response = {
+      //   data: {
+      //     codigo: 1,
+      //     mensaje: 'SIMULACION Firma creada exitosamente',
+      //   },
+      // };
 
       const { codigo, mensaje } = response.data;
 
