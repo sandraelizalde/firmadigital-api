@@ -13,6 +13,7 @@ import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
 import { SignatureStatus, MovementType } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
+import { CreditsService } from 'src/credits/credits.service';
 import {
   SignatureListItemDto,
   PaginatedSignatureListResponseDto,
@@ -51,6 +52,7 @@ export class SignaturesService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     private readonly filesService: FilesService,
+    private readonly creditsService: CreditsService,
   ) {
     this.signProviderBaseUrlNatural = this.configService.get<string>(
       'SIGN_PROVIDER_BASE_URL_NATURAL',
@@ -229,8 +231,21 @@ export class SignaturesService {
         ? planPrice.customPricePromo
         : planPrice.customPrice;
 
-      // Verificar que el distribuidor tenga balance suficiente
-      if (distributor.balance < priceToCharge) {
+      // Verificar si el distribuidor puede emitir firmas (no está bloqueado por crédito)
+      const canEmit = await this.creditsService.canEmitSignature(distributorId);
+      if (!canEmit) {
+        throw new BadRequestException(
+          'No puede emitir firmas. Tiene un crédito bloqueado por falta de pago.',
+        );
+      }
+
+      // Obtener estado del crédito para saber si opera con crédito o balance directo
+      const creditStatus =
+        await this.creditsService.getCreditStatus(distributorId);
+      const hasActiveCredit = creditStatus !== null && !creditStatus.isBlocked;
+
+      // Si NO tiene crédito activo, verificar que tenga balance suficiente
+      if (!hasActiveCredit && distributor.balance < priceToCharge) {
         throw new BadRequestException(
           `Balance insuficiente. Se requieren $${(priceToCharge / 100).toFixed(2)} y tiene $${(distributor.balance / 100).toFixed(2)}`,
         );
@@ -357,17 +372,26 @@ export class SignaturesService {
       const result = await this.prisma.$transaction(async (tx) => {
         let newBalance = distributor.balance;
         let priceCharged = 0;
+        let usedCredit = false;
 
         // Solo cobrar si la solicitud fue exitosa
         if (isSuccess) {
-          newBalance = distributor.balance - priceToCharge;
           priceCharged = priceToCharge;
 
-          // Actualizar el balance del distribuidor
-          await tx.distributor.update({
-            where: { id: distributorId },
-            data: { balance: newBalance },
-          });
+          if (hasActiveCredit) {
+            // Tiene crédito activo: registrar en corte (no descuenta balance)
+            usedCredit = true;
+          } else {
+            // NO tiene crédito: descontar del balance
+            newBalance = distributor.balance - priceToCharge;
+            usedCredit = false;
+
+            // Actualizar el balance del distribuidor
+            await tx.distributor.update({
+              where: { id: distributorId },
+              data: { balance: newBalance },
+            });
+          }
         }
 
         // Crear la solicitud de firma (siempre, sin importar el resultado)
@@ -405,27 +429,49 @@ export class SignaturesService {
           },
         });
 
-        // Crear el movimiento de cuenta solo si fue exitoso
+        // Si usó crédito, registrar en corte. Si no, crear movimiento de cuenta
         if (isSuccess) {
-          await tx.accountMovement.create({
-            data: {
-              distributorId,
-              type: MovementType.EXPENSE,
-              detail: `Firma digital - Plan ${dto.perfil_firma} - ${dto.apellidos}`,
-              amount: priceCharged,
-              balanceAfter: newBalance,
-              signatureId: signatureRequest.id,
-              note: `Trámite: ${numero_tramite} - Cédula: ${dto.cedula}`,
-            },
-          });
+          if (usedCredit) {
+            // El registro en el corte se hace DESPUÉS de esta transacción
+            // (ver líneas más abajo, fuera del $transaction)
+          } else {
+            // Crear movimiento de cuenta (pago directo con balance)
+            await tx.accountMovement.create({
+              data: {
+                distributorId,
+                type: MovementType.EXPENSE,
+                detail: `Firma digital - Plan ${dto.perfil_firma} - ${dto.apellidos}`,
+                amount: priceCharged,
+                balanceAfter: newBalance,
+                signatureId: signatureRequest.id,
+                note: `Trámite: ${numero_tramite} - Cédula: ${dto.cedula}`,
+              },
+            });
+          }
         }
 
         return {
           signatureRequest,
           newBalance,
           priceCharged,
+          usedCredit,
         };
       });
+
+      // Si usó crédito, registrar en el corte (fuera de la transacción anterior)
+      if (isSuccess && result.usedCredit) {
+        try {
+          await this.creditsService.registerSignatureInCredit(
+            distributorId,
+            priceToCharge,
+            result.signatureRequest.id,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Error al registrar firma en crédito: ${error.message}`,
+          );
+        }
+      }
 
       return {
         success: isSuccess,
@@ -433,6 +479,7 @@ export class SignaturesService {
         data: result.signatureRequest,
         balance: result.newBalance,
         priceCharged: result.priceCharged,
+        usedCredit: result.usedCredit,
       };
     } catch (error) {
       this.logger.error(
@@ -492,6 +539,13 @@ export class SignaturesService {
           },
         }),
       );
+      // response para testing sin llamar al proveedor
+      // const response = {
+      //   data: {
+      //     codigo: 1,
+      //     mensaje: 'SIMULACION Firma creada exitosamente',
+      //   },
+      // };
 
       const { codigo, mensaje } = response.data;
 
@@ -1310,7 +1364,7 @@ export class SignaturesService {
             amount: refundAmount,
             balanceAfter: newBalance,
             signatureId: signatureRequest.id,
-            adminId,
+            adminName: adminName,
             note: note || `Anulación de firma`,
           },
         });

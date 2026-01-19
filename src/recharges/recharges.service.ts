@@ -2,15 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { PayphoneService } from './payphone.service';
-import {
-  RechargeMethod,
-  RechargeStatus,
-  MovementType,
-} from '@prisma/client';
+import { CreditsService } from '../credits/credits.service';
+import { RechargeMethod, RechargeStatus, MovementType } from '@prisma/client';
 import { CreateRechargeDto } from './dto/create-recharge.dto';
 import { ManualRechargeDto } from './dto/manual-recharge.dto';
 import { ReviewRechargeDto } from './dto/review-recharge.dto';
@@ -19,10 +17,13 @@ import { PayphoneConfirmationDto } from './dto/payphone-confirmation.dto';
 
 @Injectable()
 export class RechargesService {
+  private readonly logger = new Logger(RechargesService.name);
+
   constructor(
     private prisma: PrismaService,
     private filesService: FilesService,
     private payphoneService: PayphoneService,
+    private creditsService: CreditsService,
   ) {}
 
   /**
@@ -131,7 +132,7 @@ export class RechargesService {
     }
 
     // Procesar la transacción
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       let newBalance = recharge.distributor.balance;
 
       if (status === RechargeStatus.APPROVED) {
@@ -196,6 +197,27 @@ export class RechargesService {
         },
       };
     });
+
+    // Intentar cobrar créditos vencidos si se aprobó el pago
+    if (status === RechargeStatus.APPROVED) {
+      try {
+        const creditResult =
+          await this.creditsService.attemptCollectOverdueCredits(
+            result.recharge.distributorId,
+          );
+
+        this.logger.log(
+          `Cobro automático de créditos (Payphone) para distribuidor ${result.recharge.distributorId}: ${creditResult.message}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error en cobro automático de créditos (Payphone): ${error.message}`,
+        );
+        // No lanzar error para no afectar la confirmación del pago
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -438,7 +460,7 @@ export class RechargesService {
    */
   async reviewRecharge(
     rechargeId: string,
-    adminId: string,
+    adminName: string,
     dto: ReviewRechargeDto,
   ) {
     const recharge = await this.prisma.recharge.findUnique({
@@ -457,7 +479,7 @@ export class RechargesService {
     }
 
     // Usar transacción para garantizar consistencia
-    return this.prisma.$transaction(async (tx) => {
+    const updatedRecharge = await this.prisma.$transaction(async (tx) => {
       let newBalance = recharge.distributor.balance;
       let creditedAmount = 0;
 
@@ -482,7 +504,7 @@ export class RechargesService {
             amount: creditedAmount,
             balanceAfter: newBalance,
             rechargeId: recharge.id,
-            adminId,
+            adminName,
             note: dto.adminNote,
           },
         });
@@ -493,7 +515,7 @@ export class RechargesService {
         where: { id: rechargeId },
         data: {
           status: dto.status,
-          adminId,
+          approvedBy: adminName,
           adminNote: dto.adminNote,
           creditedAmount,
           commission:
@@ -517,13 +539,34 @@ export class RechargesService {
 
       return updatedRecharge;
     });
+
+    // Intentar cobrar créditos vencidos si se aprobó la recarga
+    if (dto.status === RechargeStatus.APPROVED) {
+      try {
+        const creditResult =
+          await this.creditsService.attemptCollectOverdueCredits(
+            updatedRecharge.distributorId,
+          );
+
+        this.logger.log(
+          `Cobro automático de créditos para distribuidor ${updatedRecharge.distributorId}: ${creditResult.message}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error en cobro automático de créditos: ${error.message}`,
+        );
+        // No lanzar error para no afectar la aprobación de la recarga
+      }
+    }
+
+    return updatedRecharge;
   }
 
   /**
    * ADMIN: Asignar recarga manual a un distribuidor
    * Similar a aprobar una recarga, pero sin solicitud previa
    */
-  async createManualRecharge(adminId: string, dto: ManualRechargeDto) {
+  async createManualRecharge(adminName: string, dto: ManualRechargeDto) {
     const distributor = await this.prisma.distributor.findUnique({
       where: { id: dto.distributorId },
     });
@@ -544,7 +587,7 @@ export class RechargesService {
           creditedAmount: dto.amount,
           commission: 0,
           status: RechargeStatus.APPROVED,
-          adminId,
+          approvedBy: adminName,
           paymentReference: dto.note || 'Recarga manual por administrador',
           adminNote: dto.note || 'Recarga manual por administrador',
         },
@@ -565,10 +608,27 @@ export class RechargesService {
           amount: dto.amount,
           balanceAfter: newBalance,
           rechargeId: recharge.id,
-          adminId,
+          adminName,
           note: dto.note,
         },
       });
+
+      //Cobrar créditos vencidos si los hay
+      try {
+        const creditResult =
+          await this.creditsService.attemptCollectOverdueCredits(
+            dto.distributorId,
+          );
+
+        this.logger.log(
+          `Cobro automático de créditos (recarga manual) para distribuidor ${dto.distributorId}: ${creditResult.message}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error en cobro automático de créditos (recarga manual): ${error.message}`,
+        );
+        // No lanzar error para no afectar la creación de la recarga
+      }
 
       return tx.recharge.findUnique({
         where: { id: recharge.id },

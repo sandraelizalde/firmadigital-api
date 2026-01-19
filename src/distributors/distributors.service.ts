@@ -8,11 +8,12 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
-import { CreditStatus, SignatureStatus, TypeClient } from '@prisma/client';
+import { SignatureStatus, TypeClient } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { UploadContractDto } from './dto/upload-contract.dto';
 import { AuthService } from 'src/auth/auth.service';
 import { MailService } from 'src/mail/mail.service';
+import { CreditsService } from 'src/credits/credits.service';
 
 @Injectable()
 export class DistributorsService {
@@ -23,6 +24,7 @@ export class DistributorsService {
     private readonly filesService: FilesService,
     private readonly authService: AuthService,
     private readonly mailService: MailService,
+    private readonly creditsService: CreditsService,
   ) {}
 
   // Buscar distribuidores por nombre para combobox
@@ -525,17 +527,58 @@ export class DistributorsService {
       },
     });
 
-    //Obtener y devolver si tiene informacion del ultimo credito
-    const lastCredit = await this.prisma.distributorCredit.findFirst({
-      where: { distributorId, status: CreditStatus.ACTIVE },
-      select: {
-        id: true,
-        dueDate: true,
-        status: true,
-        usedAmount: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    // Obtener información resumida del crédito para el dashboard
+    const creditSummary =
+      await this.creditsService.getCreditSummary(distributorId);
+
+    let creditInfo: {
+      title: string;
+      amount: number;
+      date: Date | null;
+      canEmit: boolean;
+    } | null = null;
+
+    if (creditSummary.hasCredit) {
+      // Si está bloqueado, mostrar deuda total
+      if (creditSummary.isBlocked) {
+        creditInfo = {
+          title: 'Crédito Vencido',
+          amount: creditSummary.totalOwed,
+          date:
+            creditSummary.unpaidCutoffs &&
+            creditSummary.unpaidCutoffs.length > 0
+              ? creditSummary.unpaidCutoffs[0].paymentDueDate
+              : null,
+          canEmit: false,
+        };
+      } else {
+        const nextUnpaidCutoff = creditSummary.unpaidCutoffs?.find(
+          (c) => !c.isOverdue,
+        );
+
+        if (nextUnpaidCutoff) {
+          const amountOwed =
+            nextUnpaidCutoff.amountUsed - nextUnpaidCutoff.amountPaid;
+          creditInfo = {
+            title: 'Próximo Corte',
+            amount: amountOwed,
+            date: nextUnpaidCutoff.paymentDueDate,
+            canEmit: true,
+          };
+        } else if (
+          creditSummary.unpaidCutoffs &&
+          creditSummary.unpaidCutoffs.length === 0
+        ) {
+          // No tiene deudas pendientes
+          creditInfo = {
+            title: 'Crédito Activo',
+            amount: 0,
+            date: null,
+            canEmit: true,
+          };
+        }
+      }
+    }
 
     return {
       success: true,
@@ -553,7 +596,7 @@ export class DistributorsService {
         totalSignatures,
         monthlySpent: monthlySpent._sum.creditedAmount || 0,
         advertisements,
-        lastCredit: lastCredit || null,
+        credit: creditInfo,
         recentMovements: recentMovements.map((movement) => ({
           id: movement.id,
           type: movement.type,

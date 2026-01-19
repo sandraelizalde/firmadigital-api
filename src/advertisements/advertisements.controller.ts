@@ -67,8 +67,8 @@ export class AdvertisementsController {
     @Body() createAdvertisementDto: CreateAdvertisementDto,
     @Request() req,
   ) {
-    const adminId = req.user.sub;
-    return this.advertisementsService.create(createAdvertisementDto, adminId);
+    const adminName = req.user.firstName + ' ' + req.user.lastName; 
+    return this.advertisementsService.create(createAdvertisementDto, adminName);
   }
 
   // Obtener todas las publicidades (Solo Admin)

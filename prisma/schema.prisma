@@ -45,12 +45,6 @@ enum RechargeStatus {
   FAILED
 }
 
-enum CreditStatus {
-  ACTIVE
-  PAID
-  EXPIRED
-}
-
 enum MovementType {
   INCOME
   EXPENSE
@@ -90,6 +84,7 @@ model Distributor {
   signatureRequests  SignatureRequest[]
   recargas           Recharge[]
   distributorCredits DistributorCredit[]
+  creditCutoffs      CreditCutoff[]
   accountMovements   AccountMovement[]
   billingInfo        BillingInfo?
 
@@ -219,7 +214,7 @@ model Recharge {
   creditedAmount  Int? // Monto acreditado en centavos
   commission      Int? // Comisión en centavos
   status          RechargeStatus @default(PENDING)
-  adminId         String?
+  approvedBy      String?
   adminNote       String?
 
   paymentReference String?
@@ -240,15 +235,47 @@ model DistributorCredit {
   distributor   Distributor @relation(fields: [distributorId], references: [id])
   distributorId String
 
-  usedAmount Int          @default(0) // Lo que ya ha usado
-  dueDate    DateTime // Fecha de vencimiento del crédito
-  status     CreditStatus @default(ACTIVE)
+  creditDays Int     @default(2) // Días de crédito asignados (ej: 2 días)
+  isActive   Boolean @default(true) // Si el crédito está activo
+  isBlocked  Boolean @default(false) // Si está bloqueado por falta de pago
   assignedBy String? // Admin que asignó el crédito
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   accountMovements AccountMovement[]
+  creditCutoffs    CreditCutoff[]
+
+  @@index([distributorId, isActive])
+  @@index([distributorId, isBlocked])
+}
+
+// ----------------------------
+// CORTES DE CREDITO DIARIOS
+// ----------------------------
+model CreditCutoff {
+  id            String            @id @default(cuid())
+  distributor   Distributor       @relation(fields: [distributorId], references: [id])
+  distributorId String
+  credit        DistributorCredit @relation(fields: [creditId], references: [id])
+  creditId      String
+
+  cutoffDate        DateTime // Fecha del corte (día que se generó)
+  paymentDueDate    DateTime // Fecha límite de pago (cutoffDate + creditDays)
+  amountUsed        Int      @default(0) // Monto usado ese día en centavos
+  amountPaid        Int      @default(0) // Monto pagado de este corte en centavos
+  isPaid            Boolean  @default(false) // Si está completamente pagado
+  isOverdue         Boolean  @default(false) // Si venció y no se pagó
+  signaturesCount   Int      @default(0) // Cantidad de firmas emitidas ese día
+  signaturesDetails String? // JSON con IDs de las firmas (opcional)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([creditId, cutoffDate])
+  @@index([distributorId, cutoffDate])
+  @@index([creditId, isPaid])
+  @@index([paymentDueDate, isPaid])
 }
 
 // ---------------------------
@@ -265,7 +292,7 @@ model AccountMovement {
   balanceAfter Int // Balance después del movimiento en centavos
   rechargeId   String? // Si aplica a una recarga
   signatureId  String? // Si aplica a una firma
-  adminId      String? // Si ajuste manual
+  adminName    String? // Si ajuste manual
   note         String? // Comentarios opcionales
 
   createdAt           DateTime           @default(now())
