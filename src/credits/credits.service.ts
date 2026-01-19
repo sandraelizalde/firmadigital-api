@@ -74,6 +74,7 @@ export class CreditsService {
 
   /**
    * Desactivar el crédito de un distribuidor
+   * No valida deudas pendientes - se puede desactivar aunque deba
    */
   async deactivateCredit(distributorId: string, adminName: string) {
     const credit = await this.prisma.distributorCredit.findFirst({
@@ -89,7 +90,7 @@ export class CreditsService {
       );
     }
 
-    // Verificar si tiene deudas pendientes
+    // Verificar si tiene deudas pendientes (solo para informar)
     const unpaidCutoffs = await this.prisma.creditCutoff.findMany({
       where: {
         creditId: credit.id,
@@ -102,18 +103,7 @@ export class CreditsService {
       0,
     );
 
-    if (totalOwed > 0) {
-      return {
-        success: false,
-        message: `No se puede desactivar el crédito. El distribuidor tiene una deuda pendiente de $${(totalOwed / 100).toFixed(2)}`,
-        data: {
-          totalOwed,
-          unpaidCutoffs: unpaidCutoffs.length,
-        },
-      };
-    }
-
-    // Desactivar el crédito
+    // Desactivar el crédito sin importar si tiene deudas
     const updatedCredit = await this.prisma.distributorCredit.update({
       where: { id: credit.id },
       data: {
@@ -122,15 +112,23 @@ export class CreditsService {
       },
     });
 
+    const hasDebt = totalOwed > 0;
+    const message = hasDebt
+      ? `Crédito desactivado. El distribuidor tiene una deuda pendiente de $${(totalOwed / 100).toFixed(2)} que debe pagar antes de reactivar el crédito`
+      : 'Crédito desactivado exitosamente';
+
     this.logger.log(
-      `Crédito desactivado para distribuidor ${distributorId} por ${adminName}`,
+      `Crédito desactivado para distribuidor ${distributorId} por ${adminName}${hasDebt ? ` - Deuda pendiente: $${(totalOwed / 100).toFixed(2)}` : ''}`,
     );
 
     return {
       success: true,
-      message: 'Crédito desactivado exitosamente',
+      message,
       data: {
         credit: updatedCredit,
+        hasDebt,
+        totalOwed: hasDebt ? totalOwed : 0,
+        unpaidCutoffs: unpaidCutoffs.length,
       },
     };
   }
