@@ -111,23 +111,14 @@ export class CreditsService {
         isBlocked: false,
       },
     });
-
-    const hasDebt = totalOwed > 0;
-    const message = hasDebt
-      ? `Crédito desactivado. El distribuidor tiene una deuda pendiente de $${(totalOwed / 100).toFixed(2)} que debe pagar antes de reactivar el crédito`
-      : 'Crédito desactivado exitosamente';
-
-    this.logger.log(
-      `Crédito desactivado para distribuidor ${distributorId} por ${adminName}${hasDebt ? ` - Deuda pendiente: $${(totalOwed / 100).toFixed(2)}` : ''}`,
-    );
+    const message = 'Crédito desactivado exitosamente';
 
     return {
       success: true,
       message,
       data: {
         credit: updatedCredit,
-        hasDebt,
-        totalOwed: hasDebt ? totalOwed : 0,
+        totalOwed: totalOwed,
         unpaidCutoffs: unpaidCutoffs.length,
       },
     };
@@ -208,6 +199,13 @@ export class CreditsService {
     };
   }
 
+  /**
+   * Verificar si un distribuidor puede emitir firmas
+   * Retorna:
+   * - true: Si NO tiene crédito activo (puede emitir con saldo normal)
+   * - true: Si tiene crédito activo y NO está bloqueado
+   * - false: Si tiene crédito activo y ESTÁ bloqueado
+   */
   async canEmitSignature(distributorId: string): Promise<boolean> {
     const credit = await this.prisma.distributorCredit.findFirst({
       where: {
@@ -216,8 +214,12 @@ export class CreditsService {
       },
     });
 
-    if (!credit) return true;
+    // Si no tiene crédito activo, puede emitir firmas normalmente
+    if (!credit) {
+      return true;
+    }
 
+    // Si tiene crédito activo, solo puede emitir si NO está bloqueado
     return !credit.isBlocked;
   }
 
@@ -797,9 +799,11 @@ export class CreditsService {
 
   /**
    * Obtener resumen de crédito de un distribuidor
+   * Incluye créditos desactivados con deudas pendientes
    */
   async getCreditSummary(distributorId: string) {
-    const credit = await this.prisma.distributorCredit.findFirst({
+    // Primero buscar crédito activo
+    let credit = await this.prisma.distributorCredit.findFirst({
       where: {
         distributorId,
         isActive: true,
@@ -807,14 +811,43 @@ export class CreditsService {
       include: {
         creditCutoffs: {
           orderBy: { cutoffDate: 'desc' },
+          where: {
+            isPaid: false,
+          },
         },
       },
     });
 
+    let isActiveCredit = true;
+
+    // Si no hay crédito activo, buscar el más reciente inactivo
+    if (!credit) {
+      credit = await this.prisma.distributorCredit.findFirst({
+        where: {
+          distributorId,
+          isActive: false,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          creditCutoffs: {
+            orderBy: { cutoffDate: 'desc' },
+
+            where: {
+              isPaid: false,
+            },
+          },
+        },
+      });
+
+      isActiveCredit = false;
+    }
+
     if (!credit) {
       return {
         hasCredit: false,
-        message: 'El distribuidor no tiene crédito activo',
+        message: 'El distribuidor no tiene crédito activo ni anterior',
       };
     }
 
@@ -836,18 +869,30 @@ export class CreditsService {
       orderBy: { cutoffDate: 'asc' },
     });
 
+    const totalOwed =
+      (totalUsed._sum.amountUsed || 0) - (totalPaid._sum.amountPaid || 0);
+
+    // Si el crédito está inactivo pero tiene deudas, incluir advertencia
+    let message;
+    if (!isActiveCredit && totalOwed > 0) {
+      message = `El crédito está desactivado pero tiene una deuda pendiente de $${(totalOwed / 100).toFixed(2)}. Debe pagar antes de poder activar o crear un nuevo crédito.`;
+    } else if (!isActiveCredit && totalOwed === 0) {
+      message = 'El distribuidor no tiene crédito activo';
+    }
+
     return {
-      hasCredit: true,
+      hasCredit: isActiveCredit,
+      isActive: credit.isActive,
       creditDays: credit.creditDays,
       isBlocked: credit.isBlocked,
       createdAt: credit.createdAt,
       assignedBy: credit.assignedBy,
       totalUsed: totalUsed._sum.amountUsed || 0,
       totalPaid: totalPaid._sum.amountPaid || 0,
-      totalOwed:
-        (totalUsed._sum.amountUsed || 0) - (totalPaid._sum.amountPaid || 0),
+      totalOwed,
       cutoffs: credit.creditCutoffs,
       unpaidCutoffs,
+      message,
     };
   }
 

@@ -613,6 +613,23 @@ export class RechargesService {
         },
       });
 
+      //Cobrar créditos vencidos si los hay
+      try {
+        const creditResult =
+          await this.creditsService.attemptCollectOverdueCredits(
+            dto.distributorId,
+          );
+
+        this.logger.log(
+          `Cobro automático de créditos (recarga manual) para distribuidor ${dto.distributorId}: ${creditResult.message}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error en cobro automático de créditos (recarga manual): ${error.message}`,
+        );
+        // No lanzar error para no afectar la creación de la recarga
+      }
+
       return tx.recharge.findUnique({
         where: { id: recharge.id },
         include: {
