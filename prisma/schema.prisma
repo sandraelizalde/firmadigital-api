@@ -214,7 +214,7 @@ model Recharge {
   creditedAmount  Int? // Monto acreditado en centavos
   commission      Int? // Comisión en centavos
   status          RechargeStatus @default(PENDING)
-  adminId         String?
+  approvedBy      String?
   adminNote       String?
 
   paymentReference String?
@@ -292,7 +292,7 @@ model AccountMovement {
   balanceAfter Int // Balance después del movimiento en centavos
   rechargeId   String? // Si aplica a una recarga
   signatureId  String? // Si aplica a una firma
-  adminId      String? // Si ajuste manual
+  adminName    String? // Si ajuste manual
   note         String? // Comentarios opcionales
 
   createdAt           DateTime           @default(now())

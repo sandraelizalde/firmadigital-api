@@ -21,7 +21,7 @@ export class AdvertisementsService {
   }
 
   // Crear una nueva publicidad
-  async create(data: CreateAdvertisementDto, adminId?: string) {
+  async create(data: CreateAdvertisementDto, adminName?: string) {
     try {
       // Validar que la imagen en base64 esté presente
       if (!data.image) {
@@ -39,7 +39,7 @@ export class AdvertisementsService {
         data: {
           imageUrl,
           isActive: data.isActive ?? true,
-          createdBy: adminId,
+          createdBy: adminName || 'Desconocido',
         },
       });
 

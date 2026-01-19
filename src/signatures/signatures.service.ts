@@ -1364,7 +1364,7 @@ export class SignaturesService {
             amount: refundAmount,
             balanceAfter: newBalance,
             signatureId: signatureRequest.id,
-            adminId,
+            adminName: adminName,
             note: note || `Anulación de firma`,
           },
         });

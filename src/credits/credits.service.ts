@@ -458,6 +458,19 @@ export class CreditsService {
                 },
               });
 
+              // Crear movimiento de cobro de crédito
+              await prisma.accountMovement.create({
+                data: {
+                  distributorId: distributor.id,
+                  type: 'EXPENSE',
+                  detail: `Cobro de crédito - Corte del ${new Date(cutoff.cutoffDate).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                  amount: amountOwed,
+                  balanceAfter: newBalance,
+                  distributorCreditId: cutoff.creditId,
+                  note: `Pago completo de ${cutoff.signaturesCount} firma(s). Corte ID: ${cutoff.id}`,
+                },
+              });
+
               // Desbloquear el crédito si este era el último pendiente
               const remainingUnpaid = await prisma.creditCutoff.count({
                 where: {
@@ -495,6 +508,19 @@ export class CreditsService {
                 },
               });
 
+              // Crear movimiento de cobro parcial de crédito
+              await prisma.accountMovement.create({
+                data: {
+                  distributorId: distributor.id,
+                  type: 'EXPENSE',
+                  detail: `Cobro parcial de crédito - Corte del ${new Date(cutoff.cutoffDate).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                  amount: amountPaid,
+                  balanceAfter: newBalance,
+                  distributorCreditId: cutoff.creditId,
+                  note: `Pago parcial: $${(amountPaid / 100).toFixed(2)} de $${(amountOwed / 100).toFixed(2)}. Pendiente: $${((amountOwed - amountPaid) / 100).toFixed(2)}. Corte ID: ${cutoff.id}`,
+                },
+              });
+
               partiallyPaid++;
               this.logger.log(
                 `Corte ${cutoff.id} cobrado parcialmente. Pagado: $${(amountPaid / 100).toFixed(2)}, Falta: $${((amountOwed - amountPaid) / 100).toFixed(2)}`,
@@ -516,6 +542,258 @@ export class CreditsService {
       );
     } catch (error) {
       this.logger.error(`Error en el cron de cobros: ${error.message}`);
+    }
+  }
+
+  /**
+   * Intentar cobrar créditos vencidos de un distribuidor específico
+   * Retorna información sobre lo cobrado
+   */
+  async attemptCollectOverdueCredits(distributorId: string) {
+    this.logger.log(
+      `Intentando cobrar créditos vencidos para distribuidor ${distributorId}...`,
+    );
+
+    try {
+      // Obtener todos los cortes no pagados del distribuidor
+      const unpaidCutoffs = await this.prisma.creditCutoff.findMany({
+        where: {
+          distributorId,
+          isPaid: false,
+        },
+        include: {
+          distributor: true,
+          credit: true,
+        },
+        orderBy: {
+          cutoffDate: 'asc',
+        },
+      });
+
+      if (unpaidCutoffs.length === 0) {
+        return {
+          success: true,
+          message: 'No hay créditos pendientes de pago',
+          collected: 0,
+          partiallyPaid: 0,
+          remaining: 0,
+          totalCollected: 0,
+          details: [],
+        };
+      }
+
+      let collected = 0;
+      let partiallyPaid = 0;
+      let remaining = 0;
+      let totalCollected = 0;
+      const details: Array<{
+        cutoffId: string;
+        cutoffDate: Date;
+        amountOwed: number;
+        amountCollected: number;
+        status: string;
+        reason: string;
+      }> = [];
+
+      for (const cutoff of unpaidCutoffs) {
+        const amountOwed = cutoff.amountUsed - cutoff.amountPaid;
+
+        if (amountOwed <= 0) {
+          // Ya está pagado, marcar como tal
+          await this.prisma.creditCutoff.update({
+            where: { id: cutoff.id },
+            data: { isPaid: true },
+          });
+          continue;
+        }
+
+        // Obtener el saldo actual del distribuidor
+        const distributor = await this.prisma.distributor.findUnique({
+          where: { id: distributorId },
+          select: { balance: true },
+        });
+
+        if (!distributor || distributor.balance <= 0) {
+          // No hay más saldo para cobrar
+          remaining++;
+          details.push({
+            cutoffId: cutoff.id,
+            cutoffDate: cutoff.cutoffDate,
+            amountOwed,
+            amountCollected: 0,
+            status: 'pending',
+            reason: 'Saldo insuficiente',
+          });
+          continue;
+        }
+
+        try {
+          let shouldBreak = false;
+
+          await this.prisma.$transaction(async (prisma) => {
+            if (distributor.balance >= amountOwed) {
+              // Tiene saldo suficiente: cobrar todo
+              const newBalance = distributor.balance - amountOwed;
+
+              await prisma.distributor.update({
+                where: { id: distributorId },
+                data: { balance: newBalance },
+              });
+
+              await prisma.creditCutoff.update({
+                where: { id: cutoff.id },
+                data: {
+                  amountPaid: cutoff.amountUsed,
+                  isPaid: true,
+                  isOverdue: false,
+                },
+              });
+
+              // Crear movimiento de cobro de crédito
+              await prisma.accountMovement.create({
+                data: {
+                  distributorId,
+                  type: 'EXPENSE',
+                  detail: `Cobro de crédito - Corte del ${new Date(cutoff.cutoffDate).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                  amount: amountOwed,
+                  balanceAfter: newBalance,
+                  distributorCreditId: cutoff.creditId,
+                  note: `Pago completo de ${cutoff.signaturesCount} firma(s). Corte ID: ${cutoff.id}`,
+                },
+              });
+
+              collected++;
+              totalCollected += amountOwed;
+
+              details.push({
+                cutoffId: cutoff.id,
+                cutoffDate: cutoff.cutoffDate,
+                amountOwed,
+                amountCollected: amountOwed,
+                status: 'paid',
+                reason: 'Cobro completo',
+              });
+
+              this.logger.log(
+                `Corte ${cutoff.id} cobrado completamente. Monto: $${(amountOwed / 100).toFixed(2)}`,
+              );
+            } else {
+              // Tiene algo de saldo: cobrar parcial
+              const amountPaid = distributor.balance;
+              const newBalance = 0;
+
+              await prisma.distributor.update({
+                where: { id: distributorId },
+                data: { balance: newBalance },
+              });
+
+              await prisma.creditCutoff.update({
+                where: { id: cutoff.id },
+                data: {
+                  amountPaid: cutoff.amountPaid + amountPaid,
+                },
+              });
+
+              // Crear movimiento de cobro parcial de crédito
+              await prisma.accountMovement.create({
+                data: {
+                  distributorId,
+                  type: 'EXPENSE',
+                  detail: `Cobro parcial de crédito - Corte del ${new Date(cutoff.cutoffDate).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                  amount: amountPaid,
+                  balanceAfter: newBalance,
+                  distributorCreditId: cutoff.creditId,
+                  note: `Pago parcial: $${(amountPaid / 100).toFixed(2)} de $${(amountOwed / 100).toFixed(2)}. Pendiente: $${((amountOwed - amountPaid) / 100).toFixed(2)}. Corte ID: ${cutoff.id}`,
+                },
+              });
+
+              partiallyPaid++;
+              totalCollected += amountPaid;
+
+              details.push({
+                cutoffId: cutoff.id,
+                cutoffDate: cutoff.cutoffDate,
+                amountOwed,
+                amountCollected: amountPaid,
+                status: 'partial',
+                reason: `Cobrado $${(amountPaid / 100).toFixed(2)} de $${(amountOwed / 100).toFixed(2)}`,
+              });
+
+              this.logger.log(
+                `Corte ${cutoff.id} cobrado parcialmente. Pagado: $${(amountPaid / 100).toFixed(2)}, Falta: $${((amountOwed - amountPaid) / 100).toFixed(2)}`,
+              );
+
+              // Si cobró parcial, ya no tiene más saldo, marcar para salir del loop
+              shouldBreak = true;
+            }
+          });
+
+          // Si cobró parcial y no tiene más saldo, salir del loop
+          if (shouldBreak) {
+            break;
+          }
+        } catch (error) {
+          this.logger.error(
+            `Error procesando corte ${cutoff.id}: ${error.message}`,
+          );
+          details.push({
+            cutoffId: cutoff.id,
+            cutoffDate: cutoff.cutoffDate,
+            amountOwed,
+            amountCollected: 0,
+            status: 'error',
+            reason: error.message,
+          });
+        }
+      }
+
+      // Verificar si se deben desbloquear créditos
+      const creditsToUnblock = await this.prisma.distributorCredit.findMany({
+        where: {
+          distributorId,
+          isActive: true,
+          isBlocked: true,
+        },
+      });
+
+      for (const credit of creditsToUnblock) {
+        const remainingUnpaid = await this.prisma.creditCutoff.count({
+          where: {
+            creditId: credit.id,
+            isPaid: false,
+          },
+        });
+
+        if (remainingUnpaid === 0) {
+          await this.prisma.distributorCredit.update({
+            where: { id: credit.id },
+            data: { isBlocked: false },
+          });
+
+          this.logger.log(
+            `Crédito ${credit.id} desbloqueado - todas las deudas pagadas`,
+          );
+        }
+      }
+
+      this.logger.log(
+        `Cobros completados para distribuidor ${distributorId}. Cobrados: ${collected}, Parciales: ${partiallyPaid}, Pendientes: ${remaining}, Total: $${(totalCollected / 100).toFixed(2)}`,
+      );
+
+      return {
+        success: true,
+        message: `Se cobraron ${collected + partiallyPaid} cortes por un total de $${(totalCollected / 100).toFixed(2)}`,
+        collected,
+        partiallyPaid,
+        remaining,
+        totalCollected,
+        details,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Error en cobro de créditos para distribuidor ${distributorId}: ${error.message}`,
+      );
+      throw error;
     }
   }
 
@@ -564,12 +842,97 @@ export class CreditsService {
       hasCredit: true,
       creditDays: credit.creditDays,
       isBlocked: credit.isBlocked,
+      createdAt: credit.createdAt,
+      assignedBy: credit.assignedBy,
       totalUsed: totalUsed._sum.amountUsed || 0,
       totalPaid: totalPaid._sum.amountPaid || 0,
       totalOwed:
         (totalUsed._sum.amountUsed || 0) - (totalPaid._sum.amountPaid || 0),
       cutoffs: credit.creditCutoffs,
       unpaidCutoffs,
+    };
+  }
+
+  /**
+   * Obtener cortes de crédito de un distribuidor con filtros de fecha y paginación
+   */
+  async getDistributorCreditCutoffs(
+    distributorId: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const skip = (page - 1) * limit;
+
+    // Construir filtros de fecha
+    const dateFilter: any = {};
+    if (startDate) {
+      dateFilter.gte = new Date(startDate);
+    }
+    if (endDate) {
+      dateFilter.lte = new Date(endDate);
+    }
+
+    // Construir condiciones where
+    const whereConditions: any = {
+      distributorId,
+    };
+
+    if (startDate || endDate) {
+      whereConditions.cutoffDate = dateFilter;
+    }
+
+    // Obtener total de cortes
+    const total = await this.prisma.creditCutoff.count({
+      where: whereConditions,
+    });
+
+    // Obtener cortes paginados
+    const cutoffs = await this.prisma.creditCutoff.findMany({
+      where: whereConditions,
+      orderBy: { cutoffDate: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        credit: {
+          select: {
+            id: true,
+            creditDays: true,
+            isActive: true,
+            isBlocked: true,
+            assignedBy: true,
+          },
+        },
+      },
+    });
+
+    // Calcular totales
+    const totals = await this.prisma.creditCutoff.aggregate({
+      where: whereConditions,
+      _sum: {
+        amountUsed: true,
+        amountPaid: true,
+        signaturesCount: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: cutoffs,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+      totals: {
+        totalUsed: totals._sum.amountUsed || 0,
+        totalPaid: totals._sum.amountPaid || 0,
+        totalOwed:
+          (totals._sum.amountUsed || 0) - (totals._sum.amountPaid || 0),
+        totalSignatures: totals._sum.signaturesCount || 0,
+      },
     };
   }
 }

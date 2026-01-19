@@ -910,6 +910,86 @@ async registerSignatureInCredit(distributorId, signatureAmount, signatureId) {
 | PATCH | `/credits/:distributorId/deactivate` | Desactivar crédito | JWT + ADMIN |
 | PATCH | `/credits/:distributorId/reactivate` | Reactivar crédito | JWT + ADMIN |
 | GET | `/credits/:distributorId/summary` | Ver resumen (cualquier dist.) | JWT + ADMIN |
+| GET | `/credits/admin/:distributorId/cutoffs` | Ver cortes de crédito con filtros | JWT + ADMIN |
+
+### Detalles del Endpoint de Cortes
+
+**GET `/credits/admin/:distributorId/cutoffs`**
+
+Obtiene todos los cortes de crédito de un distribuidor con paginación y filtros de fecha.
+
+**Parámetros URL:**
+- `distributorId` (string): ID del distribuidor
+
+**Query Params:**
+- `page` (number, opcional): Número de página (default: 1)
+- `limit` (number, opcional): Elementos por página (default: 10)
+- `startDate` (string, opcional): Fecha inicio en formato ISO 8601 (ej: `2026-01-01T00:00:00.000Z`)
+- `endDate` (string, opcional): Fecha fin en formato ISO 8601 (ej: `2026-01-31T23:59:59.999Z`)
+
+**Ejemplo Request:**
+```http
+GET /credits/admin/cmk91gc3p006k1ppvlcnwvc97/cutoffs?page=1&limit=10&startDate=2026-01-01T00:00:00.000Z&endDate=2026-01-31T23:59:59.999Z
+Authorization: Bearer <token>
+```
+
+**Respuesta Exitosa (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "clx222",
+      "distributorId": "cmk91gc3p006k1ppvlcnwvc97",
+      "creditId": "clx1234567890",
+      "cutoffDate": "2026-01-15T00:00:00.000Z",
+      "paymentDueDate": "2026-01-17T23:59:59.999Z",
+      "amountUsed": 25000,
+      "amountPaid": 5000,
+      "isPaid": false,
+      "isOverdue": false,
+      "signaturesCount": 5,
+      "signaturesDetails": "[\"sig1\",\"sig2\",\"sig3\",\"sig4\",\"sig5\"]",
+      "createdAt": "2026-01-15T10:30:00.000Z",
+      "updatedAt": "2026-01-16T08:15:00.000Z",
+      "credit": {
+        "id": "clx1234567890",
+        "creditDays": 2,
+        "isActive": true,
+        "isBlocked": false,
+        "assignedBy": "Admin Name"
+      }
+    }
+  ],
+  "pagination": {
+    "total": 45,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 5
+  },
+  "totals": {
+    "totalUsed": 125000,
+    "totalPaid": 85000,
+    "totalOwed": 40000,
+    "totalSignatures": 25
+  }
+}
+```
+
+**Campos de Respuesta:**
+- `data`: Array de cortes de crédito
+  - `amountUsed`: Monto total usado en ese corte (en centavos)
+  - `amountPaid`: Monto pagado de ese corte (en centavos)
+  - `isPaid`: Si el corte está completamente pagado
+  - `isOverdue`: Si el corte venció sin pagar
+  - `signaturesCount`: Cantidad de firmas en ese corte
+  - `credit`: Información del crédito asociado
+- `pagination`: Información de paginación
+- `totals`: Totales agregados del rango consultado
+  - `totalUsed`: Suma de todos los montos usados
+  - `totalPaid`: Suma de todos los montos pagados
+  - `totalOwed`: Diferencia entre usado y pagado
+  - `totalSignatures`: Total de firmas en el rango
 
 ---
 

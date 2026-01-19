@@ -9,6 +9,7 @@ import {
   Patch,
   Param,
   Get,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,9 +17,11 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { CreditsService } from './credits.service';
 import { CreateCreditDto } from './dto/create-credit.dto';
+import { CreditCutoffsQueryDto } from './dto/credit-cutoffs-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -324,5 +327,113 @@ export class CreditsController {
       hasCredit: !!credit,
       isBlocked: credit?.isBlocked || false,
     };
+  }
+
+  /**
+   * Obtener cortes de crédito de un distribuidor con filtros
+   * Solo accesible para administradores
+   */
+  @Get('admin/:distributorId/cutoffs')
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '[ADMIN] Obtener cortes de crédito de un distribuidor',
+    description:
+      'Obtiene todos los cortes de crédito de un distribuidor específico con paginación y filtros de fecha. Incluye información detallada de cada corte y totales agregados.',
+  })
+  @ApiParam({
+    name: 'distributorId',
+    description: 'ID del distribuidor',
+    example: 'clx9876543210',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Número de página',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Elementos por página',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Fecha de inicio del rango (ISO 8601)',
+    example: '2026-01-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'Fecha de fin del rango (ISO 8601)',
+    example: '2026-01-31T23:59:59.999Z',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de cortes de crédito con paginación y totales',
+    schema: {
+      example: {
+        success: true,
+        data: [
+          {
+            id: 'clx222',
+            distributorId: 'clx9876543210',
+            creditId: 'clx1234567890',
+            cutoffDate: '2026-01-15T00:00:00.000Z',
+            paymentDueDate: '2026-01-17T23:59:59.999Z',
+            amountUsed: 25000,
+            amountPaid: 5000,
+            isPaid: false,
+            isOverdue: false,
+            signaturesCount: 5,
+            signaturesDetails: '["sig1","sig2","sig3","sig4","sig5"]',
+            createdAt: '2026-01-15T10:30:00.000Z',
+            updatedAt: '2026-01-16T08:15:00.000Z',
+            credit: {
+              id: 'clx1234567890',
+              creditDays: 2,
+              isActive: true,
+              isBlocked: false,
+              assignedBy: 'Admin Name',
+            },
+          },
+        ],
+        pagination: {
+          total: 45,
+          page: 1,
+          limit: 10,
+          totalPages: 5,
+        },
+        totals: {
+          totalUsed: 125000,
+          totalPaid: 85000,
+          totalOwed: 40000,
+          totalSignatures: 25,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo administradores',
+  })
+  async getDistributorCreditCutoffs(
+    @Param('distributorId') distributorId: string,
+    @Query() query: CreditCutoffsQueryDto,
+  ) {
+    return this.creditsService.getDistributorCreditCutoffs(
+      distributorId,
+      query.page,
+      query.limit,
+      query.startDate,
+      query.endDate,
+    );
   }
 }

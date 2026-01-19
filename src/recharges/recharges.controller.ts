@@ -349,7 +349,8 @@ export class RechargesController {
     @Request() req,
     @Body() dto: ReviewRechargeDto,
   ) {
-    return this.rechargesService.reviewRecharge(id, req.user.userId, dto);
+    const adminName = req.user.firstName + ' ' + req.user.lastName;
+    return this.rechargesService.reviewRecharge(id, adminName, dto);
   }
 
   /**
@@ -374,7 +375,8 @@ export class RechargesController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
   async createManualRecharge(@Request() req, @Body() dto: ManualRechargeDto) {
-    return this.rechargesService.createManualRecharge(req.user.userId, dto);
+    const adminName = req.user.firstName + ' ' + req.user.lastName;
+    return this.rechargesService.createManualRecharge(adminName, dto);
   }
 
   /**
