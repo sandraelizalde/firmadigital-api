@@ -274,18 +274,32 @@ export class CreditsService {
       );
     }
 
-    // Obtener la fecha del corte (inicio del día)
+    // Obtener la fecha del corte (inicio del día en hora de Ecuador, guardado en UTC)
     const now = new Date();
-    const cutoffDate = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
 
-    // Calcular fecha de pago (cutoffDate + creditDays)
-    const paymentDueDate = new Date(cutoffDate);
-    paymentDueDate.setDate(paymentDueDate.getDate() + credit.creditDays);
-    paymentDueDate.setHours(23, 59, 59, 999);
+    // Crear fecha en hora de Ecuador (ISO string con timezone)
+    const ecuadorDateString = now.toLocaleString('en-US', {
+      timeZone: 'America/Guayaquil',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+
+    // Parsear la fecha y crear el inicio del día en Ecuador (convertido a UTC)
+    const [month, day, year] = ecuadorDateString.split('/');
+    const cutoffDate = new Date(`${year}-${month}-${day}T00:00:00-05:00`);
+
+    // Calcular fecha de pago (cutoffDate + creditDays) al final del día en Ecuador
+    const paymentDay = new Date(cutoffDate);
+    paymentDay.setDate(paymentDay.getDate() + credit.creditDays);
+
+    // Formatear la fecha y construir con timezone Ecuador
+    const paymentYear = paymentDay.getFullYear();
+    const paymentMonth = String(paymentDay.getMonth() + 1).padStart(2, '0');
+    const paymentDate = String(paymentDay.getDate()).padStart(2, '0');
+    const paymentDueDate = new Date(
+      `${paymentYear}-${paymentMonth}-${paymentDate}T23:59:59.999-05:00`,
+    );
 
     // Buscar o crear el corte del día
     const cutoff = await this.prisma.creditCutoff.upsert({
