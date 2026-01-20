@@ -649,6 +649,64 @@ export class RechargesService {
   }
 
   /**
+   * ADMIN: Descontar balance manualmente de un distribuidor
+   * Similar a createManualRecharge pero resta del balance
+   */
+  async deductBalance(
+    adminName: string,
+    distributorId: string,
+    amount: number,
+    note?: string,
+  ) {
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException('Distribuidor no encontrado');
+    }
+
+    if (distributor.balance < amount) {
+      throw new BadRequestException(
+        `Balance insuficiente. El distribuidor tiene $${(distributor.balance / 100).toFixed(2)} y se intentan descontar $${(amount / 100).toFixed(2)}`,
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const newBalance = distributor.balance - amount;
+
+      // Actualizar balance
+      await tx.distributor.update({
+        where: { id: distributorId },
+        data: { balance: newBalance },
+      });
+
+      // Crear movimiento de descuento
+      const movement = await tx.accountMovement.create({
+        data: {
+          distributorId,
+          type: MovementType.ADJUSTMENT,
+          detail: note || 'Descuento manual por administrador',
+          amount: amount,
+          balanceAfter: newBalance,
+          adminName,
+        },
+      });
+
+      return {
+        success: true,
+        message: `Se descontaron $${(amount / 100).toFixed(2)} del balance del distribuidor`,
+        data: {
+          movement,
+          previousBalance: distributor.balance,
+          newBalance,
+          amountDeducted: amount,
+        },
+      };
+    });
+  }
+
+  /**
    * Obtener movimientos de cuenta del distribuidor
    */
   async getAccountMovements(
