@@ -23,6 +23,7 @@ import { ManualRechargeDto } from './dto/manual-recharge.dto';
 import { ReviewRechargeDto } from './dto/review-recharge.dto';
 import { InitCardRechargeDto } from './dto/init-card-recharge.dto';
 import { PayphoneConfirmationDto } from './dto/payphone-confirmation.dto';
+import { DeductBalanceDto } from './dto/deduct-balance.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -379,6 +380,51 @@ export class RechargesController {
     return this.rechargesService.createManualRecharge(adminName, dto);
   }
 
+  /**
+   * ADMIN: Descontar balance manualmente a un distribuidor
+   */
+  @Post('admin/distributor/:distributorId/deduct')
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '[ADMIN] Descontar balance manual',
+    description:
+      'Permite al admin descontar balance manualmente a un distribuidor. Crea un movimiento de cuenta tipo ADJUSTMENT.',
+  })
+  @ApiParam({
+    name: 'distributorId',
+    description: 'ID del distribuidor',
+    example: 'clxxx123456',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Balance descontado exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Balance insuficiente',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Distribuidor no encontrado',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
+  async deductBalance(
+    @Param('distributorId') distributorId: string,
+    @Request() req,
+    @Body() dto: DeductBalanceDto,
+  ) {
+    const adminName = req.user.firstName + ' ' + req.user.lastName;
+    return this.rechargesService.deductBalance(
+      adminName,
+      distributorId,
+      dto.amount,
+      dto.note,
+    );
+  }
+
+  re;
   /**
    * ADMIN: Ver recargas de un distribuidor específico
    */
