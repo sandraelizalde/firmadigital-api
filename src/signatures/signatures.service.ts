@@ -998,17 +998,15 @@ export class SignaturesService {
       };
     }
 
-    console.log({ startDate, endDate });
-
-    // Filtro por rango de fechas
+    // Filtro por rango de fechas (zona horaria de Ecuador: UTC-5)
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) {
-        const startDateTime = new Date(startDate + 'T00:00:00');
+        const startDateTime = new Date(startDate + 'T00:00:00-05:00');
         where.createdAt.gte = startDateTime;
       }
       if (endDate) {
-        const endDateTime = new Date(endDate + 'T23:59:59.999');
+        const endDateTime = new Date(endDate + 'T23:59:59.999-05:00');
         where.createdAt.lte = endDateTime;
       }
     }

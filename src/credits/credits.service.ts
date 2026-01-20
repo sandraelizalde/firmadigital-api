@@ -908,13 +908,13 @@ export class CreditsService {
   ) {
     const skip = (page - 1) * limit;
 
-    // Construir filtros de fecha
+    // Construir filtros de fecha (zona horaria de Ecuador: UTC-5)
     const dateFilter: any = {};
     if (startDate) {
-      dateFilter.gte = new Date(startDate);
+      dateFilter.gte = new Date(startDate + 'T00:00:00-05:00');
     }
     if (endDate) {
-      dateFilter.lte = new Date(endDate);
+      dateFilter.lte = new Date(endDate + 'T23:59:59.999-05:00');
     }
 
     // Construir condiciones where
