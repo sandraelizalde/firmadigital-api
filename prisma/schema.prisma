@@ -220,6 +220,7 @@ model Recharge {
   paymentReference String?
   transferDate     DateTime?
   receiptFile      String?
+  numberReceipt    String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
