@@ -24,7 +24,7 @@ export class RechargesService {
     private filesService: FilesService,
     private payphoneService: PayphoneService,
     private creditsService: CreditsService,
-  ) {}
+  ) { }
 
   /**
    * Iniciar recarga con tarjeta (Payphone)
@@ -358,9 +358,9 @@ export class RechargesService {
       ...recharge,
       receiptFile: recharge.receiptFile
         ? await this.filesService.getFile(
-            recharge.receiptFile,
-            'vouchers-nexus',
-          )
+          recharge.receiptFile,
+          'vouchers-nexus',
+        )
         : null,
     };
   }
@@ -446,9 +446,9 @@ export class RechargesService {
       ...recharge,
       receiptFileUrl: recharge.receiptFile
         ? await this.filesService.getFileUrl(
-            recharge.receiptFile,
-            'vouchers-nexus',
-          )
+          recharge.receiptFile,
+          'vouchers-nexus',
+        )
         : null,
     };
   }
@@ -757,9 +757,10 @@ export class RechargesService {
    */
   async getDistributorRecharges(
     distributorId: string,
-    page: number = 1,
-    limit: number = 10,
+    filterDto: any,
   ) {
+    const { page = 1, limit = 10, startDate, endDate } = filterDto;
+
     // Verificar que el distribuidor exista
     const distributor = await this.prisma.distributor.findUnique({
       where: { id: distributorId },
@@ -780,17 +781,37 @@ export class RechargesService {
 
     const skip = (page - 1) * limit;
 
+    // Construir filtro
+    const where: any = { distributorId };
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        // Asumiendo formato YYYY-MM-DD
+        const startDateTime = new Date(`${startDate}T00:00:00-05:00`);
+        where.createdAt.gte = startDateTime;
+      }
+      if (endDate) {
+        // Asumiendo formato YYYY-MM-DD
+        const endDateTime = new Date(`${endDate}T23:59:59.999-05:00`);
+        where.createdAt.lte = endDateTime;
+      }
+    }
+
     // Obtener total de recargas
     const total = await this.prisma.recharge.count({
-      where: { distributorId },
+      where,
     });
 
     // Obtener recargas paginadas
     const recharges = await this.prisma.recharge.findMany({
-      where: { distributorId },
+      where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
+      include: {
+        accountMovements: true,
+      },
     });
 
     return {
@@ -811,9 +832,10 @@ export class RechargesService {
    */
   async getDistributorAccountMovements(
     distributorId: string,
-    page: number = 1,
-    limit: number = 10,
+    filterDto: any,
   ) {
+    const { page = 1, limit = 10, startDate, endDate } = filterDto;
+
     const distributor = await this.prisma.distributor.findUnique({
       where: { id: distributorId },
     });
@@ -822,7 +844,57 @@ export class RechargesService {
       throw new NotFoundException('Distribuidor no encontrado');
     }
 
-    return this.getAccountMovements(distributorId, page, limit);
+    const skip = (page - 1) * limit;
+
+    // Construir filtro
+    const where: any = { distributorId };
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        const startDateTime = new Date(`${startDate}T00:00:00-05:00`);
+        where.createdAt.gte = startDateTime;
+      }
+      if (endDate) {
+        const endDateTime = new Date(`${endDate}T23:59:59.999-05:00`);
+        where.createdAt.lte = endDateTime;
+      }
+    }
+
+    // Obtener total de movimientos
+    const total = await this.prisma.accountMovement.count({
+      where,
+    });
+
+    // Obtener movimientos paginados
+    const movements = await this.prisma.accountMovement.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        recharge: {
+          select: {
+            id: true,
+            method: true,
+            requestedAmount: true,
+            creditedAmount: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    return {
+      success: true,
+      data: movements,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**

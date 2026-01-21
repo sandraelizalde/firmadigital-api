@@ -402,11 +402,15 @@ export class DistributorsService {
     }
 
     if (name) {
-      where.OR = [
-        { firstName: { contains: name, mode: 'insensitive' } },
-        { lastName: { contains: name, mode: 'insensitive' } },
-        { socialReason: { contains: name, mode: 'insensitive' } },
-      ];
+      const nameParts = name.trim().split(/\s+/);
+
+      where.AND = nameParts.map((part) => ({
+        OR: [
+          { firstName: { contains: part, mode: 'insensitive' } },
+          { lastName: { contains: part, mode: 'insensitive' } },
+          { socialReason: { contains: part, mode: 'insensitive' } },
+        ],
+      }));
     }
 
     // Obtener el total de distribuidores con los filtros aplicados
