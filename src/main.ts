@@ -12,8 +12,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.use(compression());
 
-  app.use(express.json({ limit: '100mb' }));
-  app.use(express.urlencoded({ limit: '100mb', extended: true }));
+  app.use(express.json({ limit: '600mb' }));
+  app.use(express.urlencoded({ limit: '600mb', extended: true }));
 
   app.useGlobalPipes(
     new ValidationPipe({

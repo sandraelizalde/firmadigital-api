@@ -107,16 +107,15 @@ export class CreateNaturalSignatureDto {
   clavefirma: string;
 
   @ApiProperty({
-    description: 'URL de la foto frontal de cédula',
-    example: 'https://example.com/frontal.jpg',
+    description: 'Foto frontal de cédula en Base64',
+    example: 'iVBORw0KGgoAAAANSUhEUgAA...',
   })
-  @IsString()
   @IsNotEmpty()
   foto_frontal: string;
 
   @ApiProperty({
-    description: 'URL de la foto posterior de cédula',
-    example: 'https://example.com/posterior.jpg',
+    description: 'Foto posterior de cédula en Base64',
+    example: 'iVBORw0KGgoAAAANSUhEUgAA...',
   })
   @IsString()
   @IsNotEmpty()

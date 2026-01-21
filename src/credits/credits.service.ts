@@ -569,11 +569,16 @@ export class CreditsService {
     );
 
     try {
-      // Obtener todos los cortes no pagados del distribuidor
+      const now = new Date();
+
+      // Obtener solo los cortes no pagados que ya están vencidos (paymentDueDate < now)
       const unpaidCutoffs = await this.prisma.creditCutoff.findMany({
         where: {
           distributorId,
           isPaid: false,
+          paymentDueDate: {
+            lt: now,
+          },
         },
         include: {
           distributor: true,
