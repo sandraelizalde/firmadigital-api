@@ -25,6 +25,7 @@ import { InitCardRechargeDto } from './dto/init-card-recharge.dto';
 import { PayphoneConfirmationDto } from './dto/payphone-confirmation.dto';
 import { DeductBalanceDto } from './dto/deduct-balance.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
+import { DateFilterDto } from './dto/date-filter.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -34,7 +35,7 @@ import { Role, RechargeStatus } from '@prisma/client';
 @Controller('recharges')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RechargesController {
-  constructor(private readonly rechargesService: RechargesService) {}
+  constructor(private readonly rechargesService: RechargesService) { }
 
   // ==========================================
   // ENDPOINTS PARA DISTRIBUIDORES
@@ -424,7 +425,6 @@ export class RechargesController {
     );
   }
 
-  re;
   /**
    * ADMIN: Ver recargas de un distribuidor específico
    */
@@ -450,12 +450,11 @@ export class RechargesController {
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
   async getDistributorRecharges(
     @Param('distributorId') distributorId: string,
-    @Query() paginationDto: PaginationQueryDto,
+    @Query() filterDto: DateFilterDto,
   ) {
     return this.rechargesService.getDistributorRecharges(
       distributorId,
-      paginationDto.page,
-      paginationDto.limit,
+      filterDto,
     );
   }
 
@@ -484,12 +483,11 @@ export class RechargesController {
   @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
   async getDistributorAccountMovements(
     @Param('distributorId') distributorId: string,
-    @Query() paginationDto: PaginationQueryDto,
+    @Query() filterDto: DateFilterDto,
   ) {
     return this.rechargesService.getDistributorAccountMovements(
       distributorId,
-      paginationDto.page,
-      paginationDto.limit,
+      filterDto,
     );
   }
 
