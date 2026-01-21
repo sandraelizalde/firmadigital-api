@@ -915,4 +915,34 @@ export class RechargesService {
     // Por defecto retornar jpg
     return 'jpg';
   }
+
+  /**
+   * ADMIN: Actualizar el número de recibo de una recarga
+   */
+  async updateRechargeNumberReceipt(rechargeId: string, numberReceipt: string) {
+    try {
+      const updatedRecharge = await this.prisma.recharge.update({
+        where: { id: rechargeId },
+        data: { numberReceipt },
+      });
+
+      return {
+        success: true,
+        message: 'Número de recibo actualizado correctamente',
+        data: updatedRecharge,
+      };
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new BadRequestException(
+          `El número de recibo ${numberReceipt} ya está asignado a otra recarga`,
+        );
+      }
+
+      if (error.code === 'P2025') {
+        throw new NotFoundException('Recarga no encontrada');
+      }
+
+      throw error;
+    }
+  }
 }

@@ -492,4 +492,45 @@ export class RechargesController {
       paginationDto.limit,
     );
   }
+
+  // Implement updateRechargeNumberReceipt
+
+  @Patch('admin/:rechargeId/number-receipt')
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '[ADMIN] Actualizar número de recibo de una recarga',
+    description:
+      'Permite al admin actualizar el número de recibo asociado a una recarga específica.',
+  })
+  @ApiParam({
+    name: 'rechargeId',
+    description: 'ID de la recarga',
+    example: 'clxxx123456',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Número de recibo actualizado exitosamente',
+    example: {
+      success: true,
+      message: 'Número de recibo actualizado exitosamente',
+      data: {},
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos',
+  })
+  @ApiResponse({ status: 404, description: 'Recarga no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 403, description: 'Requiere rol de administrador' })
+  async updateRechargeNumberReceipt(
+    @Param('rechargeId') rechargeId: string,
+    @Body('numberReceipt') numberReceipt: string,
+  ) {
+    return this.rechargesService.updateRechargeNumberReceipt(
+      rechargeId,
+      numberReceipt,
+    );
+  }
 }
