@@ -7,7 +7,7 @@ import { Cron } from '@nestjs/schedule';
 export class CreditsService {
   private readonly logger = new Logger(CreditsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async createCredit(createCreditDto: CreateCreditDto, adminName: string) {
     const { distributorId, creditDays } = createCreditDto;
@@ -200,6 +200,48 @@ export class CreditsService {
   }
 
   /**
+   * Desbloquear manualmente el crédito de un distribuidor (temporal para emergencias)
+   */
+  async forceUnblockCredit(distributorId: string, adminName: string) {
+    const credit = await this.prisma.distributorCredit.findFirst({
+      where: {
+        distributorId,
+        isActive: true,
+      },
+    });
+
+    if (!credit) {
+      throw new BadRequestException(
+        'El distribuidor no tiene un crédito activo',
+      );
+    }
+
+    if (!credit.isBlocked) {
+      return {
+        message: 'El crédito ya está desbloqueado',
+        data: { credit },
+      };
+    }
+
+    // Desbloquear forzadamente
+    const unblockedCredit = await this.prisma.distributorCredit.update({
+      where: { id: credit.id },
+      data: { isBlocked: false },
+    });
+
+    this.logger.warn(
+      `Crédito desbloqueado FORZADAMENTE para distribuidor ${distributorId} por ${adminName}`,
+    );
+
+    return {
+      message: 'Crédito desbloqueado exitosamente (forzado)',
+      data: {
+        credit: unblockedCredit,
+      },
+    };
+  }
+
+  /**
    * Verificar si un distribuidor puede emitir firmas
    * Retorna:
    * - true: Si NO tiene crédito activo (puede emitir con saldo normal)
@@ -285,9 +327,9 @@ export class CreditsService {
       day: '2-digit',
     });
 
-    // Parsear la fecha y crear el inicio del día en Ecuador (convertido a UTC)
+    // Parsear la fecha y crear el final del día en Ecuador (convertido a UTC)
     const [month, day, year] = ecuadorDateString.split('/');
-    const cutoffDate = new Date(`${year}-${month}-${day}T00:00:00-05:00`);
+    const cutoffDate = new Date(`${year}-${month}-${day}T23:59:59.999-05:00`);
 
     // Calcular fecha de pago (cutoffDate + creditDays) al final del día en Ecuador
     const paymentDay = new Date(cutoffDate);
@@ -301,32 +343,55 @@ export class CreditsService {
       `${paymentYear}-${paymentMonth}-${paymentDate}T23:59:59.999-05:00`,
     );
 
-    // Buscar o crear el corte del día
-    const cutoff = await this.prisma.creditCutoff.upsert({
+    // Buscar si ya existe el corte del día para este crédito
+    const existingCutoff = await this.prisma.creditCutoff.findUnique({
       where: {
         creditId_cutoffDate: {
           creditId: credit.id,
           cutoffDate,
         },
       },
-      create: {
-        distributorId,
-        creditId: credit.id,
-        cutoffDate,
-        paymentDueDate,
-        amountUsed: signatureAmount,
-        signaturesCount: 1,
-        signaturesDetails: JSON.stringify([signatureId]),
-      },
-      update: {
-        amountUsed: {
-          increment: signatureAmount,
-        },
-        signaturesCount: {
-          increment: 1,
-        },
-      },
     });
+
+    let cutoff;
+    if (existingCutoff) {
+      // Si existe, actualizar contadores y agregar el ID de la firma al JSON
+      let signatures: string[] = [];
+      try {
+        signatures = JSON.parse(existingCutoff.signaturesDetails || '[]');
+      } catch (e) {
+        signatures = [];
+      }
+
+      if (!Array.isArray(signatures)) signatures = [];
+      signatures.push(signatureId);
+
+      cutoff = await this.prisma.creditCutoff.update({
+        where: { id: existingCutoff.id },
+        data: {
+          amountUsed: {
+            increment: signatureAmount,
+          },
+          signaturesCount: {
+            increment: 1,
+          },
+          signaturesDetails: JSON.stringify(signatures),
+        },
+      });
+    } else {
+      // Si no existe, crearlo
+      cutoff = await this.prisma.creditCutoff.create({
+        data: {
+          distributorId,
+          creditId: credit.id,
+          cutoffDate,
+          paymentDueDate,
+          amountUsed: signatureAmount,
+          signaturesCount: 1,
+          signaturesDetails: JSON.stringify([signatureId]),
+        },
+      });
+    }
 
     this.logger.log(
       `Firma ${signatureId} registrada en crédito. Monto: $${(signatureAmount / 100).toFixed(2)}`,
@@ -348,13 +413,12 @@ export class CreditsService {
     const now = new Date();
 
     try {
-      // Buscar cortes vencidos no pagados
+      // Buscar cortes vencidos no pagados que no estén marcados como tales
       const overdueCutoffs = await this.prisma.creditCutoff.findMany({
         where: {
           isPaid: false,
-          isOverdue: false,
           paymentDueDate: {
-            lt: now,
+            lte: now,
           },
         },
         include: {
@@ -363,28 +427,34 @@ export class CreditsService {
         },
       });
 
-      this.logger.log(
-        `Se encontraron ${overdueCutoffs.length} cortes vencidos`,
-      );
+      if (overdueCutoffs.length > 0) {
+        this.logger.log(
+          `Se encontraron ${overdueCutoffs.length} cortes que deberían ser bloqueados`,
+        );
+      }
 
       for (const cutoff of overdueCutoffs) {
         try {
           await this.prisma.$transaction(async (prisma) => {
-            // Marcar el corte como vencido
-            await prisma.creditCutoff.update({
-              where: { id: cutoff.id },
-              data: { isOverdue: true },
-            });
+            // Asegurar que esté marcado como vencido
+            if (!cutoff.isOverdue) {
+              await prisma.creditCutoff.update({
+                where: { id: cutoff.id },
+                data: { isOverdue: true },
+              });
+            }
 
-            // Bloquear el crédito del distribuidor
-            await prisma.distributorCredit.update({
-              where: { id: cutoff.creditId },
-              data: { isBlocked: true },
-            });
+            // Bloquear el crédito del distribuidor si no está bloqueado
+            if (!cutoff.credit.isBlocked) {
+              await prisma.distributorCredit.update({
+                where: { id: cutoff.creditId },
+                data: { isBlocked: true },
+              });
 
-            this.logger.warn(
-              `Distribuidor ${cutoff.distributor.email} bloqueado por corte vencido. Debe: $${((cutoff.amountUsed - cutoff.amountPaid) / 100).toFixed(2)}`,
-            );
+              this.logger.warn(
+                `Distribuidor ${cutoff.distributor.email} bloqueado por corte vencido (Cron 00:01). Debe: $${((cutoff.amountUsed - cutoff.amountPaid) / 100).toFixed(2)}`,
+              );
+            }
           });
         } catch (error) {
           this.logger.error(
@@ -408,17 +478,18 @@ export class CreditsService {
     timeZone: 'America/Guayaquil',
   })
   async processPaymentAttempts() {
-    this.logger.log('Iniciando intentos de cobro de cortes vencidos...');
+    this.logger.log('Iniciando intentos de cobro de cortes...');
 
     const now = new Date();
+    const nowWithMargin = new Date(now.getTime() + 2 * 60 * 1000);
 
     try {
-      // Obtener todos los cortes no pagados que ya vencieron
+      // Obtener todos los cortes no pagados
       const unpaidCutoffs = await this.prisma.creditCutoff.findMany({
         where: {
           isPaid: false,
-          paymentDueDate: {
-            lt: now,
+          cutoffDate: {
+            lte: nowWithMargin,
           },
         },
         include: {
@@ -429,6 +500,8 @@ export class CreditsService {
           cutoffDate: 'asc',
         },
       });
+
+      const distributorIdsToCheck = new Set<string>();
 
       this.logger.log(
         `Se encontraron ${unpaidCutoffs.length} cortes pendientes de pago`,
@@ -443,7 +516,6 @@ export class CreditsService {
           const amountOwed = cutoff.amountUsed - cutoff.amountPaid;
 
           if (amountOwed <= 0) {
-            // Ya está pagado, marcar como tal
             await this.prisma.creditCutoff.update({
               where: { id: cutoff.id },
               data: { isPaid: true },
@@ -452,10 +524,15 @@ export class CreditsService {
           }
 
           await this.prisma.$transaction(async (prisma) => {
-            const distributor = cutoff.distributor;
+            // Re-obtener el distribuidor con el saldo actualizado en cada iteración
+            const distributor = await prisma.distributor.findUnique({
+              where: { id: cutoff.distributor.id },
+              select: { balance: true, id: true, email: true }
+            });
+
+            if (!distributor) return;
 
             if (distributor.balance >= amountOwed) {
-              // Tiene saldo suficiente: cobrar todo
               const newBalance = distributor.balance - amountOwed;
 
               await prisma.distributor.update({
@@ -472,7 +549,6 @@ export class CreditsService {
                 },
               });
 
-              // Crear movimiento de cobro de crédito
               await prisma.accountMovement.create({
                 data: {
                   distributorId: distributor.id,
@@ -485,28 +561,8 @@ export class CreditsService {
                 },
               });
 
-              // Desbloquear el crédito si este era el último pendiente
-              const remainingUnpaid = await prisma.creditCutoff.count({
-                where: {
-                  creditId: cutoff.creditId,
-                  isPaid: false,
-                  id: { not: cutoff.id },
-                },
-              });
-
-              if (remainingUnpaid === 0) {
-                await prisma.distributorCredit.update({
-                  where: { id: cutoff.creditId },
-                  data: { isBlocked: false },
-                });
-              }
-
               collected++;
-              this.logger.log(
-                `Corte ${cutoff.id} cobrado completamente. Monto: $${(amountOwed / 100).toFixed(2)}`,
-              );
             } else if (distributor.balance > 0) {
-              // Tiene algo de saldo: cobrar parcial
               const amountPaid = distributor.balance;
               const newBalance = 0;
 
@@ -522,7 +578,6 @@ export class CreditsService {
                 },
               });
 
-              // Crear movimiento de cobro parcial de crédito
               await prisma.accountMovement.create({
                 data: {
                   distributorId: distributor.id,
@@ -536,18 +591,73 @@ export class CreditsService {
               });
 
               partiallyPaid++;
-              this.logger.log(
-                `Corte ${cutoff.id} cobrado parcialmente. Pagado: $${(amountPaid / 100).toFixed(2)}, Falta: $${((amountOwed - amountPaid) / 100).toFixed(2)}`,
-              );
             } else {
-              // No tiene saldo
               notPaid++;
+            }
+
+            // REVISAR BLOQUEO/DESBLOQUEO
+            let remainsUnpaid = true;
+            if (distributor.balance >= amountOwed) {
+              remainsUnpaid = false;
+            }
+
+            const isDueOrOverdue = cutoff.paymentDueDate <= nowWithMargin;
+
+            if (isDueOrOverdue && remainsUnpaid) {
+              // Si ya venció hoy y no se pudo pagar completo, marcar como vencido y bloquear
+              await prisma.creditCutoff.update({
+                where: { id: cutoff.id },
+                data: { isOverdue: true },
+              });
+
+              await prisma.distributorCredit.update({
+                where: { id: cutoff.creditId },
+                data: { isBlocked: true },
+              });
+
+              this.logger.warn(`Distribuidor ${cutoff.distributor.email} bloqueado al cierre del día por vencimiento de deuda.`);
+            } else if (!remainsUnpaid) {
+              // Si se pagó algo, marcar para revisar desbloqueo al final del proceso
+              distributorIdsToCheck.add(cutoff.distributorId);
             }
           });
         } catch (error) {
           this.logger.error(
             `Error procesando corte ${cutoff.id}: ${error.message}`,
           );
+        }
+      }
+
+      // 4. Revisar desbloqueos de forma agrupada al final
+      for (const distributorId of distributorIdsToCheck) {
+        try {
+          const creditsToUnblock = await this.prisma.distributorCredit.findMany({
+            where: {
+              distributorId,
+              isActive: true,
+              isBlocked: true,
+            },
+          });
+
+          for (const credit of creditsToUnblock) {
+            const remainingOverdueUnpaid = await this.prisma.creditCutoff.count({
+              where: {
+                creditId: credit.id,
+                isPaid: false,
+                paymentDueDate: { lte: nowWithMargin },
+              },
+            });
+
+            if (remainingOverdueUnpaid === 0) {
+              await this.prisma.distributorCredit.update({
+                where: { id: credit.id },
+                data: { isBlocked: false },
+              });
+              this.logger.log(`Distribuidor ${distributorId} desbloqueado exitosamente.`);
+            }
+          }
+        } catch (unblockError) {
+          this.logger.error(`Error al intentar desbloquear distribuidor ${distributorId}: ${unblockError.message}`);
         }
       }
 
@@ -565,19 +675,29 @@ export class CreditsService {
    */
   async attemptCollectOverdueCredits(distributorId: string) {
     this.logger.log(
-      `Intentando cobrar créditos vencidos para distribuidor ${distributorId}...`,
+      `Intentando cobrar deudas de crédito para distribuidor ${distributorId}...`,
     );
 
     try {
       const now = new Date();
 
-      // Obtener solo los cortes no pagados que ya están vencidos (paymentDueDate < now)
+      // Calcular el inicio del día de hoy en Ecuador (para excluir el corte que aún está abierto)
+      const ecuadorDateString = now.toLocaleString('en-US', {
+        timeZone: 'America/Guayaquil',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const [month, day, year] = ecuadorDateString.split('/');
+      const startOfToday = new Date(`${year}-${month}-${day}T00:00:00.000-05:00`);
+
+      // Obtener todos los cortes no pagados de días ANTERIORES a hoy
       const unpaidCutoffs = await this.prisma.creditCutoff.findMany({
         where: {
           distributorId,
           isPaid: false,
-          paymentDueDate: {
-            lt: now,
+          cutoffDate: {
+            lt: startOfToday,
           },
         },
         include: {
@@ -592,7 +712,7 @@ export class CreditsService {
       if (unpaidCutoffs.length === 0) {
         return {
           success: true,
-          message: 'No hay créditos pendientes de pago',
+          message: 'No hay deudas de crédito de días anteriores pendientes',
           collected: 0,
           partiallyPaid: 0,
           remaining: 0,
@@ -626,30 +746,30 @@ export class CreditsService {
           continue;
         }
 
-        // Obtener el saldo actual del distribuidor
-        const distributor = await this.prisma.distributor.findUnique({
-          where: { id: distributorId },
-          select: { balance: true },
-        });
-
-        if (!distributor || distributor.balance <= 0) {
-          // No hay más saldo para cobrar
-          remaining++;
-          details.push({
-            cutoffId: cutoff.id,
-            cutoffDate: cutoff.cutoffDate,
-            amountOwed,
-            amountCollected: 0,
-            status: 'pending',
-            reason: 'Saldo insuficiente',
-          });
-          continue;
-        }
-
         try {
           let shouldBreak = false;
 
           await this.prisma.$transaction(async (prisma) => {
+            // Obtener el saldo actual del distribuidor dentro de la transacción
+            const distributor = await prisma.distributor.findUnique({
+              where: { id: distributorId },
+              select: { balance: true },
+            });
+
+            if (!distributor || distributor.balance <= 0) {
+              remaining++;
+              details.push({
+                cutoffId: cutoff.id,
+                cutoffDate: cutoff.cutoffDate,
+                amountOwed,
+                amountCollected: 0,
+                status: 'pending',
+                reason: 'Saldo insuficiente',
+              });
+              shouldBreak = true;
+              return;
+            }
+
             if (distributor.balance >= amountOwed) {
               // Tiene saldo suficiente: cobrar todo
               const newBalance = distributor.balance - amountOwed;
@@ -776,21 +896,22 @@ export class CreditsService {
       });
 
       for (const credit of creditsToUnblock) {
-        const remainingUnpaid = await this.prisma.creditCutoff.count({
+        const remainingOverdueUnpaid = await this.prisma.creditCutoff.count({
           where: {
             creditId: credit.id,
             isPaid: false,
+            paymentDueDate: { lte: now }, // Solo los que ya vencieron
           },
         });
 
-        if (remainingUnpaid === 0) {
+        if (remainingOverdueUnpaid === 0) {
           await this.prisma.distributorCredit.update({
             where: { id: credit.id },
             data: { isBlocked: false },
           });
 
           this.logger.log(
-            `Crédito ${credit.id} desbloqueado - todas las deudas pagadas`,
+            `Crédito ${credit.id} desbloqueado - no quedan deudas vencidas`,
           );
         }
       }
@@ -801,7 +922,7 @@ export class CreditsService {
 
       return {
         success: true,
-        message: `Se cobraron ${collected + partiallyPaid} cortes por un total de $${(totalCollected / 100).toFixed(2)}`,
+        message: `Se cobraron ${collected + partiallyPaid} deudas por un total de $${(totalCollected / 100).toFixed(2)}`,
         collected,
         partiallyPaid,
         remaining,
@@ -810,7 +931,7 @@ export class CreditsService {
       };
     } catch (error) {
       this.logger.error(
-        `Error en cobro de créditos para distribuidor ${distributorId}: ${error.message}`,
+        `Error en cobro de deudas de crédito para distribuidor ${distributorId}: ${error.message}`,
       );
       throw error;
     }
@@ -830,9 +951,7 @@ export class CreditsService {
       include: {
         creditCutoffs: {
           orderBy: { cutoffDate: 'desc' },
-          where: {
-            isPaid: false,
-          },
+
         },
       },
     });

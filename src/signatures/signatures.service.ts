@@ -11,7 +11,7 @@ import { AxiosError } from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
-import { SignatureStatus, MovementType } from '@prisma/client';
+import { SignatureStatus, MovementType, PaymentMethod } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { CreditsService } from 'src/credits/credits.service';
 import {
@@ -46,6 +46,7 @@ export class SignaturesService {
   private readonly signProviderCallback: string | undefined;
   private readonly emailVerificationApiUrl: string | undefined;
   private readonly emailVerificationApiKey: string | undefined;
+  private readonly environment: string | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -86,6 +87,8 @@ export class SignaturesService {
     this.emailVerificationApiKey = this.configService.get<string>(
       'EMAIL_VERIFICATION_API_KEY',
     );
+
+    this.environment = this.configService.get<string>('ENVIRONMENT');
   }
 
   /**
@@ -426,6 +429,8 @@ export class SignaturesService {
             status,
             providerCode: providerResponse.codigo.toString(),
             providerMessage: providerResponse.mensaje,
+            priceCharged,
+            paymentMethod: usedCredit ? PaymentMethod.CREDIT : PaymentMethod.BALANCE,
           },
         });
 
@@ -531,21 +536,29 @@ export class SignaturesService {
         'base64',
       );
 
-      const response = await firstValueFrom(
-        this.httpService.post<SignatureProviderResponse>(providerUrl, payload, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Basic ${basicAuth}`,
+      let response;
+
+      if (this.environment === 'development') {
+        response = {
+          data: {
+            codigo: 1,
+            mensaje: 'SIMULACION Firma creada exitosamente',
           },
-        }),
-      );
-      // response para testing sin llamar al proveedor
-      // const response = {
-      //   data: {
-      //     codigo: 1,
-      //     mensaje: 'SIMULACION Firma creada exitosamente',
-      //   },
-      // };
+        };
+      } else {
+        response = await firstValueFrom(
+          this.httpService.post<SignatureProviderResponse>(
+            providerUrl,
+            payload,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Basic ${basicAuth}`,
+              },
+            },
+          ),
+        );
+      }
 
       const { codigo, mensaje } = response.data;
 
@@ -877,16 +890,16 @@ export class SignaturesService {
       if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
         pdf_sri_url = signatureRequest.pdf_sri
           ? await this.filesService.getFileUrl(
-              signatureRequest.pdf_sri,
-              'pdf-sri',
-            )
+            signatureRequest.pdf_sri,
+            'pdf-sri',
+          )
           : null;
 
         nombramiento_url = signatureRequest.nombramiento
           ? await this.filesService.getFileUrl(
-              signatureRequest.nombramiento,
-              'pdf-nombramiento',
-            )
+            signatureRequest.nombramiento,
+            'pdf-nombramiento',
+          )
           : null;
       }
 
@@ -925,6 +938,8 @@ export class SignaturesService {
         expirationDate,
         duration,
         durationType,
+        priceCharged: signatureRequest.priceCharged,
+        paymentMethod: signatureRequest.paymentMethod,
         createdAt: signatureRequest.createdAt,
         updatedAt: signatureRequest.updatedAt,
       };
@@ -1090,6 +1105,8 @@ export class SignaturesService {
           providerMessage: request.providerMessage,
           annulledBy: request.annulledBy,
           annulledNote: request.annulledNote,
+          priceCharged: request.priceCharged,
+          paymentMethod: request.paymentMethod,
           expiredDays,
           duration,
           durationType,
@@ -1097,14 +1114,14 @@ export class SignaturesService {
           updatedAt: request.updatedAt,
           distributor: request.distributor
             ? {
-                id: request.distributor.id,
-                firstName: request.distributor.firstName,
-                lastName: request.distributor.lastName,
-                socialReason: request.distributor.socialReason,
-                identification: request.distributor.identification,
-                email: request.distributor.email,
-                phone: request.distributor.phone,
-              }
+              id: request.distributor.id,
+              firstName: request.distributor.firstName,
+              lastName: request.distributor.lastName,
+              socialReason: request.distributor.socialReason,
+              identification: request.distributor.identification,
+              email: request.distributor.email,
+              phone: request.distributor.phone,
+            }
             : null,
         };
       },
@@ -1250,6 +1267,8 @@ export class SignaturesService {
         annulledBy: signatureRequest.annulledBy,
         annulledNote: signatureRequest.annulledNote,
         activeNotification: signatureRequest.activeNotification,
+        priceCharged: signatureRequest.priceCharged,
+        paymentMethod: signatureRequest.paymentMethod,
         expirationDate,
         duration,
         durationType,
@@ -1304,32 +1323,60 @@ export class SignaturesService {
       throw new BadRequestException('La solicitud de firma ya está anulada');
     }
 
-    // // Verificar que la firma esté en estado COMPLETED o PENDING para poder anular
-    // if (
-    //   signatureRequest.status !== SignatureStatus.COMPLETED &&
-    //   signatureRequest.status !== SignatureStatus.PENDING
-    // ) {
-    //   throw new BadRequestException(
-    //     `No se puede anular una firma en estado ${signatureRequest.status}. Solo se pueden anular firmas COMPLETED o PENDING`,
-    //   );
-    // }
+    // 1. Determinar si fue pagada por crédito
+    let isPaidViaCredit = signatureRequest.paymentMethod === PaymentMethod.CREDIT;
+    let targetCutoff: any = null;
+    let refundAmount = signatureRequest.priceCharged || 0;
 
-    // Buscar el precio que se cobró al distribuidor por esta firma
-    const originalMovement = await this.prisma.accountMovement.findFirst({
-      where: {
-        signatureId: signatureRequest.id,
-        type: MovementType.EXPENSE,
-      },
-    });
+    if (!isPaidViaCredit) {
+      const originalMovement = await this.prisma.accountMovement.findFirst({
+        where: {
+          signatureId: signatureRequest.id,
+          type: MovementType.EXPENSE,
+        },
+      });
+      if (originalMovement) {
+        refundAmount = originalMovement.amount;
+      } else if (refundAmount === 0) {
+        const planPrice = await this.prisma.distributorPlanPrice.findFirst({
+          where: {
+            distributorId: signatureRequest.distributorId!,
+            plan: { perfil: signatureRequest.perfil_firma },
+          },
+        });
+        refundAmount = planPrice?.customPrice || 0;
 
-    // Si no hay movimiento de cobro, significa que no se cobró (ej: fue rechazada)
-    const refundAmount = originalMovement ? originalMovement.amount : 0;
+        isPaidViaCredit = true;
+      }
+    }
 
-    // Ejecutar la anulación en una transacción
+    if (isPaidViaCredit) {
+      const sigDate = new Date(signatureRequest.createdAt);
+      const ecuadorDateString = sigDate.toLocaleString('en-US', {
+        timeZone: 'America/Guayaquil',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const [month, day, year] = ecuadorDateString.split('/');
+      const cutoffDate = new Date(`${year}-${month}-${day}T23:59:59.999-05:00`);
+
+      targetCutoff = await this.prisma.creditCutoff.findFirst({
+        where: {
+          distributorId: signatureRequest.distributorId!,
+          cutoffDate: cutoffDate,
+        },
+      });
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
-      let newBalance = signatureRequest.distributor!.balance;
+      const distributor = await tx.distributor.findUnique({
+        where: { id: signatureRequest.distributorId! },
+        select: { balance: true }
+      });
 
-      // Actualizar el estado de la firma a ANNULLED
+      let newBalance = distributor?.balance || 0;
+
       await tx.signatureRequest.update({
         where: { id: signatureId },
         data: {
@@ -1339,50 +1386,81 @@ export class SignaturesService {
         },
       });
 
-      // Si hay monto a reembolsar Y se debe generar el reembolso, actualizar balance y crear movimiento
-      let movement: { id: string } | null = null;
-      let actualRefundAmount = 0;
+      let actualRefundedToBalance = 0;
+      let discountedFromCredit = 0;
+      let movementId: string | null = null;
 
       if (generateRefund && refundAmount > 0) {
-        newBalance = signatureRequest.distributor!.balance + refundAmount;
-        actualRefundAmount = refundAmount;
+        if (isPaidViaCredit && targetCutoff && !targetCutoff.isPaid) {
+          let signatures: string[] = [];
+          try {
+            signatures = JSON.parse(targetCutoff.signaturesDetails || '[]');
+          } catch (e) {
+            signatures = [];
+          }
+          signatures = signatures.filter((id) => id !== signatureId);
 
-        // Actualizar el balance del distribuidor
-        await tx.distributor.update({
-          where: { id: signatureRequest.distributorId! },
-          data: { balance: newBalance },
-        });
+          await tx.creditCutoff.update({
+            where: { id: targetCutoff.id },
+            data: {
+              amountUsed: { decrement: refundAmount },
+              signaturesCount: { decrement: 1 },
+              signaturesDetails: JSON.stringify(signatures),
+            },
+          });
+          discountedFromCredit = refundAmount;
+        }
+        else {
+          newBalance += refundAmount;
+          actualRefundedToBalance = refundAmount;
 
-        // Crear el movimiento de reembolso (INCOME)
-        movement = await tx.accountMovement.create({
-          data: {
-            distributorId: signatureRequest.distributorId!,
-            type: MovementType.INCOME,
-            detail: `Reembolso por anulación de firma - ${signatureRequest.apellidos}`,
-            amount: refundAmount,
-            balanceAfter: newBalance,
-            signatureId: signatureRequest.id,
-            adminName: adminName,
-            note: note || `Anulación de firma`,
-          },
-        });
+          await tx.distributor.update({
+            where: { id: signatureRequest.distributorId! },
+            data: { balance: newBalance },
+          });
+
+          const movement = await tx.accountMovement.create({
+            data: {
+              distributorId: signatureRequest.distributorId!,
+              type: MovementType.INCOME,
+              detail: `Reembolso por anulación de firma - ${signatureRequest.apellidos}`,
+              amount: refundAmount,
+              balanceAfter: newBalance,
+              signatureId: signatureRequest.id,
+              adminName: adminName,
+              note: note || `Anulación de firma`,
+            },
+          });
+          movementId = movement.id;
+        }
       }
 
       return {
         signatureId,
         distributorId: signatureRequest.distributorId,
-        refundedAmount: actualRefundAmount,
+        refundedAmount: actualRefundedToBalance,
+        discountedFromCredit,
         newDistributorBalance: newBalance,
-        movementId: movement?.id || null,
+        movementId,
       };
     });
 
+    let message = 'Firma anulada exitosamente';
+    if (generateRefund) {
+      if (result.refundedAmount > 0) {
+        message += ` y se reembolsaron $${(result.refundedAmount / 100).toFixed(2)} al saldo del distribuidor.`;
+      } else if (result.discountedFromCredit > 0) {
+        message += ` y se descontó el valor de $${(result.discountedFromCredit / 100).toFixed(2)} de la deuda del crédito pendiente.`;
+      } else {
+        message += ' sin embargo no se generó reembolso (valor calculado 0).';
+      }
+    } else {
+      message += ' sin generar reembolso.';
+    }
+
     return {
       success: true,
-      message:
-        generateRefund && result.refundedAmount > 0
-          ? `Firma anulada exitosamente y se reembolsaron $${(result.refundedAmount / 100).toFixed(2)} al distribuidor`
-          : 'Firma anulada exitosamente sin reembolso',
+      message,
       data: result,
     };
   }

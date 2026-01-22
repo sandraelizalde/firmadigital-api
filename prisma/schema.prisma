@@ -57,6 +57,11 @@ enum Role {
   DISTRIBUTOR
 }
 
+enum PaymentMethod {
+  BALANCE
+  CREDIT
+}
+
 // ---------------------------
 // DISTRIBUIDORES
 // ---------------------------
@@ -193,12 +198,16 @@ model SignatureRequest {
   providerCode       String?
   providerMessage    String?
   activeNotification Boolean         @default(true)
+  priceCharged       Int             @default(0) // Precio cobrado al distribuidor en centavos
+  paymentMethod      PaymentMethod   @default(BALANCE) // Método de pago utilizado
   annulledBy         String? // Nombre del admin que anuló la firma
   annulledNote       String? // Nota/motivo de la anulación
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   distributor        Distributor?    @relation(fields: [distributorId], references: [id])
   distributorId      String?
+  
+  @@index([distributorId, createdAt])
 }
 
 // ---------------------------
@@ -300,6 +309,8 @@ model AccountMovement {
   recharge            Recharge?          @relation(fields: [rechargeId], references: [id])
   distributorCredit   DistributorCredit? @relation(fields: [distributorCreditId], references: [id])
   distributorCreditId String?
+
+  @@index([signatureId])
 }
 
 // ---------------------------
