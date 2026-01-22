@@ -26,12 +26,13 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { Public } from 'src/auth/decorators/public.decorator';
 
 @ApiTags('Créditos')
 @Controller('credits')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CreditsController {
-  constructor(private readonly creditsService: CreditsService) {}
+  constructor(private readonly creditsService: CreditsService) { }
 
   /**
    * Crear un nuevo crédito para un distribuidor
@@ -202,6 +203,58 @@ export class CreditsController {
   ) {
     const adminName = req.user.firstName + ' ' + req.user.lastName;
     return this.creditsService.reactivateCredit(distributorId, adminName);
+  }
+
+  @Patch(':distributorId/force-unblock')
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '[EMERGENCIA] Desbloquear forzadamente un crédito',
+    description:
+      '⚠️ SOLO PARA EMERGENCIAS: Desbloquea forzadamente el crédito de un distribuidor sin validar deudas pendientes. Usar solo en casos de errores del sistema.',
+  })
+  @ApiParam({
+    name: 'distributorId',
+    description: 'ID del distribuidor',
+    example: 'clx9876543210',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Crédito desbloqueado exitosamente',
+    schema: {
+      example: {
+        message: 'Crédito desbloqueado exitosamente (forzado)',
+        data: {
+          credit: {
+            id: 'clx1234567890',
+            distributorId: 'clx9876543210',
+            creditDays: 2,
+            isActive: true,
+            isBlocked: false,
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'El distribuidor no tiene un crédito activo',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo administradores',
+  })
+  async forceUnblockCredit(
+    @Param('distributorId') distributorId: string,
+    @Request() req,
+  ) {
+    const adminName = req.user.firstName + ' ' + req.user.lastName;
+    return this.creditsService.forceUnblockCredit(distributorId, adminName);
   }
 
   @Get(':distributorId/summary')
@@ -435,5 +488,29 @@ export class CreditsController {
       query.startDate,
       query.endDate,
     );
+  }
+
+  /**
+   * [TESTING] Disparar manualmente el proceso de cobros (Cron 23:59)
+   */
+  @Post('test/trigger-payments')
+  @Public()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[TEST] Disparar manualmente cobros de cortes' })
+  async triggerPayments() {
+    await this.creditsService.processPaymentAttempts();
+    return { message: 'Proceso de cobros ejecutado manualmente' };
+  }
+
+  /**
+   * [TESTING] Disparar manualmente la verificación de vencidos (Cron 00:01)
+   */
+  @Post('test/trigger-check-overdue')
+  @Public()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[TEST] Disparar manualmente verificación de bloqueos' })
+  async triggerCheckOverdue() {
+    await this.creditsService.checkOverdueCutoffs();
+    return { message: 'Verificación de vencidos ejecutada manualmente' };
   }
 }
