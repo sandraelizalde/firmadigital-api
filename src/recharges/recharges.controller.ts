@@ -261,11 +261,17 @@ export class RechargesController {
     @Query('status') status?: RechargeStatus,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('idRecharge') idRecharge?: string,
   ) {
     return this.rechargesService.getAllRecharges(
       status,
       page || 1,
       limit || 10,
+      startDate,
+      endDate,
+      idRecharge,
     );
   }
 
