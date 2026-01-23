@@ -375,6 +375,7 @@ export class RechargesService {
     startDate?: string,
     endDate?: string,
     idRecharge?: string,
+    identificationDistributor?: string,
   ) {
     const skip = (page - 1) * limit;
 
@@ -400,6 +401,11 @@ export class RechargesService {
     // Filtro por ID de recarga
     if (idRecharge) {
       whereCondition.id = idRecharge;
+    }
+    if (identificationDistributor) {
+      whereCondition.distributor = {
+        identification: identificationDistributor,
+      };
     }
 
     // Obtener total de recargas

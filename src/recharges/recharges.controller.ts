@@ -35,7 +35,7 @@ import { Role, RechargeStatus } from '@prisma/client';
 @Controller('recharges')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RechargesController {
-  constructor(private readonly rechargesService: RechargesService) { }
+  constructor(private readonly rechargesService: RechargesService) {}
 
   // ==========================================
   // ENDPOINTS PARA DISTRIBUIDORES
@@ -264,6 +264,7 @@ export class RechargesController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('idRecharge') idRecharge?: string,
+    @Query('identificationDistributor') identificationDistributor?: string,
   ) {
     return this.rechargesService.getAllRecharges(
       status,
@@ -272,6 +273,7 @@ export class RechargesController {
       startDate,
       endDate,
       idRecharge,
+      identificationDistributor,
     );
   }
 
