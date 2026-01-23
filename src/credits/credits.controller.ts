@@ -332,7 +332,7 @@ export class CreditsController {
     description: 'No autorizado',
   })
   async getCreditSummary(@Param('distributorId') distributorId: string) {
-    return this.creditsService.getCreditSummary(distributorId);
+    return this.creditsService.getAllDistributorCredits(distributorId);
   }
 
   @Get(':distributorId/can-emit')

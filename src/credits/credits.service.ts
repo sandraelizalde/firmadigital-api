@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCreditDto } from './dto/create-credit.dto';
 import { Cron } from '@nestjs/schedule';
@@ -7,7 +7,7 @@ import { Cron } from '@nestjs/schedule';
 export class CreditsService {
   private readonly logger = new Logger(CreditsService.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async createCredit(createCreditDto: CreateCreditDto, adminName: string) {
     const { distributorId, creditDays } = createCreditDto;
@@ -527,7 +527,7 @@ export class CreditsService {
             // Re-obtener el distribuidor con el saldo actualizado en cada iteración
             const distributor = await prisma.distributor.findUnique({
               where: { id: cutoff.distributor.id },
-              select: { balance: true, id: true, email: true }
+              select: { balance: true, id: true, email: true },
             });
 
             if (!distributor) return;
@@ -615,7 +615,9 @@ export class CreditsService {
                 data: { isBlocked: true },
               });
 
-              this.logger.warn(`Distribuidor ${cutoff.distributor.email} bloqueado al cierre del día por vencimiento de deuda.`);
+              this.logger.warn(
+                `Distribuidor ${cutoff.distributor.email} bloqueado al cierre del día por vencimiento de deuda.`,
+              );
             } else if (!remainsUnpaid) {
               // Si se pagó algo, marcar para revisar desbloqueo al final del proceso
               distributorIdsToCheck.add(cutoff.distributorId);
@@ -631,33 +633,41 @@ export class CreditsService {
       // 4. Revisar desbloqueos de forma agrupada al final
       for (const distributorId of distributorIdsToCheck) {
         try {
-          const creditsToUnblock = await this.prisma.distributorCredit.findMany({
-            where: {
-              distributorId,
-              isActive: true,
-              isBlocked: true,
+          const creditsToUnblock = await this.prisma.distributorCredit.findMany(
+            {
+              where: {
+                distributorId,
+                isActive: true,
+                isBlocked: true,
+              },
             },
-          });
+          );
 
           for (const credit of creditsToUnblock) {
-            const remainingOverdueUnpaid = await this.prisma.creditCutoff.count({
-              where: {
-                creditId: credit.id,
-                isPaid: false,
-                paymentDueDate: { lte: nowWithMargin },
+            const remainingOverdueUnpaid = await this.prisma.creditCutoff.count(
+              {
+                where: {
+                  creditId: credit.id,
+                  isPaid: false,
+                  paymentDueDate: { lte: nowWithMargin },
+                },
               },
-            });
+            );
 
             if (remainingOverdueUnpaid === 0) {
               await this.prisma.distributorCredit.update({
                 where: { id: credit.id },
                 data: { isBlocked: false },
               });
-              this.logger.log(`Distribuidor ${distributorId} desbloqueado exitosamente.`);
+              this.logger.log(
+                `Distribuidor ${distributorId} desbloqueado exitosamente.`,
+              );
             }
           }
         } catch (unblockError) {
-          this.logger.error(`Error al intentar desbloquear distribuidor ${distributorId}: ${unblockError.message}`);
+          this.logger.error(
+            `Error al intentar desbloquear distribuidor ${distributorId}: ${unblockError.message}`,
+          );
         }
       }
 
@@ -689,7 +699,9 @@ export class CreditsService {
         day: '2-digit',
       });
       const [month, day, year] = ecuadorDateString.split('/');
-      const startOfToday = new Date(`${year}-${month}-${day}T00:00:00.000-05:00`);
+      const startOfToday = new Date(
+        `${year}-${month}-${day}T00:00:00.000-05:00`,
+      );
 
       // Obtener todos los cortes no pagados de días ANTERIORES a hoy
       const unpaidCutoffs = await this.prisma.creditCutoff.findMany({
@@ -939,7 +951,6 @@ export class CreditsService {
 
   /**
    * Obtener resumen de crédito de un distribuidor
-   * Incluye créditos desactivados con deudas pendientes
    */
   async getCreditSummary(distributorId: string) {
     // Primero buscar crédito activo
@@ -951,7 +962,6 @@ export class CreditsService {
       include: {
         creditCutoffs: {
           orderBy: { cutoffDate: 'desc' },
-
         },
       },
     });
@@ -1032,6 +1042,34 @@ export class CreditsService {
       unpaidCutoffs,
       message,
     };
+  }
+
+  /**
+   * Obtener todos los créditos de un distribuidor
+   */
+  async getAllDistributorCredits(distributorId: string) {
+    try {
+      await this.prisma.distributor.findUniqueOrThrow({
+        where: { id: distributorId },
+      });
+      const credits = await this.prisma.distributorCredit.findMany({
+        where: { distributorId },
+        include: {
+          creditCutoffs: {
+            orderBy: { cutoffDate: 'desc' },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      return {
+        success: true,
+        data: credits,
+      };
+    } catch {
+      throw new NotFoundException(
+        'Distribuidor no encontrado o no tiene créditos',
+      );
+    }
   }
 
   /**
