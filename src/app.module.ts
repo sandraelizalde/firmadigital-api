@@ -17,6 +17,7 @@ import { ConfigModule } from '@nestjs/config';
 import { MailModule } from './mail/mail.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CreditsModule } from './credits/credits.module';
+import { QueuesModule } from './queues/queues.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { CreditsModule } from './credits/credits.module';
     ConsultationsModule,
     MailModule,
     CreditsModule,
+    QueuesModule,
   ],
   controllers: [AppController],
   providers: [

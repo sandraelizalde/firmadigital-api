@@ -24,7 +24,7 @@ export class RechargesService {
     private filesService: FilesService,
     private payphoneService: PayphoneService,
     private creditsService: CreditsService,
-  ) { }
+  ) {}
 
   /**
    * Iniciar recarga con tarjeta (Payphone)
@@ -358,9 +358,9 @@ export class RechargesService {
       ...recharge,
       receiptFile: recharge.receiptFile
         ? await this.filesService.getFile(
-          recharge.receiptFile,
-          'vouchers-nexus',
-        )
+            recharge.receiptFile,
+            'vouchers-nexus',
+          )
         : null,
     };
   }
@@ -372,10 +372,35 @@ export class RechargesService {
     status?: RechargeStatus,
     page: number = 1,
     limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    idRecharge?: string,
   ) {
     const skip = (page - 1) * limit;
 
-    const whereCondition = status ? { status } : undefined;
+    const whereCondition = {} as any;
+
+    // Filtro por estado
+    if (status) {
+      whereCondition.status = status;
+    }
+
+    // Filtro por rango de fechas
+    if (startDate || endDate) {
+      whereCondition.createdAt = {};
+      if (startDate) {
+        const startDateTime = new Date(`${startDate}T00:00:00-05:00`);
+        whereCondition.createdAt.gte = startDateTime;
+      }
+      if (endDate) {
+        const endDateTime = new Date(`${endDate}T23:59:59.999-05:00`);
+        whereCondition.createdAt.lte = endDateTime;
+      }
+    }
+    // Filtro por ID de recarga
+    if (idRecharge) {
+      whereCondition.id = idRecharge;
+    }
 
     // Obtener total de recargas
     const total = await this.prisma.recharge.count({
@@ -446,9 +471,9 @@ export class RechargesService {
       ...recharge,
       receiptFileUrl: recharge.receiptFile
         ? await this.filesService.getFileUrl(
-          recharge.receiptFile,
-          'vouchers-nexus',
-        )
+            recharge.receiptFile,
+            'vouchers-nexus',
+          )
         : null,
     };
   }
@@ -757,10 +782,7 @@ export class RechargesService {
   /**
    * ADMIN: Obtener recargas de un distribuidor específico
    */
-  async getDistributorRecharges(
-    distributorId: string,
-    filterDto: any,
-  ) {
+  async getDistributorRecharges(distributorId: string, filterDto: any) {
     const { page = 1, limit = 10, startDate, endDate } = filterDto;
 
     // Verificar que el distribuidor exista
@@ -832,10 +854,7 @@ export class RechargesService {
   /**
    * ADMIN: Obtener movimientos de cuenta de un distribuidor
    */
-  async getDistributorAccountMovements(
-    distributorId: string,
-    filterDto: any,
-  ) {
+  async getDistributorAccountMovements(distributorId: string, filterDto: any) {
     const { page = 1, limit = 10, startDate, endDate } = filterDto;
 
     const distributor = await this.prisma.distributor.findUnique({

@@ -422,6 +422,13 @@ export class DistributorsService {
       orderBy: {
         createdAt: 'desc',
       },
+      include: {
+        distributorCredits: {
+          where: {
+            isActive: true,
+          },
+        },
+      },
       skip,
       take: limit,
     });
