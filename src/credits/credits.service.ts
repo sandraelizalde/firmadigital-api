@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCreditDto } from './dto/create-credit.dto';
 import { Cron } from '@nestjs/schedule';
@@ -265,6 +270,29 @@ export class CreditsService {
     return !credit.isBlocked;
   }
 
+  async canEmitSignatureRest(distributorId: string): Promise<{
+    canEmit: boolean;
+    reason?: string;
+    hasCredit?: boolean;
+    isBlocked?: boolean;
+  }> {
+    const credit = await this.prisma.distributorCredit.findFirst({
+      where: {
+        distributorId,
+      },
+    });
+    // Si tiene un credito bloqueado no puede emitir firmas
+    if (credit && credit.isBlocked) {
+      return {
+        canEmit: false,
+        hasCredit: credit.isActive,
+        isBlocked: credit.isBlocked,
+        reason: 'El crédito está bloqueado por falta de pago',
+      };
+    }
+    return { canEmit: true };
+  }
+
   /**
    * Obtener el estado del crédito (si existe)
    * Retorna null si no tiene crédito activo
@@ -331,16 +359,10 @@ export class CreditsService {
     const [month, day, year] = ecuadorDateString.split('/');
     const cutoffDate = new Date(`${year}-${month}-${day}T23:59:59.999-05:00`);
 
-    // Calcular fecha de pago (cutoffDate + creditDays) al final del día en Ecuador
-    const paymentDay = new Date(cutoffDate);
-    paymentDay.setDate(paymentDay.getDate() + credit.creditDays);
-
-    // Formatear la fecha y construir con timezone Ecuador
-    const paymentYear = paymentDay.getFullYear();
-    const paymentMonth = String(paymentDay.getMonth() + 1).padStart(2, '0');
-    const paymentDate = String(paymentDay.getDate()).padStart(2, '0');
+    // Calcular fecha de pago añadiendo días en milisegundos (evita problemas de zona horaria
+    // al usar `setDate` sobre objetos Date con offsets)
     const paymentDueDate = new Date(
-      `${paymentYear}-${paymentMonth}-${paymentDate}T23:59:59.999-05:00`,
+      cutoffDate.getTime() + credit.creditDays * 24 * 60 * 60 * 1000,
     );
 
     // Buscar si ya existe el corte del día para este crédito
@@ -902,7 +924,6 @@ export class CreditsService {
       const creditsToUnblock = await this.prisma.distributorCredit.findMany({
         where: {
           distributorId,
-          isActive: true,
           isBlocked: true,
         },
       });
