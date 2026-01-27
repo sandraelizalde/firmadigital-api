@@ -7,12 +7,13 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCreditDto } from './dto/create-credit.dto';
 import { Cron } from '@nestjs/schedule';
+import axios from 'axios';
 
 @Injectable()
 export class CreditsService {
   private readonly logger = new Logger(CreditsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async createCredit(createCreditDto: CreateCreditDto, adminName: string) {
     const { distributorId, creditDays } = createCreditDto;
@@ -698,6 +699,150 @@ export class CreditsService {
       );
     } catch (error) {
       this.logger.error(`Error en el cron de cobros: ${error.message}`);
+    }
+  }
+
+  /**
+   * Cron que se ejecuta diariamente a las 12:00 PM (Hora Ecuador)
+   * Notifica por WhatsApp a los distribuidores con créditos vencidos impagos
+   */
+  @Cron('0 12 * * *', {
+    timeZone: 'America/Guayaquil',
+  })
+  async notifyOverdueCredits() {
+    this.logger.log('Iniciando proceso de notificación de créditos vencidos...');
+    const now = new Date();
+
+    try {
+      // Buscar todos los cortes NO pagados que ya vencieron
+      const overdueCutoffs = await this.prisma.creditCutoff.findMany({
+        where: {
+          isPaid: false,
+          paymentDueDate: {
+            lt: now,
+          },
+        },
+        include: {
+          distributor: true,
+        },
+      });
+
+      if (overdueCutoffs.length === 0) {
+        this.logger.log('No se encontraron créditos vencidos para notificar.');
+        return;
+      }
+
+      const distributorDebts = new Map<
+        string,
+        {
+          distributor: any;
+          totalOwed: number;
+        }
+      >();
+
+      for (const cutoff of overdueCutoffs) {
+        const debt = cutoff.amountUsed - cutoff.amountPaid;
+        if (debt <= 0) continue;
+
+        const distributorId = cutoff.distributor.id;
+
+        if (!distributorDebts.has(distributorId)) {
+          distributorDebts.set(distributorId, {
+            distributor: cutoff.distributor,
+            totalOwed: 0,
+          });
+        }
+
+        const current = distributorDebts.get(distributorId)!;
+        current.totalOwed += debt;
+      }
+
+      this.logger.log(
+        `Se notificará a ${distributorDebts.size} distribuidores con deudas vencidas.`,
+      );
+
+      // Enviar notificaciones
+      for (const [distributorId, data] of distributorDebts) {
+        const { distributor, totalOwed } = data;
+
+        let phone = distributor.phone?.trim();
+        if (!phone) {
+          this.logger.warn(`Distribuidor ${distributor.email} no tiene teléfono registrado. Omiter notificación.`);
+          continue;
+        }
+
+        // Limpiar caracteres no numéricos
+        phone = phone.replace(/\D/g, '');
+
+        // Lógica para Ecuador: Si empieza con 0 y tiene 10 dígitos (ej: 09.., 06.., 07..) -> reemplazar 0 por 593
+        if (phone.length === 10 && phone.startsWith('0')) {
+          phone = '593' + phone.substring(1);
+        }
+
+        const name = distributor.firstName || distributor.socialReason || 'Distribuidor';
+        const amountFormatted = (totalOwed / 100).toFixed(2);
+
+        try {
+          await this.sendWhatsAppNotification(phone, name, amountFormatted);
+          this.logger.log(`Notificación enviada a ${name} (${phone}) por deuda de $${amountFormatted}`);
+        } catch (error) {
+          this.logger.error(`Error enviando WhatsApp a ${distributor.email}: ${error.message}`);
+        }
+      }
+
+    } catch (error) {
+      this.logger.error(`Error en cron notifyOverdueCredits: ${error.message}`);
+    }
+  }
+
+  private async sendWhatsAppNotification(phone: string, name: string, amount: string) {
+    const token = process.env.WHATSAPP_API_TOKEN;
+    const phoneId = process.env.WHATSAPP_PHONE_ID;
+
+    if (!token || !phoneId) {
+      throw new Error('Faltan configuraciones de WhatsApp en variables de entorno (WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID)');
+    }
+
+    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+
+    const data = {
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'template',
+      template: {
+        name: 'deuda_distribuidor',
+        language: {
+          code: 'es_EC'
+        },
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              {
+                type: 'text',
+                text: name
+              },
+              {
+                type: 'text',
+                text: amount
+              }
+            ]
+          }
+        ]
+      }
+    };
+
+    try {
+      await axios.post(url, data, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (error) {
+      // Mejorar el logging del error de axios
+      const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
+      throw new Error(errorMsg);
     }
   }
 
