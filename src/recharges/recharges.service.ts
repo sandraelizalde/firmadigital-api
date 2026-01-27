@@ -277,8 +277,8 @@ export class RechargesService {
       },
     });
 
-    // Notificar a los users
-    this.notifyUserPhone()
+    // Notificar a los users (enviar nombre del solicitante y monto a la plantilla)
+    this.notifyUserPhone(recharge.distributor, recharge.requestedAmount)
       .then((data) => {
         this.logger.log(
           `Notificación enviada a users: ${JSON.stringify(data)}`,
@@ -1058,7 +1058,14 @@ export class RechargesService {
     }
   }
 
-  private async notifyUserPhone() {
+  private async notifyUserPhone(requester?: any, amount?: number) {
+    // Ejecutar solo en production
+    if (process.env.ENVIRONMENT !== 'production') {
+      this.logger.log(
+        'notifyUserPhone: omitido porque ENVIRONMENT !== production',
+      );
+      return [];
+    }
     const { data } = await this.http.axiosRef.get(
       `${process.env.NEXUS_API_URL}/users/phones/active`,
       {
@@ -1078,6 +1085,21 @@ export class RechargesService {
       status: 'sent' | 'skipped' | 'error';
       error?: string;
     }> = [];
+
+    const requesterName = (() => {
+      if (!requester) return 'Solicitante';
+      const first = (requester.firstName || '').toString().trim();
+      const last = (requester.lastName || '').toString().trim();
+      const social = (requester.socialReason || '').toString().trim();
+
+      if (first && last) return `${first} ${last}`.trim();
+      if (first) return first;
+      if (social) return social;
+      return 'Solicitante';
+    })();
+
+    const amountFormatted =
+      typeof amount === 'number' ? (amount / 100).toFixed(2) : null;
 
     for (const u of data) {
       try {
@@ -1099,7 +1121,10 @@ export class RechargesService {
 
         const name = u.firstName || u.lastName || 'Asesor Nexus';
 
-        await this.sendWhatsAppTemplate(phone, [name]);
+        const templateParams = [name, requesterName];
+        if (amountFormatted !== null) templateParams.push(amountFormatted);
+
+        await this.sendWhatsAppTemplate(phone, templateParams);
         results.push({ phone, status: 'sent' });
       } catch (error) {
         const msg = error?.message || String(error);
