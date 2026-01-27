@@ -14,6 +14,7 @@ import { ManualRechargeDto } from './dto/manual-recharge.dto';
 import { ReviewRechargeDto } from './dto/review-recharge.dto';
 import { InitCardRechargeDto } from './dto/init-card-recharge.dto';
 import { PayphoneConfirmationDto } from './dto/payphone-confirmation.dto';
+import { HttpService } from '@nestjs/axios';
 
 @Injectable()
 export class RechargesService {
@@ -24,6 +25,7 @@ export class RechargesService {
     private filesService: FilesService,
     private payphoneService: PayphoneService,
     private creditsService: CreditsService,
+    private readonly http: HttpService,
   ) {}
 
   /**
@@ -274,6 +276,17 @@ export class RechargesService {
         },
       },
     });
+
+    // Notificar a los users
+    this.notifyUserPhone()
+      .then((data) => {
+        this.logger.log(
+          `Notificación enviada a users: ${JSON.stringify(data)}`,
+        );
+      })
+      .catch((error) => {
+        this.logger.error(`Error al notificar a users: ${error.message}`);
+      });
 
     return recharge;
   }
@@ -1042,6 +1055,106 @@ export class RechargesService {
       }
 
       throw error;
+    }
+  }
+
+  private async notifyUserPhone() {
+    const { data } = await this.http.axiosRef.get(
+      `${process.env.NEXUS_API_URL}/users/phones/active`,
+      {
+        headers: {
+          'internal-api-key': process.env.INTERNAL_API_KEY,
+        },
+      },
+    );
+
+    if (!Array.isArray(data) || data.length === 0) {
+      this.logger.log('notifyUserPhone: no active users to notify');
+      return [];
+    }
+
+    const results: Array<{
+      phone: string;
+      status: 'sent' | 'skipped' | 'error';
+      error?: string;
+    }> = [];
+
+    for (const u of data) {
+      try {
+        let phone = (u.phoneNumber || u.phone || '').toString().trim();
+        if (!phone) {
+          this.logger.warn(
+            `User ${u.id || u.email || 'unknown'} has no phone, skipping`,
+          );
+          results.push({ phone: '', status: 'skipped' });
+          continue;
+        }
+
+        // Limpiar caracteres no numéricos
+        phone = phone.replace(/\D/g, '');
+
+        if (phone.length === 10 && phone.startsWith('0')) {
+          phone = '593' + phone.substring(1);
+        }
+
+        const name = u.firstName || u.lastName || 'Asesor Nexus';
+
+        await this.sendWhatsAppTemplate(phone, [name]);
+        results.push({ phone, status: 'sent' });
+      } catch (error) {
+        const msg = error?.message || String(error);
+        this.logger.error(
+          `Error enviando notificación a user ${u.id || u.email || 'unknown'}: ${msg}`,
+        );
+        results.push({ phone: u.phone || '', status: 'error', error: msg });
+      }
+    }
+
+    return results;
+  }
+
+  private async sendWhatsAppTemplate(phone: string, params: string[]) {
+    const token = process.env.WHATSAPP_API_TOKEN;
+    const phoneId = process.env.WHATSAPP_PHONE_ID;
+
+    if (!token || !phoneId) {
+      throw new Error(
+        'Faltan configuraciones de WhatsApp en variables de entorno (WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID)',
+      );
+    }
+
+    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+
+    const templateParams = params.map((p) => ({ type: 'text', text: p }));
+
+    const data = {
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'template',
+      template: {
+        name: 'new_recharge',
+        language: { code: 'es_EC' },
+        components: [
+          {
+            type: 'body',
+            parameters: templateParams,
+          },
+        ],
+      },
+    };
+
+    try {
+      await this.http.axiosRef.post(url, data, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      const errorMsg = error.response
+        ? JSON.stringify(error.response.data)
+        : error.message;
+      throw new Error(errorMsg);
     }
   }
 }
