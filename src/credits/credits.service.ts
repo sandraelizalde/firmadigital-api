@@ -7,13 +7,16 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCreditDto } from './dto/create-credit.dto';
 import { Cron } from '@nestjs/schedule';
-import axios from 'axios';
+import { WhatsappService } from '../notifications/whatsapp.service';
 
 @Injectable()
 export class CreditsService {
   private readonly logger = new Logger(CreditsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly whatsappService: WhatsappService,
+  ) { }
 
   async createCredit(createCreditDto: CreateCreditDto, adminName: string) {
     const { distributorId, creditDays } = createCreditDto;
@@ -775,30 +778,19 @@ export class CreditsService {
       for (const [distributorId, data] of distributorDebts) {
         const { distributor, totalOwed } = data;
 
-        let phone = distributor.phone?.trim();
-        if (!phone) {
-          this.logger.warn(
-            `Distribuidor ${distributor.email} no tiene teléfono registrado. Omiter notificación.`,
-          );
-          continue;
-        }
-
-        // Limpiar caracteres no numéricos
-        phone = phone.replace(/\D/g, '');
-
-        // Lógica para Ecuador: Si empieza con 0 y tiene 10 dígitos (ej: 09.., 06.., 07..) -> reemplazar 0 por 593
-        if (phone.length === 10 && phone.startsWith('0')) {
-          phone = '593' + phone.substring(1);
-        }
-
         const name =
           distributor.firstName || distributor.socialReason || 'Distribuidor';
         const amountFormatted = (totalOwed / 100).toFixed(2);
 
         try {
-          await this.sendWhatsAppNotification(phone, name, amountFormatted);
+          await this.whatsappService.sendTemplate(
+            distributor.phone, // El servicio formatea
+            'deuda_distribuidor',
+            [name, amountFormatted],
+          );
+
           this.logger.log(
-            `Notificación enviada a ${name} (${phone}) por deuda de $${amountFormatted}`,
+            `Notificación enviada a ${name} (${distributor.phone}) por deuda de $${amountFormatted}`,
           );
         } catch (error) {
           this.logger.error(
@@ -808,65 +800,6 @@ export class CreditsService {
       }
     } catch (error) {
       this.logger.error(`Error en cron notifyOverdueCredits: ${error.message}`);
-    }
-  }
-
-  private async sendWhatsAppNotification(
-    phone: string,
-    name: string,
-    amount: string,
-  ) {
-    const token = process.env.WHATSAPP_API_TOKEN;
-    const phoneId = process.env.WHATSAPP_PHONE_ID;
-
-    if (!token || !phoneId) {
-      throw new Error(
-        'Faltan configuraciones de WhatsApp en variables de entorno (WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID)',
-      );
-    }
-
-    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
-
-    const data = {
-      messaging_product: 'whatsapp',
-      to: phone,
-      type: 'template',
-      template: {
-        name: 'deuda_distribuidor',
-        language: {
-          code: 'es_EC',
-        },
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              {
-                type: 'text',
-                text: name,
-              },
-              {
-                type: 'text',
-                text: amount,
-              },
-            ],
-          },
-        ],
-      },
-    };
-
-    try {
-      await axios.post(url, data, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-    } catch (error) {
-      // Mejorar el logging del error de axios
-      const errorMsg = error.response
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(errorMsg);
     }
   }
 
