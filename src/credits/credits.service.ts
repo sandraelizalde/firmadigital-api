@@ -13,7 +13,7 @@ import axios from 'axios';
 export class CreditsService {
   private readonly logger = new Logger(CreditsService.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async createCredit(createCreditDto: CreateCreditDto, adminName: string) {
     const { distributorId, creditDays } = createCreditDto;
@@ -710,7 +710,17 @@ export class CreditsService {
     timeZone: 'America/Guayaquil',
   })
   async notifyOverdueCredits() {
-    this.logger.log('Iniciando proceso de notificación de créditos vencidos...');
+    // Solo ejecutar notificaciones en production
+    if (process.env.ENVIRONMENT !== 'production') {
+      this.logger.log(
+        'notifyOverdueCredits: omitido porque ENVIRONMENT !== production',
+      );
+      return;
+    }
+
+    this.logger.log(
+      'Iniciando proceso de notificación de créditos vencidos...',
+    );
     const now = new Date();
 
     try {
@@ -767,7 +777,9 @@ export class CreditsService {
 
         let phone = distributor.phone?.trim();
         if (!phone) {
-          this.logger.warn(`Distribuidor ${distributor.email} no tiene teléfono registrado. Omiter notificación.`);
+          this.logger.warn(
+            `Distribuidor ${distributor.email} no tiene teléfono registrado. Omiter notificación.`,
+          );
           continue;
         }
 
@@ -779,28 +791,38 @@ export class CreditsService {
           phone = '593' + phone.substring(1);
         }
 
-        const name = distributor.firstName || distributor.socialReason || 'Distribuidor';
+        const name =
+          distributor.firstName || distributor.socialReason || 'Distribuidor';
         const amountFormatted = (totalOwed / 100).toFixed(2);
 
         try {
           await this.sendWhatsAppNotification(phone, name, amountFormatted);
-          this.logger.log(`Notificación enviada a ${name} (${phone}) por deuda de $${amountFormatted}`);
+          this.logger.log(
+            `Notificación enviada a ${name} (${phone}) por deuda de $${amountFormatted}`,
+          );
         } catch (error) {
-          this.logger.error(`Error enviando WhatsApp a ${distributor.email}: ${error.message}`);
+          this.logger.error(
+            `Error enviando WhatsApp a ${distributor.email}: ${error.message}`,
+          );
         }
       }
-
     } catch (error) {
       this.logger.error(`Error en cron notifyOverdueCredits: ${error.message}`);
     }
   }
 
-  private async sendWhatsAppNotification(phone: string, name: string, amount: string) {
+  private async sendWhatsAppNotification(
+    phone: string,
+    name: string,
+    amount: string,
+  ) {
     const token = process.env.WHATSAPP_API_TOKEN;
     const phoneId = process.env.WHATSAPP_PHONE_ID;
 
     if (!token || !phoneId) {
-      throw new Error('Faltan configuraciones de WhatsApp en variables de entorno (WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID)');
+      throw new Error(
+        'Faltan configuraciones de WhatsApp en variables de entorno (WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID)',
+      );
     }
 
     const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
@@ -812,7 +834,7 @@ export class CreditsService {
       template: {
         name: 'deuda_distribuidor',
         language: {
-          code: 'es_EC'
+          code: 'es_EC',
         },
         components: [
           {
@@ -820,28 +842,30 @@ export class CreditsService {
             parameters: [
               {
                 type: 'text',
-                text: name
+                text: name,
               },
               {
                 type: 'text',
-                text: amount
-              }
-            ]
-          }
-        ]
-      }
+                text: amount,
+              },
+            ],
+          },
+        ],
+      },
     };
 
     try {
       await axios.post(url, data, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
       });
     } catch (error) {
       // Mejorar el logging del error de axios
-      const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
+      const errorMsg = error.response
+        ? JSON.stringify(error.response.data)
+        : error.message;
       throw new Error(errorMsg);
     }
   }
