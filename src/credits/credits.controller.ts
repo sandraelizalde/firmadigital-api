@@ -32,7 +32,7 @@ import { Public } from 'src/auth/decorators/public.decorator';
 @Controller('credits')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CreditsController {
-  constructor(private readonly creditsService: CreditsService) { }
+  constructor(private readonly creditsService: CreditsService) {}
 
   /**
    * Crear un nuevo crédito para un distribuidor
@@ -364,22 +364,7 @@ export class CreditsController {
     description: 'No autorizado',
   })
   async canEmitSignature(@Param('distributorId') distributorId: string) {
-    const canEmit = await this.creditsService.canEmitSignature(distributorId);
-
-    const credit = await this.creditsService[
-      'prisma'
-    ].distributorCredit.findFirst({
-      where: {
-        distributorId,
-        isActive: true,
-      },
-    });
-
-    return {
-      canEmit,
-      hasCredit: !!credit,
-      isBlocked: credit?.isBlocked || false,
-    };
+    return await this.creditsService.canEmitSignatureRest(distributorId);
   }
 
   /**
@@ -508,7 +493,9 @@ export class CreditsController {
   @Post('test/trigger-check-overdue')
   @Public()
   @ApiBearerAuth()
-  @ApiOperation({ summary: '[TEST] Disparar manualmente verificación de bloqueos' })
+  @ApiOperation({
+    summary: '[TEST] Disparar manualmente verificación de bloqueos',
+  })
   async triggerCheckOverdue() {
     await this.creditsService.checkOverdueCutoffs();
     return { message: 'Verificación de vencidos ejecutada manualmente' };
