@@ -32,12 +32,17 @@ import { Public } from 'src/auth/decorators/public.decorator';
 @Controller('credits')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CreditsController {
-  constructor(private readonly creditsService: CreditsService) {}
+  constructor(private readonly creditsService: CreditsService) { }
 
   /**
    * Crear un nuevo crédito para un distribuidor
    * Solo accesible para administradores
    */
+  @Post('test-whatsapp-cron')
+  async testWhatsAppCron() {
+    return this.creditsService.notifyOverdueCredits();
+  }
+
   @Post()
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
