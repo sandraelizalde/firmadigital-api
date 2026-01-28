@@ -6,9 +6,10 @@ import { FilesModule } from '../files/files.module';
 import { CreditsModule } from '../credits/credits.module';
 import { PayphoneService } from './payphone.service';
 import { HttpModule } from '@nestjs/axios';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [PrismaModule, FilesModule, CreditsModule, HttpModule],
+  imports: [PrismaModule, FilesModule, CreditsModule, HttpModule, NotificationsModule],
   controllers: [RechargesController],
   providers: [RechargesService, PayphoneService],
   exports: [RechargesService],
