@@ -234,6 +234,7 @@ export class RechargesService {
           distributor.phone,
           'recharge_successful',
           [name, rechargeAmount, newBalance],
+          'es',
         );
       } catch (error) {
         this.logger.error(`Error enviando notificación de recarga aprobada: ${error.message}`);
@@ -635,6 +636,7 @@ export class RechargesService {
           distributor.phone,
           'recharge_successful',
           [name, rechargeAmount, newBalance],
+          'es',
         );
       } catch (error) {
         this.logger.error(`Error enviando notificación de recarga aprobada (review): ${error.message}`);
@@ -742,6 +744,7 @@ export class RechargesService {
           distributor.phone,
           'recharge_successful',
           [name, rechargeAmount, newBalance],
+          'es',
         );
       } catch (error) {
         this.logger.error(`Error enviando notificación de recarga manual: ${error.message}`);

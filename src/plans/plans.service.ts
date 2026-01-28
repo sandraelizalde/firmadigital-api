@@ -12,6 +12,7 @@ import { UpdatePlansToDistributorDto } from './dto/update-plans-to-distributor.d
 import { CreatePromotionsDto } from './dto/create-promotions.dto';
 import { TypeClient } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
+import { WhatsappService } from 'src/notifications/whatsapp.service';
 
 @Injectable()
 export class PlansService {
@@ -20,7 +21,8 @@ export class PlansService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
-  ) {}
+    private readonly whatsappService: WhatsappService,
+  ) { }
 
   // Listar todos los planes disponibles
   async getAllPlans() {
@@ -660,7 +662,6 @@ export class PlansService {
 
   /**
    * Crear promociones para múltiples distribuidores
-   * Optimizado con updateMany agrupando por precio
    */
   async createPromotionsForDistributors(data: CreatePromotionsDto) {
     const { duration, durationType, distributors } = data;
@@ -699,6 +700,14 @@ export class PlansService {
       );
     }
 
+    // Notificar por WhatsApp de forma asíncrona
+    const distributorIds = distributors.map((d) => d.distributorId);
+    this.notifyDistributorsOfPromotion(distributorIds).catch((err) =>
+      this.logger.error(
+        `Error in promotion background notifications: ${err.message}`,
+      ),
+    );
+
     return {
       success: true,
       message: `Promociones creadas exitosamente para ${distributors.length} distribuidores`,
@@ -707,4 +716,43 @@ export class PlansService {
       priceGroupsProcessed: priceGroups.size,
     };
   }
+
+  private async notifyDistributorsOfPromotion(distributorIds: string[]) {
+    const uniqueDistributorIds = [...new Set(distributorIds)];
+
+    const distributorsInfo = await this.prisma.distributor.findMany({
+      where: {
+        id: { in: uniqueDistributorIds },
+        active: true,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        socialReason: true,
+        phone: true,
+      },
+    });
+
+    for (const dist of distributorsInfo) {
+      if (!dist.phone) continue;
+
+      const name =
+        dist.firstName || dist.lastName || dist.socialReason || 'Distribuidor';
+
+      try {
+        await this.whatsappService.sendTemplate(
+          dist.phone,
+          'promotion_distributor',
+          [name],
+          'en_US',
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error enviando notificación de promoción al distribuidor ${dist.id}: ${error.message}`,
+        );
+      }
+    }
+  }
+
 }

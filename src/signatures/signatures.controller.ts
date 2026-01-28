@@ -593,7 +593,6 @@ export class SignaturesController {
   async annulSignatureRequest(@Request() req, @Body() dto: AnnulSignatureDto) {
     return this.signaturesService.annulSignatureRequest(
       dto.signatureId,
-      req.user.userId,
       req.user.firstName + ' ' + req.user.lastName,
       dto.generateRefund,
       dto.note

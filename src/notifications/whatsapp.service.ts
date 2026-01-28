@@ -21,6 +21,11 @@ export class WhatsappService {
         params: string[],
         languageCode: string = 'es_EC',
     ): Promise<void> {
+        if (process.env.ENVIRONMENT !== 'production') {
+            this.logger.warn(`WhatsApp no enviado: Entorno no es producción (${process.env.ENVIRONMENT})`);
+            return;
+        }
+
         const formattedPhone = this.formatPhone(phone);
         if (!formattedPhone) {
             this.logger.warn(`Número de teléfono inválido o vacío: ${phone}`);
@@ -31,9 +36,10 @@ export class WhatsappService {
         const phoneId = process.env.WHATSAPP_PHONE_ID;
 
         if (!token || !phoneId) {
-            throw new Error(
-                'Faltan configuraciones de WhatsApp en variables de entorno (WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID)',
+            this.logger.warn(
+                'WhatsApp no enviado: Faltan configuraciones (WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID)',
             );
+            return;
         }
 
         const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;

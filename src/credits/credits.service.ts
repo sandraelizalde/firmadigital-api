@@ -787,6 +787,7 @@ export class CreditsService {
             distributor.phone, // El servicio formatea
             'deuda_distribuidor',
             [name, amountFormatted],
+            'es_EC',
           );
 
           this.logger.log(
