@@ -18,6 +18,7 @@ import { MailModule } from './mail/mail.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CreditsModule } from './credits/credits.module';
 import { QueuesModule } from './queues/queues.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { QueuesModule } from './queues/queues.module';
     MailModule,
     CreditsModule,
     QueuesModule,
+    NotificationsModule
   ],
   controllers: [AppController],
   providers: [

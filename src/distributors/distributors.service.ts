@@ -14,6 +14,7 @@ import { UploadContractDto } from './dto/upload-contract.dto';
 import { AuthService } from 'src/auth/auth.service';
 import { MailService } from 'src/mail/mail.service';
 import { CreditsService } from 'src/credits/credits.service';
+import { WhatsappService } from '../notifications/whatsapp.service';
 
 @Injectable()
 export class DistributorsService {
@@ -25,7 +26,8 @@ export class DistributorsService {
     private readonly authService: AuthService,
     private readonly mailService: MailService,
     private readonly creditsService: CreditsService,
-  ) {}
+    private readonly whatsappService: WhatsappService,
+  ) { }
 
   // Buscar distribuidores por nombre para combobox
   async searchDistributors(name: string) {
@@ -362,9 +364,25 @@ export class DistributorsService {
           distributor.identification,
           decryptedPassword,
         );
+
+
       } catch (emailError) {
         // Si falla el envío del email, registrar el error pero no fallar la operación
-        console.error('Error al enviar email de bienvenida:', emailError);
+        this.logger.error('Error al enviar email de bienvenida:', emailError);
+      }
+
+      // Enviar WhatsApp de bienvenida
+      try {
+        await this.whatsappService.sendTemplate(
+          distributor.phone,
+          'welcome_distributor',
+          [distributor.firstName || distributorName],
+          'es_EC',
+        );
+      } catch (whatsappError) {
+        this.logger.error(
+          `Error enviando WhatsApp de bienvenida: ${whatsappError.message}`,
+        );
       }
 
       return {
@@ -557,7 +575,7 @@ export class DistributorsService {
           amount: creditSummary.totalOwed,
           date:
             creditSummary.unpaidCutoffs &&
-            creditSummary.unpaidCutoffs.length > 0
+              creditSummary.unpaidCutoffs.length > 0
               ? creditSummary.unpaidCutoffs[0].paymentDueDate
               : null,
           canEmit: false,

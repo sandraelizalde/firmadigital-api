@@ -15,6 +15,7 @@ import { ReviewRechargeDto } from './dto/review-recharge.dto';
 import { InitCardRechargeDto } from './dto/init-card-recharge.dto';
 import { PayphoneConfirmationDto } from './dto/payphone-confirmation.dto';
 import { HttpService } from '@nestjs/axios';
+import { WhatsappService } from '../notifications/whatsapp.service';
 
 @Injectable()
 export class RechargesService {
@@ -26,7 +27,8 @@ export class RechargesService {
     private payphoneService: PayphoneService,
     private creditsService: CreditsService,
     private readonly http: HttpService,
-  ) {}
+    private readonly whatsappService: WhatsappService,
+  ) { }
 
   /**
    * Iniciar recarga con tarjeta (Payphone)
@@ -182,6 +184,7 @@ export class RechargesService {
               lastName: true,
               email: true,
               balance: true,
+              phone: true,
             },
           },
           accountMovements: true,
@@ -202,6 +205,7 @@ export class RechargesService {
 
     // Intentar cobrar créditos vencidos si se aprobó el pago
     if (status === RechargeStatus.APPROVED) {
+      // 1. Cobro de deudas (existente)
       try {
         const creditResult =
           await this.creditsService.attemptCollectOverdueCredits(
@@ -216,6 +220,24 @@ export class RechargesService {
           `Error en cobro automático de créditos (Payphone): ${error.message}`,
         );
         // No lanzar error para no afectar la confirmación del pago
+      }
+
+      // 2. Notificación de WhatsApp
+      try {
+        const distributor = result.recharge.distributor;
+        const name =
+          distributor.firstName || distributor.lastName || 'Distribuidor';
+        const rechargeAmount = ((result.recharge.creditedAmount || 0) / 100).toFixed(2);
+        const newBalance = (distributor.balance / 100).toFixed(2);
+
+        await this.whatsappService.sendTemplate(
+          distributor.phone,
+          'recharge_successful',
+          [name, rechargeAmount, newBalance],
+          'es',
+        );
+      } catch (error) {
+        this.logger.error(`Error enviando notificación de recarga aprobada: ${error.message}`);
       }
     }
 
@@ -371,9 +393,9 @@ export class RechargesService {
       ...recharge,
       receiptFile: recharge.receiptFile
         ? await this.filesService.getFile(
-            recharge.receiptFile,
-            'vouchers-nexus',
-          )
+          recharge.receiptFile,
+          'vouchers-nexus',
+        )
         : null,
     };
   }
@@ -490,9 +512,9 @@ export class RechargesService {
       ...recharge,
       receiptFileUrl: recharge.receiptFile
         ? await this.filesService.getFileUrl(
-            recharge.receiptFile,
-            'vouchers-nexus',
-          )
+          recharge.receiptFile,
+          'vouchers-nexus',
+        )
         : null,
     };
   }
@@ -575,6 +597,7 @@ export class RechargesService {
               lastName: true,
               email: true,
               balance: true,
+              phone: true,
             },
           },
           accountMovements: true,
@@ -600,6 +623,23 @@ export class RechargesService {
           `Error en cobro automático de créditos: ${error.message}`,
         );
         // No lanzar error para no afectar la aprobación de la recarga
+      }
+
+      // Notificación WhatsApp
+      try {
+        const distributor = updatedRecharge.distributor;
+        const name = distributor.firstName || distributor.lastName || 'Distribuidor';
+        const rechargeAmount = ((updatedRecharge.creditedAmount || 0) / 100).toFixed(2);
+        const newBalance = (distributor.balance / 100).toFixed(2);
+
+        await this.whatsappService.sendTemplate(
+          distributor.phone,
+          'recharge_successful',
+          [name, rechargeAmount, newBalance],
+          'es',
+        );
+      } catch (error) {
+        this.logger.error(`Error enviando notificación de recarga aprobada (review): ${error.message}`);
       }
     }
 
@@ -667,6 +707,7 @@ export class RechargesService {
               lastName: true,
               email: true,
               balance: true,
+              phone: true,
             },
           },
           accountMovements: true,
@@ -689,6 +730,25 @@ export class RechargesService {
         `Error en cobro automático de créditos (recarga manual): ${error.message}`,
       );
       // No lanzar error para no afectar la creación de la recarga
+    }
+
+    // Notificación WhatsApp
+    if (result) {
+      try {
+        const distributor = result.distributor;
+        const name = distributor.firstName || distributor.lastName || 'Distribuidor';
+        const rechargeAmount = ((result.creditedAmount || 0) / 100).toFixed(2);
+        const newBalance = (distributor.balance / 100).toFixed(2);
+
+        await this.whatsappService.sendTemplate(
+          distributor.phone,
+          'recharge_successful',
+          [name, rechargeAmount, newBalance],
+          'es',
+        );
+      } catch (error) {
+        this.logger.error(`Error enviando notificación de recarga manual: ${error.message}`);
+      }
     }
 
     return result;
@@ -1124,8 +1184,13 @@ export class RechargesService {
         const templateParams = [name, requesterName];
         if (amountFormatted !== null) templateParams.push(amountFormatted);
 
-        await this.sendWhatsAppTemplate(phone, templateParams);
-        results.push({ phone, status: 'sent' });
+        await this.whatsappService.sendTemplate(
+          u.phoneNumber || u.phone,
+          'new_recharge',
+          templateParams,
+          'es_EC'
+        );
+        results.push({ phone: u.phoneNumber || u.phone, status: 'sent' });
       } catch (error) {
         const msg = error?.message || String(error);
         this.logger.error(
@@ -1136,50 +1201,5 @@ export class RechargesService {
     }
 
     return results;
-  }
-
-  private async sendWhatsAppTemplate(phone: string, params: string[]) {
-    const token = process.env.WHATSAPP_API_TOKEN;
-    const phoneId = process.env.WHATSAPP_PHONE_ID;
-
-    if (!token || !phoneId) {
-      throw new Error(
-        'Faltan configuraciones de WhatsApp en variables de entorno (WHATSAPP_API_TOKEN, WHATSAPP_PHONE_ID)',
-      );
-    }
-
-    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
-
-    const templateParams = params.map((p) => ({ type: 'text', text: p }));
-
-    const data = {
-      messaging_product: 'whatsapp',
-      to: phone,
-      type: 'template',
-      template: {
-        name: 'new_recharge',
-        language: { code: 'es_EC' },
-        components: [
-          {
-            type: 'body',
-            parameters: templateParams,
-          },
-        ],
-      },
-    };
-
-    try {
-      await this.http.axiosRef.post(url, data, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-    } catch (error) {
-      const errorMsg = error.response
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(errorMsg);
-    }
   }
 }

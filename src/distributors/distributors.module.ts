@@ -6,11 +6,12 @@ import { FilesModule } from 'src/files/files.module';
 import { AuthModule } from 'src/auth/auth.module';
 import { MailModule } from 'src/mail/mail.module';
 import { CreditsModule } from 'src/credits/credits.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [PrismaModule, FilesModule, AuthModule, MailModule, CreditsModule],
+  imports: [PrismaModule, FilesModule, AuthModule, MailModule, CreditsModule, NotificationsModule],
   controllers: [DistributorsController],
   providers: [DistributorsService],
   exports: [DistributorsService],
 })
-export class DistributorsModule {}
+export class DistributorsModule { }

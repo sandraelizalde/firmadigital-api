@@ -6,6 +6,7 @@ import { SignaturesService } from './signatures.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { FilesModule } from 'src/files/files.module';
 import { CreditsModule } from 'src/credits/credits.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 import { MulterModule } from '@nestjs/platform-express';
 
@@ -21,6 +22,7 @@ import { MulterModule } from '@nestjs/platform-express';
         fieldSize: 600 * 1024 * 1024,
       },
     }),
+    NotificationsModule,
   ],
   controllers: [SignaturesController],
   providers: [SignaturesService],

@@ -13,6 +13,7 @@ import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
 import { SignatureStatus, MovementType, PaymentMethod } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
+import { WhatsappService } from 'src/notifications/whatsapp.service';
 import { CreditsService } from 'src/credits/credits.service';
 import {
   SignatureListItemDto,
@@ -54,6 +55,7 @@ export class SignaturesService {
     private readonly httpService: HttpService,
     private readonly filesService: FilesService,
     private readonly creditsService: CreditsService,
+    private readonly whatsappService: WhatsappService,
   ) {
     this.signProviderBaseUrlNatural = this.configService.get<string>(
       'SIGN_PROVIDER_BASE_URL_NATURAL',
@@ -1295,7 +1297,6 @@ export class SignaturesService {
    */
   async annulSignatureRequest(
     signatureId: string,
-    adminId: string,
     adminName: string,
     generateRefund: boolean,
     note?: string,
@@ -1456,6 +1457,28 @@ export class SignaturesService {
       }
     } else {
       message += ' sin generar reembolso.';
+    }
+
+
+
+    // Notificación WhatsApp
+    try {
+      if (signatureRequest.distributor && signatureRequest.distributor.phone) {
+        const distName = signatureRequest.distributor.firstName || 'Distribuidor';
+        const clientName = signatureRequest.perfil_firma.startsWith('PJ-') ? `${signatureRequest.razon_social}` : `${signatureRequest.nombres} ${signatureRequest.apellidos}` || 'Cliente';
+        const reason = note || 'Anulada por administrador';
+
+        await this.whatsappService.sendTemplate(
+          signatureRequest.distributor.phone,
+          'firmarechazada_pj',
+          [distName, clientName, reason],
+          'en',
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error enviando notificación de anulación de firma: ${error.message}`,
+      );
     }
 
     return {
