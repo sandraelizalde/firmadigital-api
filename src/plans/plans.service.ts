@@ -745,7 +745,7 @@ export class PlansService {
           dist.phone,
           'promotion_distributor',
           [name],
-          'en_US',
+          'en',
         );
       } catch (error) {
         this.logger.error(

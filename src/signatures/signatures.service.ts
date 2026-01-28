@@ -1472,7 +1472,7 @@ export class SignaturesService {
           signatureRequest.distributor.phone,
           'firmarechazada_pj',
           [distName, clientName, reason],
-          'en_US',
+          'en',
         );
       }
     } catch (error) {
