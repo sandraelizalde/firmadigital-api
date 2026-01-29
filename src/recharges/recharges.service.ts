@@ -28,7 +28,7 @@ export class RechargesService {
     private creditsService: CreditsService,
     private readonly http: HttpService,
     private readonly whatsappService: WhatsappService,
-  ) { }
+  ) {}
 
   /**
    * Iniciar recarga con tarjeta (Payphone)
@@ -227,17 +227,17 @@ export class RechargesService {
         const distributor = result.recharge.distributor;
         const name =
           distributor.firstName || distributor.lastName || 'Distribuidor';
-        const rechargeAmount = ((result.recharge.creditedAmount || 0) / 100).toFixed(2);
-        const newBalance = (distributor.balance / 100).toFixed(2);
 
         await this.whatsappService.sendTemplate(
           distributor.phone,
-          'recharge_successful',
-          [name, rechargeAmount, newBalance],
-          'es',
+          'aprobacionrecarga294',
+          [name],
+          'en',
         );
       } catch (error) {
-        this.logger.error(`Error enviando notificación de recarga aprobada: ${error.message}`);
+        this.logger.error(
+          `Error enviando notificación de recarga aprobada: ${error.message}`,
+        );
       }
     }
 
@@ -393,9 +393,9 @@ export class RechargesService {
       ...recharge,
       receiptFile: recharge.receiptFile
         ? await this.filesService.getFile(
-          recharge.receiptFile,
-          'vouchers-nexus',
-        )
+            recharge.receiptFile,
+            'vouchers-nexus',
+          )
         : null,
     };
   }
@@ -512,9 +512,9 @@ export class RechargesService {
       ...recharge,
       receiptFileUrl: recharge.receiptFile
         ? await this.filesService.getFileUrl(
-          recharge.receiptFile,
-          'vouchers-nexus',
-        )
+            recharge.receiptFile,
+            'vouchers-nexus',
+          )
         : null,
     };
   }
@@ -628,18 +628,19 @@ export class RechargesService {
       // Notificación WhatsApp
       try {
         const distributor = updatedRecharge.distributor;
-        const name = distributor.firstName || distributor.lastName || 'Distribuidor';
-        const rechargeAmount = ((updatedRecharge.creditedAmount || 0) / 100).toFixed(2);
-        const newBalance = (distributor.balance / 100).toFixed(2);
-
+        const name =
+          distributor.firstName || distributor.lastName || 'Distribuidor';
+  
         await this.whatsappService.sendTemplate(
           distributor.phone,
-          'recharge_successful',
-          [name, rechargeAmount, newBalance],
-          'es',
+          'aprobacionrecarga294',
+          [name],
+          'en',
         );
       } catch (error) {
-        this.logger.error(`Error enviando notificación de recarga aprobada (review): ${error.message}`);
+        this.logger.error(
+          `Error enviando notificación de recarga aprobada (review): ${error.message}`,
+        );
       }
     }
 
@@ -736,18 +737,19 @@ export class RechargesService {
     if (result) {
       try {
         const distributor = result.distributor;
-        const name = distributor.firstName || distributor.lastName || 'Distribuidor';
-        const rechargeAmount = ((result.creditedAmount || 0) / 100).toFixed(2);
-        const newBalance = (distributor.balance / 100).toFixed(2);
+        const name =
+          distributor.firstName || distributor.lastName || 'Distribuidor';
 
         await this.whatsappService.sendTemplate(
           distributor.phone,
-          'recharge_successful',
-          [name, rechargeAmount, newBalance],
-          'es',
+          'aprobacionrecarga294',
+          [name],
+          'en',
         );
       } catch (error) {
-        this.logger.error(`Error enviando notificación de recarga manual: ${error.message}`);
+        this.logger.error(
+          `Error enviando notificación de recarga manual: ${error.message}`,
+        );
       }
     }
 
@@ -1188,7 +1190,7 @@ export class RechargesService {
           u.phoneNumber || u.phone,
           'new_recharge',
           templateParams,
-          'es_EC'
+          'es_EC',
         );
         results.push({ phone: u.phoneNumber || u.phone, status: 'sent' });
       } catch (error) {
