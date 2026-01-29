@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron } from '@nestjs/schedule';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
@@ -801,6 +802,141 @@ export class SignaturesService {
         return durationValue * 365;
       default:
         return null;
+    }
+  }
+
+  /**
+   * Cron diario (12:00 PM) para notificar firmas próximas a vencer (5 días antes)
+   * Solo para firmas de 1 a 5 años
+   */
+  @Cron('0 12 * * *', {
+    timeZone: 'America/Guayaquil',
+  })
+  async notifyExpiringSignatures() {
+    if (this.environment !== 'production') {
+      this.logger.log(
+        'Notificación de firmas por vencer omitida (Entorno no productivo)',
+      );
+      return;
+    }
+
+    this.logger.log('Iniciando verificación de firmas próximas a vencer...');
+
+    try {
+      const today = new Date();
+      // Fecha de vencimiento objetivo: Hoy + 5 días
+      const targetExpiration = new Date(today);
+      targetExpiration.setDate(today.getDate() + 5);
+
+      const expirationDateStr = targetExpiration.toLocaleDateString('es-EC', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+
+      const yearsToCheck = [1, 2, 3, 4, 5];
+
+      for (const years of yearsToCheck) {
+        const relevantPlans = await this.prisma.plan.findMany({
+          where: {
+            duration: years.toString(),
+            durationType: { in: ['Y', 'YS'] },
+            isActive: true,
+          },
+          select: { perfil: true },
+        });
+
+        if (relevantPlans.length === 0) continue;
+
+        const relevantProfiles = relevantPlans.map((p) => p.perfil);
+
+        const targetUpdatedAt = new Date(targetExpiration);
+        targetUpdatedAt.setFullYear(targetExpiration.getFullYear() - years);
+
+        const startDate = new Date(targetUpdatedAt);
+        startDate.setHours(0, 0, 0, 0);
+
+        const endDate = new Date(targetUpdatedAt);
+        endDate.setHours(23, 59, 59, 999);
+
+        const expiringSignatures = await this.prisma.signatureRequest.findMany({
+          where: {
+            status: SignatureStatus.COMPLETED,
+            activeNotification: true,
+            perfil_firma: { in: relevantProfiles },
+            updatedAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+            distributor: {
+              active: true,
+              phone: { not: '' },
+            },
+          },
+          include: {
+            distributor: {
+              select: {
+                phone: true,
+                firstName: true,
+                lastName: true,
+                socialReason: true,
+              },
+            },
+          },
+        });
+
+        if (expiringSignatures.length > 0) {
+          this.logger.log(
+            `Encontradas ${expiringSignatures.length} firmas de ${years} año(s) que vencen el ${expirationDateStr}`,
+          );
+
+          // 4. Enviar notificaciones
+          for (const signature of expiringSignatures) {
+            await this.sendExpirationNotification(signature, expirationDateStr);
+          }
+        }
+      }
+
+      this.logger.log('Verificación de firmas próximas a vencer completada.');
+    } catch (error) {
+      this.logger.error(
+        `Error en el cron de notificaciones de firma: ${error.message}`,
+        error.stack,
+      );
+    }
+  }
+
+  /**
+   * Envía la notificación de WhatsApp para una firma por vencer
+   */
+  private async sendExpirationNotification(
+    signature: any,
+    expirationDate: string,
+  ) {
+    try {
+      if (!signature.distributor?.phone) return;
+
+      const distributorName =
+        signature.distributor.firstName ||
+        signature.distributor.socialReason ||
+        'Distribuidor';
+
+      const clientName = signature.razon_social
+        ? signature.razon_social
+        : `${signature.nombres} ${signature.apellidos}`;
+
+      const clientId = signature.ruc || signature.cedula;
+
+      await this.whatsappService.sendTemplate(
+        signature.distributor.phone,
+        'renocaion_distribuidores',
+        [distributorName, clientName, clientId, expirationDate],
+        'es',
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error enviando notificación de expiración ${signature.id}: ${error.message}`,
+      );
     }
   }
 
