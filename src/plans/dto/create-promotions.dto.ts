@@ -53,6 +53,14 @@ export class CreatePromotionsDto {
   durationType: string;
 
   @ApiProperty({
+    description: 'Send notification',
+    example: true,
+    type: Boolean,
+  })
+  @IsNotEmpty()
+  sendNotification: boolean;
+
+  @ApiProperty({
     description: 'Array de distribuidores con sus precios promocionales',
     type: [DistributorPromotionDto],
     example: [

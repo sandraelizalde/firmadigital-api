@@ -22,7 +22,7 @@ export class PlansService {
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
     private readonly whatsappService: WhatsappService,
-  ) { }
+  ) {}
 
   // Listar todos los planes disponibles
   async getAllPlans() {
@@ -699,14 +699,18 @@ export class PlansService {
         `Actualizadas ${result.count} asignaciones para este grupo`,
       );
     }
+    console.log('Enviar notifiacion', data.sendNotification);
 
     // Notificar por WhatsApp de forma asíncrona
-    const distributorIds = distributors.map((d) => d.distributorId);
-    this.notifyDistributorsOfPromotion(distributorIds).catch((err) =>
-      this.logger.error(
-        `Error in promotion background notifications: ${err.message}`,
-      ),
-    );
+    if (data.sendNotification) {
+      this.logger.log('Iniciando notificaciones de promoción por WhatsApp');
+      const distributorIds = distributors.map((d) => d.distributorId);
+      this.notifyDistributorsOfPromotion(distributorIds).catch((err) =>
+        this.logger.error(
+          `Error in promotion background notifications: ${err.message}`,
+        ),
+      );
+    }
 
     return {
       success: true,
@@ -754,5 +758,4 @@ export class PlansService {
       }
     }
   }
-
 }
