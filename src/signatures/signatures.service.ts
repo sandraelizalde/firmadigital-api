@@ -377,15 +377,13 @@ export class SignaturesService {
 
       const result = await this.prisma.$transaction(async (tx) => {
         let newBalance = distributor.balance;
-        let priceCharged = 0;
+        let priceCharged = priceToCharge;
         let usedCredit = false;
 
         // Solo cobrar si la solicitud fue exitosa
         if (isSuccess) {
-          priceCharged = priceToCharge;
-
           if (hasActiveCredit) {
-            // Tiene crédito activo: registrar en corte (no descuenta balance)
+            // Tiene crédito activo: registrar en corte
             usedCredit = true;
           } else {
             // NO tiene crédito: descontar del balance
@@ -433,7 +431,9 @@ export class SignaturesService {
             providerCode: providerResponse.codigo.toString(),
             providerMessage: providerResponse.mensaje,
             priceCharged,
-            paymentMethod: usedCredit ? PaymentMethod.CREDIT : PaymentMethod.BALANCE,
+            paymentMethod: usedCredit
+              ? PaymentMethod.CREDIT
+              : PaymentMethod.BALANCE,
           },
         });
 
@@ -441,9 +441,7 @@ export class SignaturesService {
         if (isSuccess) {
           if (usedCredit) {
             // El registro en el corte se hace DESPUÉS de esta transacción
-            // (ver líneas más abajo, fuera del $transaction)
           } else {
-            // Crear movimiento de cuenta (pago directo con balance)
             await tx.accountMovement.create({
               data: {
                 distributorId,
@@ -1028,16 +1026,16 @@ export class SignaturesService {
       if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
         pdf_sri_url = signatureRequest.pdf_sri
           ? await this.filesService.getFileUrl(
-            signatureRequest.pdf_sri,
-            'pdf-sri',
-          )
+              signatureRequest.pdf_sri,
+              'pdf-sri',
+            )
           : null;
 
         nombramiento_url = signatureRequest.nombramiento
           ? await this.filesService.getFileUrl(
-            signatureRequest.nombramiento,
-            'pdf-nombramiento',
-          )
+              signatureRequest.nombramiento,
+              'pdf-nombramiento',
+            )
           : null;
       }
 
@@ -1204,7 +1202,7 @@ export class SignaturesService {
         let duration: string | null = null;
         let durationType: string | null = null;
 
-        if (plan && request.status === SignatureStatus.COMPLETED) {
+        if (plan) {
           duration = plan.duration;
           durationType = plan.durationType;
 
@@ -1252,14 +1250,14 @@ export class SignaturesService {
           updatedAt: request.updatedAt,
           distributor: request.distributor
             ? {
-              id: request.distributor.id,
-              firstName: request.distributor.firstName,
-              lastName: request.distributor.lastName,
-              socialReason: request.distributor.socialReason,
-              identification: request.distributor.identification,
-              email: request.distributor.email,
-              phone: request.distributor.phone,
-            }
+                id: request.distributor.id,
+                firstName: request.distributor.firstName,
+                lastName: request.distributor.lastName,
+                socialReason: request.distributor.socialReason,
+                identification: request.distributor.identification,
+                email: request.distributor.email,
+                phone: request.distributor.phone,
+              }
             : null,
         };
       },
@@ -1461,7 +1459,8 @@ export class SignaturesService {
     }
 
     // 1. Determinar si fue pagada por crédito
-    let isPaidViaCredit = signatureRequest.paymentMethod === PaymentMethod.CREDIT;
+    let isPaidViaCredit =
+      signatureRequest.paymentMethod === PaymentMethod.CREDIT;
     let targetCutoff: any = null;
     let refundAmount = signatureRequest.priceCharged || 0;
 
@@ -1509,7 +1508,7 @@ export class SignaturesService {
     const result = await this.prisma.$transaction(async (tx) => {
       const distributor = await tx.distributor.findUnique({
         where: { id: signatureRequest.distributorId! },
-        select: { balance: true }
+        select: { balance: true },
       });
 
       let newBalance = distributor?.balance || 0;
@@ -1546,8 +1545,7 @@ export class SignaturesService {
             },
           });
           discountedFromCredit = refundAmount;
-        }
-        else {
+        } else {
           newBalance += refundAmount;
           actualRefundedToBalance = refundAmount;
 
@@ -1595,13 +1593,15 @@ export class SignaturesService {
       message += ' sin generar reembolso.';
     }
 
-
-
     // Notificación WhatsApp
     try {
       if (signatureRequest.distributor && signatureRequest.distributor.phone) {
-        const distName = signatureRequest.distributor.firstName || 'Distribuidor';
-        const clientName = signatureRequest.perfil_firma.startsWith('PJ-') ? `${signatureRequest.razon_social}` : `${signatureRequest.nombres} ${signatureRequest.apellidos}` || 'Cliente';
+        const distName =
+          signatureRequest.distributor.firstName || 'Distribuidor';
+        const clientName = signatureRequest.perfil_firma.startsWith('PJ-')
+          ? `${signatureRequest.razon_social}`
+          : `${signatureRequest.nombres} ${signatureRequest.apellidos}` ||
+            'Cliente';
         const reason = note || 'Anulada por administrador';
 
         await this.whatsappService.sendTemplate(
