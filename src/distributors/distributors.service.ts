@@ -840,6 +840,11 @@ export class DistributorsService {
         where: { distributorId },
       });
 
+      // Eliminar créditos del distribuidor (DistributorCredit)
+      await tx.distributorCredit.deleteMany({
+        where: { distributorId },
+      });
+
       // Finalmente eliminar el distribuidor
       await tx.distributor.delete({
         where: { id: distributorId },
