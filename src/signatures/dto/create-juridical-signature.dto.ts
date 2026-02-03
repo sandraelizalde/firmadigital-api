@@ -6,6 +6,9 @@ import {
   IsDateString,
   Matches,
   Length,
+  IsOptional,
+  IsBoolean,
+  IsEnum,
 } from 'class-validator';
 
 export class CreateJuridicalSignatureDto {
@@ -191,4 +194,24 @@ export class CreateJuridicalSignatureDto {
   @IsDateString()
   @IsNotEmpty()
   dateOfBirth: string;
+
+  @ApiProperty({
+    description: 'Tipo de documento: CEDULA o PASAPORTE',
+    example: 'CEDULA',
+    enum: ['CEDULA', 'PASAPORTE'],
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['CEDULA', 'PASAPORTE'])
+  documento?: 'CEDULA' | 'PASAPORTE';
+
+  @ApiProperty({
+    description: 'Si usa token Uanataca',
+    example: false,
+    required: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  usaToken?: boolean;
 }

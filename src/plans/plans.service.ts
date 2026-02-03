@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -29,11 +28,8 @@ export class PlansService {
     return await this.prisma.plan.findMany({
       where: {
         isActive: true,
-        eligibleClientsType: {
-          has: TypeClient.PERSONA_JURIDICA,
-        },
       },
-      orderBy: { perfil: 'asc' },
+      orderBy: [{ durationType: 'asc' }, { duration: 'asc' }],
     });
   }
 
@@ -70,26 +66,24 @@ export class PlansService {
       });
     }
 
-    // Obtener todos los planes jurídicos enviados
-    const juridicalPlanIds = data.plans.map((p) => p.planId);
-    const juridicalPlans = await this.prisma.plan.findMany({
+    // Obtener todos los planes enviados
+    const planIds = data.plans.map((p) => p.planId);
+    const plans = await this.prisma.plan.findMany({
       where: {
-        id: { in: juridicalPlanIds },
-        eligibleClientsType: {
-          has: TypeClient.PERSONA_JURIDICA,
-        },
+        id: { in: planIds },
+        isActive: true,
       },
     });
 
-    // Validar que todos los planes enviados son de persona jurídica
-    if (juridicalPlans.length !== juridicalPlanIds.length) {
+    // Validar que todos los planes existen
+    if (plans.length !== planIds.length) {
       throw new BadRequestException({
-        message: 'Algunos planes no existen o no son de tipo Persona Jurídica',
+        message: 'Algunos planes no existen o están inactivos',
         error: 'INVALID_PLANS',
       });
     }
 
-    // Preparar todas las asignaciones (PJ + PN)
+    // Preparar las asignaciones
     const allAssignments: Array<{
       distributorId: string;
       planId: string;
@@ -101,51 +95,15 @@ export class PlansService {
     }> = [];
 
     for (const planData of data.plans) {
-      // Buscar el plan jurídico
-      const juridicalPlan = juridicalPlans.find(
-        (p) => p.id === planData.planId,
-      );
-
-      if (!juridicalPlan) continue;
-
-      // Agregar el plan jurídico
       allAssignments.push({
         distributorId: data.distributorId,
-        planId: juridicalPlan.id,
+        planId: planData.planId,
         customPrice: planData.customPrice,
         customPricePromo: planData.customPricePromo,
         createdBy: adminUser.userId,
         createdByName: `${adminUser.firstName} ${adminUser.lastName}`,
         isActive: true,
       });
-
-      // Buscar el plan natural equivalente con el mismo duration y durationType
-      const naturalPlan = await this.prisma.plan.findFirst({
-        where: {
-          duration: juridicalPlan.duration,
-          durationType: juridicalPlan.durationType,
-          eligibleClientsType: {
-            hasSome: [
-              TypeClient.PERSONA_NATURAL_SIN_RUC,
-              TypeClient.PERSONA_NATURAL_CON_RUC,
-            ],
-          },
-          isActive: true,
-        },
-      });
-
-      // Si existe plan natural equivalente, agregarlo también
-      if (naturalPlan) {
-        allAssignments.push({
-          distributorId: data.distributorId,
-          planId: naturalPlan.id,
-          customPrice: planData.customPrice,
-          customPricePromo: planData.customPricePromo,
-          createdBy: adminUser.userId,
-          createdByName: `${adminUser.firstName} ${adminUser.lastName}`,
-          isActive: true,
-        });
-      }
     }
 
     // Crear todas las asignaciones en una transacción
@@ -160,13 +118,9 @@ export class PlansService {
       ),
     );
 
-    // Enviar contrato por correo con solo los planes jurídicos
-    const juridicalAssignments = assignments.filter((a) =>
-      a.plan.eligibleClientsType.includes(TypeClient.PERSONA_JURIDICA),
-    );
-
+    // Enviar contrato por correo
     try {
-      await this.mailService.sendContract(distributor, juridicalAssignments);
+      await this.mailService.sendContract(distributor, assignments);
       console.log('Contrato enviado por correo exitosamente');
     } catch (error) {
       // Log error pero no fallar la operación
@@ -175,7 +129,7 @@ export class PlansService {
 
     return {
       success: true,
-      message: `${assignments.length} planes asignados exitosamente al distribuidor (${data.plans.length} jurídicos + ${assignments.length - data.plans.length} naturales)`,
+      message: `${assignments.length} plan(es) asignado(s) exitosamente al distribuidor`,
       distributor: {
         id: distributor.id,
         firstName: distributor.firstName,
@@ -406,8 +360,53 @@ export class PlansService {
     };
   }
 
-  // Obtener planes para personas naturales del distribuidor autenticado
-  async getDistributorNaturalPlans(distributorId: string) {
+  /**
+   * Método unificado para obtener planes según parámetros
+   * @param distributorId ID del distribuidor
+   * @param tipoPersona NATURAL o JURIDICA
+   * @param documento CEDULA, PASAPORTE o null
+   * @param usaToken si usa token de Uanataca
+   */
+  async getDistributorPlansFiltered(
+    distributorId: string,
+    tipoPersona: 'NATURAL' | 'JURIDICA',
+    documento?: 'CEDULA' | 'PASAPORTE' | null,
+    usaToken?: boolean,
+  ) {
+    // Determinar qué campo de perfil usar
+    let perfilField: string;
+
+    switch (true) {
+      // NATURAL
+      case tipoPersona === 'NATURAL' && documento === 'PASAPORTE':
+        perfilField = 'perfilNaturalUanataca';
+        break;
+
+      case tipoPersona === 'NATURAL' && usaToken:
+        perfilField = 'perfilNaturalTokenUanataca';
+        break;
+
+      case tipoPersona === 'NATURAL':
+        perfilField = 'perfilNaturalEnext';
+        break;
+
+      // JURIDICA
+      case tipoPersona === 'JURIDICA' && usaToken:
+        perfilField = 'perfilJuridicoTokenUanataca';
+        break;
+
+      case tipoPersona === 'JURIDICA' && documento === 'PASAPORTE':
+        perfilField = 'perfilJuridicoUanataca';
+        break;
+
+      case tipoPersona === 'JURIDICA':
+        perfilField = 'perfilJuridicoEnext';
+        break;
+
+      default:
+        throw new BadRequestException('No se pudo determinar el perfil');
+    }
+
     const distributor = await this.prisma.distributor.findUnique({
       where: { id: distributorId, active: true },
     });
@@ -424,37 +423,16 @@ export class PlansService {
         distributorId,
         isActive: true,
         plan: {
-          eligibleClientsType: {
-            hasSome: [
-              TypeClient.PERSONA_NATURAL_SIN_RUC,
-              TypeClient.PERSONA_NATURAL_CON_RUC,
-            ],
-          },
+          [perfilField]: { not: null },
           isActive: true,
         },
       },
       include: {
-        plan: {
-          select: {
-            id: true,
-            perfil: true,
-            duration: true,
-            durationType: true,
-            eligibleClientsType: true,
-          },
-        },
+        plan: true,
       },
       orderBy: [
-        {
-          plan: {
-            durationType: 'asc',
-          },
-        },
-        {
-          plan: {
-            duration: 'asc',
-          },
-        },
+        { plan: { durationType: 'asc' } },
+        { plan: { duration: 'asc' } },
       ],
     });
 
@@ -462,75 +440,9 @@ export class PlansService {
       success: true,
       plans: assignments.map((a) => ({
         id: a.plan.id,
-        perfil: a.plan.perfil,
+        perfil: a.plan[perfilField],
         duration: a.plan.duration,
         durationType: a.plan.durationType,
-        eligibleClientsType: a.plan.eligibleClientsType,
-        customPrice: a.customPrice,
-        customPricePromo: a.customPricePromo,
-        isActive: a.isActive,
-        createdAt: a.createdAt,
-      })),
-    };
-  }
-
-  // Obtener planes para personas jurídicas del distribuidor autenticado
-  async getDistributorJuridicalPlans(distributorId: string) {
-    const distributor = await this.prisma.distributor.findUnique({
-      where: { id: distributorId, active: true },
-    });
-
-    if (!distributor) {
-      throw new NotFoundException({
-        message: 'Distribuidor no encontrado o inactivo',
-        error: 'DISTRIBUTOR_NOT_FOUND',
-      });
-    }
-
-    const assignments = await this.prisma.distributorPlanPrice.findMany({
-      where: {
-        distributorId,
-        isActive: true,
-        plan: {
-          eligibleClientsType: {
-            has: TypeClient.PERSONA_JURIDICA,
-          },
-          isActive: true,
-        },
-      },
-      include: {
-        plan: {
-          select: {
-            id: true,
-            perfil: true,
-            duration: true,
-            durationType: true,
-            eligibleClientsType: true,
-          },
-        },
-      },
-      orderBy: [
-        {
-          plan: {
-            durationType: 'asc',
-          },
-        },
-        {
-          plan: {
-            duration: 'asc',
-          },
-        },
-      ],
-    });
-
-    return {
-      success: true,
-      plans: assignments.map((a) => ({
-        id: a.plan.id,
-        perfil: a.plan.perfil,
-        duration: a.plan.duration,
-        durationType: a.plan.durationType,
-        eligibleClientsType: a.plan.eligibleClientsType,
         customPrice: a.customPrice,
         customPricePromo: a.customPricePromo,
         isActive: a.isActive,
@@ -541,106 +453,39 @@ export class PlansService {
 
   /**
    * Actualizar múltiples planes de un distribuidor con precios personalizados
-   * Similar a assignPlansToDistributor pero para actualizar planes ya asignados
    */
   async updatePlansToDistributor(data: UpdatePlansToDistributorDto) {
-    // Obtener todos los planes jurídicos enviados
-    const juridicalPlanIds = data.plans.map((p) => p.planId);
-    const juridicalPlans = await this.prisma.plan.findMany({
-      where: {
-        id: { in: juridicalPlanIds },
-        eligibleClientsType: {
-          has: TypeClient.PERSONA_JURIDICA,
-        },
-      },
-    });
+    const planIds = data.plans.map((p) => p.planId);
 
-    const durationCombinations = juridicalPlans.map((p) => ({
-      duration: p.duration,
-      durationType: p.durationType,
-    }));
-
-    const naturalPlans = await this.prisma.plan.findMany({
+    // Verificar que todos los planes existen
+    const plans = await this.prisma.plan.findMany({
       where: {
-        OR: durationCombinations.map((combo) => ({
-          duration: combo.duration,
-          durationType: combo.durationType,
-        })),
-        eligibleClientsType: {
-          hasSome: [
-            TypeClient.PERSONA_NATURAL_SIN_RUC,
-            TypeClient.PERSONA_NATURAL_CON_RUC,
-          ],
-        },
+        id: { in: planIds },
         isActive: true,
       },
     });
 
-    // Pre-cargar todas las asignaciones naturales del distribuidor
-    const naturalPlanIds = naturalPlans.map((p) => p.id);
-    const naturalAssignments = await this.prisma.distributorPlanPrice.findMany({
-      where: {
-        distributorId: data.distributorId,
-        planId: { in: naturalPlanIds },
-      },
-    });
-    const naturalAssignmentMap = new Map(
-      naturalAssignments.map((a) => [a.planId, a]),
-    );
-
-    // Preparar todas las actualizaciones (PJ + PN)
-    const allUpdates: Array<{
-      distributorId: string;
-      planId: string;
-      customPrice: number;
-    }> = [];
-
-    for (const planData of data.plans) {
-      // Buscar el plan jurídico
-      const juridicalPlan = juridicalPlans.find(
-        (p) => p.id === planData.planId,
-      );
-
-      if (!juridicalPlan) continue;
-
-      // Agregar el plan jurídico
-      allUpdates.push({
-        distributorId: data.distributorId,
-        planId: juridicalPlan.id,
-        customPrice: planData.customPrice,
+    if (plans.length !== planIds.length) {
+      throw new BadRequestException({
+        message: 'Algunos planes no existen o están inactivos',
+        error: 'INVALID_PLANS',
       });
-
-      // Buscar el plan natural equivalente (ya pre-cargado)
-      const naturalPlan = naturalPlans.find(
-        (p) =>
-          p.duration === juridicalPlan.duration &&
-          p.durationType === juridicalPlan.durationType,
-      );
-
-      // Si existe plan natural equivalente y está asignado, actualizarlo también
-      if (naturalPlan && naturalAssignmentMap.has(naturalPlan.id)) {
-        allUpdates.push({
-          distributorId: data.distributorId,
-          planId: naturalPlan.id,
-          customPrice: planData.customPrice,
-        });
-      }
     }
 
-    // Actualizar todos los planes en una transacción con timeout extendido
+    // Actualizar todos los planes en una transacción
     const updatedAssignments = await this.prisma.$transaction(
       async (tx) => {
         return await Promise.all(
-          allUpdates.map((updateData) =>
+          data.plans.map((planData) =>
             tx.distributorPlanPrice.update({
               where: {
                 distributorId_planId: {
-                  distributorId: updateData.distributorId,
-                  planId: updateData.planId,
+                  distributorId: data.distributorId,
+                  planId: planData.planId,
                 },
               },
               data: {
-                customPrice: updateData.customPrice,
+                customPrice: planData.customPrice,
               },
               include: {
                 plan: true,

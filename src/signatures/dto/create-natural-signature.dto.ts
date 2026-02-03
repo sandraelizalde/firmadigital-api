@@ -7,6 +7,8 @@ import {
   Matches,
   Length,
   IsOptional,
+  IsBoolean,
+  IsEnum,
 } from 'class-validator';
 
 export class CreateNaturalSignatureDto {
@@ -148,4 +150,25 @@ export class CreateNaturalSignatureDto {
   @IsOptional()
   @IsString()
   ruc?: string;
+
+  @ApiProperty({
+    description: 'Tipo de documento: CEDULA o PASAPORTE',
+    example: 'CEDULA',
+    enum: ['CEDULA', 'PASAPORTE'],
+    required: false,
+    default: 'CEDULA',
+  })
+  @IsOptional()
+  @IsEnum(['CEDULA', 'PASAPORTE'])
+  documento?: 'CEDULA' | 'PASAPORTE';
+
+  @ApiProperty({
+    description: 'Si usa token Uanataca',
+    example: false,
+    required: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  usaToken?: boolean;
 }
