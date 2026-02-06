@@ -177,15 +177,12 @@ export class CreateJuridicalSignatureDto {
   nombramientoBase64: string;
 
   @ApiProperty({
-    description: 'Perfil de firma (017, 018, etc.)',
-    example: '017',
+    description: 'ID del plan asignado al distribuidor',
+    example: 'clx123abc456',
   })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^PJ-\d{3}$/, {
-    message: 'El perfil debe tener 3 dígitos (ej: 017, 018)',
-  })
-  perfil_firma: string;
+  planId: string;
 
   @ApiProperty({
     description: 'Fecha de nacimiento del representante en formato ISO',
@@ -201,9 +198,9 @@ export class CreateJuridicalSignatureDto {
     enum: ['CEDULA', 'PASAPORTE'],
     required: false,
   })
-  @IsOptional()
+  @IsNotEmpty()
   @IsEnum(['CEDULA', 'PASAPORTE'])
-  documento?: 'CEDULA' | 'PASAPORTE';
+  documento: 'CEDULA' | 'PASAPORTE';
 
   @ApiProperty({
     description: 'Si usa token Uanataca',
@@ -211,7 +208,7 @@ export class CreateJuridicalSignatureDto {
     required: false,
     default: false,
   })
-  @IsOptional()
+  @IsNotEmpty()
   @IsBoolean()
-  usaToken?: boolean;
+  usaToken: boolean;
 }

@@ -16,7 +16,7 @@ export class CreditsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsappService: WhatsappService,
-  ) { }
+  ) {}
 
   async createCredit(createCreditDto: CreateCreditDto, adminName: string) {
     const { distributorId, creditDays } = createCreditDto;
@@ -1276,6 +1276,52 @@ export class CreditsService {
           (totals._sum.amountUsed || 0) - (totals._sum.amountPaid || 0),
         totalSignatures: totals._sum.signaturesCount || 0,
       },
+    };
+  }
+
+  async checkAndUnblockAfterAnnulment(distributorId: string, creditId: string) {
+    this.logger.log('Verificando si se debe desbloquear crédito...');
+
+    const credit = await this.prisma.distributorCredit.findUnique({
+      where: { id: creditId },
+    });
+
+    if (!credit || !credit.isBlocked) {
+      return;
+    }
+
+    const now = new Date();
+
+    const overdueUnpaidCutoffs = await this.prisma.creditCutoff.findMany({
+      where: {
+        creditId,
+        isPaid: false,
+        paymentDueDate: { lte: now },
+      },
+    });
+
+    const totalOverdueDebt = overdueUnpaidCutoffs.reduce(
+      (sum, cutoff) => sum + (cutoff.amountUsed - cutoff.amountPaid),
+      0,
+    );
+
+    if (totalOverdueDebt <= 0) {
+      await this.prisma.distributorCredit.update({
+        where: { id: creditId },
+        data: { isBlocked: false },
+      });
+
+      this.logger.log(`Crédito ${creditId} desbloqueado`);
+
+    } else {
+      this.logger.log(
+        `Crédito sigue bloqueado - Deuda vencida: $${(totalOverdueDebt / 100).toFixed(2)}`,
+      );
+    }
+
+    return {
+      wasUnblocked: totalOverdueDebt <= 0,
+      remainingOverdueDebt: totalOverdueDebt,
     };
   }
 }

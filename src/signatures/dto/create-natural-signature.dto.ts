@@ -124,15 +124,12 @@ export class CreateNaturalSignatureDto {
   foto_posterior: string;
 
   @ApiProperty({
-    description: 'Perfil de firma (PN-001, PN-002, etc.)',
-    example: 'PN-001',
+    description: 'ID del plan asignado al distribuidor',
+    example: 'clx123abc456',
   })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^PN-\d{3}$/, {
-    message: 'El perfil debe tener formato PN-XXX (ej: PN-001)',
-  })
-  perfil_firma: string;
+  planId: string;
 
   @ApiProperty({
     description: 'Fecha de nacimiento en formato ISO',
@@ -158,9 +155,9 @@ export class CreateNaturalSignatureDto {
     required: false,
     default: 'CEDULA',
   })
-  @IsOptional()
+  @IsNotEmpty()
   @IsEnum(['CEDULA', 'PASAPORTE'])
-  documento?: 'CEDULA' | 'PASAPORTE';
+  documento: 'CEDULA' | 'PASAPORTE';
 
   @ApiProperty({
     description: 'Si usa token Uanataca',
@@ -168,7 +165,46 @@ export class CreateNaturalSignatureDto {
     required: false,
     default: false,
   })
-  @IsOptional()
+  @IsNotEmpty()
   @IsBoolean()
-  usaToken?: boolean;
+  usaToken: boolean;
+
+  // ===== Campos opcionales para Uanataca (pasaporte/token) =====
+
+  @ApiProperty({
+    description: 'Nacionalidad del solicitante (requerido para Uanataca)',
+    example: 'ECUATORIANA',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  nacionalidad?: string;
+
+  @ApiProperty({
+    description: 'Sexo del solicitante (requerido para Uanataca)',
+    example: 'HOMBRE',
+    enum: ['HOMBRE', 'MUJER'],
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['HOMBRE', 'MUJER'])
+  sexo?: 'HOMBRE' | 'MUJER';
+
+  @ApiProperty({
+    description: 'Selfie en Base64 (requerido para Uanataca)',
+    example: 'iVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  selfie?: string;
+
+  @ApiProperty({
+    description: 'Número de pasaporte (requerido si documento es PASAPORTE)',
+    example: 'A12345678',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  pasaporte?: string;
 }

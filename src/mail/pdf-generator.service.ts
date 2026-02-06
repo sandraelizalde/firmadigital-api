@@ -11,7 +11,6 @@ interface ContractData {
   representativeName: string;
   representativeId: string;
   plans: Array<{
-    perfil: string;
     customPrice: number;
     duration: string;
     durationType: string;

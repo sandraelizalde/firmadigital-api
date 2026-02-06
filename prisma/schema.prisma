@@ -134,9 +134,9 @@ model Plan {
   perfilNaturalTokenUanataca  String? @unique
   perfilJuridicoTokenUanataca String? @unique
 
-  basePrice      Int // Precio base/sugerido en centavos
-  duration       String
-  durationType   String // 'D', 'M', 'MS', 'Y', 'YS'
+  basePrice    Int // Precio base/sugerido en centavos
+  duration     String
+  durationType String // 'D', 'M', 'MS', 'Y', 'YS'
 
   isActive Boolean @default(true)
 
@@ -144,6 +144,7 @@ model Plan {
   updatedAt DateTime @updatedAt
 
   distributorPlanPrices DistributorPlanPrice[]
+  signatureRequests     SignatureRequest[]
 }
 
 // ---------------------------
@@ -162,10 +163,11 @@ model DistributorPlanPrice {
 
   isActive Boolean @default(true)
 
-  createdBy     String? // Admin que asignó el precio
-  createdByName String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdBy         String? // Admin que asignó el precio
+  createdByName     String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  signatureRequests SignatureRequest[]
 
   @@unique([distributorId, planId])
   @@index([distributorId])
@@ -177,8 +179,15 @@ model DistributorPlanPrice {
 // SOLICITUDES DE FIRMA
 // ---------------------------
 model SignatureRequest {
-  id                 String          @id @default(cuid())
-  numero_tramite     String          @unique
+  id             String @id @default(cuid())
+  numero_tramite String @unique
+
+  distributorPlanPriceId String
+  distributorPlanPrice   DistributorPlanPrice @relation(fields: [distributorPlanPriceId], references: [id])
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
   perfil_firma       String
   nombres            String
   apellidos          String
@@ -216,9 +225,10 @@ model SignatureRequest {
   distributor        Distributor?    @relation(fields: [distributorId], references: [id])
   distributorId      String?
 
-  provider          SignatureProvider @default(ENEXT)
+  provider SignatureProvider @default(ENEXT)
 
   @@index([distributorId, createdAt])
+  @@index([planId])
 }
 
 // ---------------------------

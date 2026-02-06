@@ -25,36 +25,45 @@ async function bootstrap() {
       },
     }),
   );
+  const env = process.env.ENVIRONMENT ?? 'development';
 
-  let allowedOrigins;
+  // Lista de orígenes permitidos
+  const baseOrigins = [
+    process.env.FRONTEND_URL!,
+    process.env.NEXUS_FRONTEND_URL!,
+  ].filter(Boolean);
 
-  if (process.env.ENVIRONMENT === 'development') {
-    allowedOrigins = ['*'];
-  } else if (process.env.ENVIRONMENT === 'production') {
-    allowedOrigins = [process.env.FRONTEND_URL, process.env.NEXUS_FRONTEND_URL];
-  }
+  const allowedOrigins = [
+    ...baseOrigins,
+    ...baseOrigins.map((o) => o.replace('https://www.', 'https://')),
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ];
+
+  // Eliminar duplicados
+  const uniqueOrigins = [...new Set(allowedOrigins)];
 
   app.enableCors({
     origin: (origin, callback) => {
-      // En desarrollo, permitir todas las solicitudes
-      if (process.env.ENVIRONMENT === 'development') {
-        callback(null, true);
-        return;
+      if (env === 'development') {
+        return callback(null, true);
       }
 
-      // En producción, validar el origen
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
+      if (!origin) {
+        return callback(null, true);
       }
+
+      if (uniqueOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     allowedHeaders: 'Content-Type, Accept, Authorization',
     credentials: true,
   });
 
-  // Configuración para servir archivos estáticos
   const assetsPath = join(process.cwd(), 'src', 'assets');
   const uploadsPath = join(process.cwd(), 'uploads');
 

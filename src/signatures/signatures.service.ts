@@ -26,9 +26,6 @@ import {
 } from './dto/admin-signature-list.dto';
 import { AdminSignatureFilterDto } from './dto/admin-signature-filter.dto';
 
-/**
- * Interface para la respuesta del proveedor de firmas
- */
 interface SignatureProviderResponse {
   codigo: number;
   mensaje: string;
@@ -37,18 +34,9 @@ interface SignatureProviderResponse {
 @Injectable()
 export class SignaturesService {
   private readonly logger = new Logger(SignaturesService.name);
-  private readonly signProviderBaseUrlNatural: string | undefined;
-  private readonly signProviderBaseUrlJuridica: string | undefined;
-  private readonly signProviderUser: string | undefined;
-  private readonly signProviderPassword: string | undefined;
-  private readonly signProviderAuthUsername: string | undefined;
-  private readonly signProviderAuthPassword: string | undefined;
-  private readonly signProviderAuthUsernameBiometria: string | undefined;
-  private readonly signProviderAuthPasswordBiometria: string | undefined;
-  private readonly signProviderCallback: string | undefined;
-  private readonly emailVerificationApiUrl: string | undefined;
-  private readonly emailVerificationApiKey: string | undefined;
-  private readonly environment: string | undefined;
+  private readonly config: ReturnType<
+    typeof import('../config/app.config').default
+  >;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -58,40 +46,7 @@ export class SignaturesService {
     private readonly creditsService: CreditsService,
     private readonly whatsappService: WhatsappService,
   ) {
-    this.signProviderBaseUrlNatural = this.configService.get<string>(
-      'SIGN_PROVIDER_BASE_URL_NATURAL',
-    );
-    this.signProviderBaseUrlJuridica = this.configService.get<string>(
-      'SIGN_PROVIDER_BASE_URL_JURIDICA',
-    );
-    this.signProviderUser =
-      this.configService.get<string>('SIGN_PROVIDER_USER');
-    this.signProviderPassword = this.configService.get<string>(
-      'SIGN_PROVIDER_PASSWORD',
-    );
-    this.signProviderAuthUsername = this.configService.get<string>(
-      'SIGN_PROVIDER_AUTH_USERNAME',
-    );
-    this.signProviderAuthPassword = this.configService.get<string>(
-      'SIGN_PROVIDER_AUTH_PASSWORD',
-    );
-    this.signProviderAuthUsernameBiometria = this.configService.get<string>(
-      'SIGN_PROVIDER_AUTH_USERNAME_BIOMETRIA',
-    );
-    this.signProviderAuthPasswordBiometria = this.configService.get<string>(
-      'SIGN_PROVIDER_AUTH_PASSWORD_BIOMETRIA',
-    );
-    this.signProviderCallback = this.configService.get<string>(
-      'SIGN_PROVIDER_CALLBACK',
-    );
-    this.emailVerificationApiUrl = this.configService.get<string>(
-      'EMAIL_VERIFICATION_API_URL',
-    );
-    this.emailVerificationApiKey = this.configService.get<string>(
-      'EMAIL_VERIFICATION_API_KEY',
-    );
-
-    this.environment = this.configService.get<string>('ENVIRONMENT');
+    this.config = this.configService.get('app')!;
   }
 
   /**
@@ -111,15 +66,13 @@ export class SignaturesService {
 
     // Determinar qué método llamar según el tipo de documento y si usa token
     const tipoPersona = 'NATURAL';
-    const documento = dto.documento || 'CEDULA'; // Si no se especifica, asumimos CEDULA
-    const usaToken = dto.usaToken || false;
 
     return this.createSignatureRequestByType(
       distributorId,
       dto,
       tipoPersona,
-      documento,
-      usaToken,
+      dto.documento,
+      dto.usaToken,
       video_face,
     );
   }
@@ -141,15 +94,13 @@ export class SignaturesService {
 
     // Determinar qué método llamar según el tipo de documento y si usa token
     const tipoPersona = 'JURIDICA';
-    const documento = dto.documento || null;
-    const usaToken = dto.usaToken || false;
 
     return this.createSignatureRequestByType(
       distributorId,
       dto,
       tipoPersona,
-      documento,
-      usaToken,
+      dto.documento,
+      dto.usaToken,
       video_face,
     );
   }
@@ -240,115 +191,34 @@ export class SignaturesService {
   ) {
     const type: 'NATURAL' | 'JURIDICA' = 'NATURAL';
     try {
-      // Calcular edad del solicitante
-      const birthDate = new Date(dto.dateOfBirth);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (
-        monthDiff < 0 ||
-        (monthDiff === 0 && today.getDate() < birthDate.getDate())
-      ) {
-        age--;
-      }
+      // 1. Validaciones iniciales
+      this.validateAgeAndVideo(dto.dateOfBirth, video_face);
+      const distributor = await this.validateDistributor(distributorId);
 
-      // Validar que el video sea obligatorio si edad >= 80
-      if (age >= 80 && !video_face) {
-        throw new BadRequestException(
-          'El video facial es obligatorio para personas de 80 años o más',
-        );
-      }
-
-      // Validar formato de video si se proporciona
-      if (video_face) {
-        const allowedMimeTypes = [
-          'video/mp4',
-          'video/quicktime',
-          'video/x-msvideo',
-          'video/webm',
-        ];
-        if (!allowedMimeTypes.includes(video_face.mimetype)) {
-          throw new BadRequestException(
-            'Formato de video no válido. Use: mp4, mov, avi o webm',
-          );
-        }
-
-        // Validar tamaño (máximo 50MB)
-        const maxSize = 50 * 1024 * 1024; // 50MB
-        if (video_face.size > maxSize) {
-          throw new BadRequestException('El video no puede superar los 50MB');
-        }
-      }
-
-      // Verificar que el distribuidor existe y está activo
-      const distributor = await this.prisma.distributor.findUnique({
-        where: { id: distributorId },
-      });
-
-      if (!distributor) {
-        throw new BadRequestException('Distribuidor no encontrado');
-      }
-
-      if (!distributor.active) {
-        throw new BadRequestException('Distribuidor inactivo');
-      }
-
-      // Buscar el plan con perfil NATURAL ENEXT para este distribuidor
-      const planPrice = await this.prisma.distributorPlanPrice.findFirst({
-        where: {
+      // 2. Obtener plan, perfil y precio
+      const { planPrice, perfil_firma, priceToCharge } =
+        await this.getSignaturePlanPrice(
           distributorId,
-          isActive: true,
-          plan: {
-            perfilNaturalEnext: dto.perfil_firma,
-          },
-        },
-        include: {
-          plan: true,
-        },
-      });
-
-      if (!planPrice) {
-        throw new BadRequestException(
-          `No se encontró el plan ${dto.perfil_firma} asignado al distribuidor`,
+          dto.planId,
+          'perfilNaturalEnext',
+          'Natural Enext',
         );
-      }
 
-      // Determinar el precio a cobrar (si hay promo, usar promo, sino usar normal)
-      const priceToCharge = planPrice.customPricePromo
-        ? planPrice.customPricePromo
-        : planPrice.customPrice;
-
-      // Verificar si el distribuidor puede emitir firmas (no está bloqueado por crédito)
-      const canEmit = await this.creditsService.canEmitSignature(distributorId);
-      if (!canEmit) {
-        throw new BadRequestException(
-          'No puede emitir firmas. Tiene un crédito bloqueado por falta de pago.',
-        );
-      }
-
-      // Obtener estado del crédito para saber si opera con crédito o balance directo
-      const creditStatus =
-        await this.creditsService.getCreditStatus(distributorId);
-      const hasActiveCredit = creditStatus !== null && !creditStatus.isBlocked;
-
-      // Si NO tiene crédito activo, verificar que tenga balance suficiente
-      if (!hasActiveCredit && distributor.balance < priceToCharge) {
-        throw new BadRequestException(
-          `Balance insuficiente. Se requieren $${(priceToCharge / 100).toFixed(2)} y tiene $${(distributor.balance / 100).toFixed(2)}`,
-        );
-      }
+      // 3. Validar capacidad de pago
+      const { hasActiveCredit } = await this.validatePaymentCapability(
+        distributorId,
+        distributor.balance,
+        priceToCharge,
+      );
 
       const numero_tramite = this.generateNumeroTramite();
 
-      // URL del proveedor ENEXT Natural
-      const providerUrl = this.signProviderBaseUrlNatural;
-
-      // Preparar el payload para el proveedor
+      // 4. Llamar al proveedor
       const providerPayload: any = {
         numero_tramite,
-        usuario: this.signProviderUser,
-        password: this.signProviderPassword,
-        perfil_firma: this.cleanPerfilFirma(dto.perfil_firma),
+        usuario: this.config.signProvider.user,
+        password: this.config.signProvider.password,
+        perfil_firma,
         nombres: dto.nombres.toUpperCase(),
         apellidos: dto.apellidos.toUpperCase(),
         cedula: dto.cedula,
@@ -367,14 +237,13 @@ export class SignaturesService {
         tipo_envio: '1',
       };
 
-      // Llamar al proveedor de firma
       const providerResponse = await this.callSignatureProviderEnext(
         providerPayload,
-        providerUrl,
+        this.config.signProvider.baseUrlNatural,
         type,
       );
 
-      // Determinar el estado basado en el código del proveedor
+      // 5. Determinar estado
       const isSuccess = providerResponse.codigo === 1;
       const isRejected = providerResponse.codigo === 0;
 
@@ -387,185 +256,69 @@ export class SignaturesService {
         status = SignatureStatus.FAILED;
       }
 
-      // Subir archivos ANTES de la transacción para evitar timeout
-      const foto_frontal_key = await this.filesService.uploadFile(
-        dto.foto_frontal,
-        distributorId.toString(),
-        'jpg',
-        'fotos-distribuidores',
-        'fotos-cedulas',
+      // 6. Subir archivos
+      const files = await this.uploadSignatureFiles(
+        distributorId,
+        dto,
+        video_face,
       );
 
-      const foto_posterior_key = await this.filesService.uploadFile(
-        dto.foto_posterior,
-        distributorId.toString(),
-        'jpg',
-        'fotos-distribuidores',
-        'fotos-cedulas',
-      );
-
-      let pdf_sri_key: string | undefined;
-      let nombramiento_key: string | undefined;
-      let video_face_key: string | undefined;
-
-      if (dto.pdfSriBase64) {
-        pdf_sri_key = await this.filesService.uploadFile(
-          dto.pdfSriBase64,
-          distributorId.toString(),
-          'pdf',
-          'pdfs-distribuidores',
-          'pdf-sri',
-        );
-      }
-
-      if (dto.nombramientoBase64) {
-        nombramiento_key = await this.filesService.uploadFile(
-          dto.nombramientoBase64,
-          distributorId.toString(),
-          'pdf',
-          'pdfs-distribuidores',
-          'pdf-nombramiento',
-        );
-      }
-
-      // Subir video si existe
-      if (video_face) {
-        const videoExtension = this.getFileExtension(video_face.mimetype);
-        video_face_key = await this.filesService.uploadFileFromBuffer(
-          video_face.buffer,
-          distributorId.toString(),
-          videoExtension,
-          'fotos-distribuidores',
-          'fotos-cedulas',
-        );
-      }
-
-      const result = await this.prisma.$transaction(async (tx) => {
-        let newBalance = distributor.balance;
-        let priceCharged = priceToCharge;
-        let usedCredit = false;
-
-        // Solo cobrar si la solicitud fue exitosa
-        if (isSuccess) {
-          if (hasActiveCredit) {
-            // Tiene crédito activo: registrar en corte
-            usedCredit = true;
-          } else {
-            // NO tiene crédito: descontar del balance
-            newBalance = distributor.balance - priceToCharge;
-            usedCredit = false;
-
-            // Actualizar el balance del distribuidor
-            await tx.distributor.update({
-              where: { id: distributorId },
-              data: { balance: newBalance },
-            });
-          }
-        }
-
-        // Crear la solicitud de firma (siempre, sin importar el resultado)
-        const signatureRequest = await tx.signatureRequest.create({
-          data: {
-            numero_tramite,
-            perfil_firma: dto.perfil_firma,
-            nombres: dto.nombres.toUpperCase(),
-            apellidos: dto.apellidos.toUpperCase(),
-            cedula: dto.cedula,
-            correo: dto.correo,
-            codigo_dactilar: dto.codigo_dactilar,
-            celular: dto.celular,
-            provincia: dto.provincia.toUpperCase(),
-            ciudad: dto.ciudad.toUpperCase(),
-            parroquia: dto.parroquia.toUpperCase(),
-            direccion: dto.direccion.toUpperCase(),
-            dateOfBirth: new Date(dto.dateOfBirth),
-            foto_frontal: foto_frontal_key,
-            foto_posterior: foto_posterior_key,
-            video_face: video_face_key || null,
-            clavefirma: dto.clavefirma,
-            ruc: dto.ruc || null,
-            razon_social: dto.razon_social?.toUpperCase() || null,
-            rep_legal: dto.rep_legal?.toUpperCase() || null,
-            cargo: dto.cargo?.toUpperCase() || null,
-            nombramiento: nombramiento_key || null,
-            pdf_sri: pdf_sri_key || null,
-            tipo_envio: '1',
-            pais: 'ECUADOR',
-            distributorId,
-            status,
-            providerCode: providerResponse.codigo.toString(),
-            providerMessage: providerResponse.mensaje,
-            priceCharged,
-            paymentMethod: usedCredit
-              ? PaymentMethod.CREDIT
-              : PaymentMethod.BALANCE,
-          },
-        });
-
-        // Si usó crédito, registrar en corte. Si no, crear movimiento de cuenta
-        if (isSuccess) {
-          if (usedCredit) {
-            // El registro en el corte se hace DESPUÉS de esta transacción
-          } else {
-            await tx.accountMovement.create({
-              data: {
-                distributorId,
-                type: MovementType.EXPENSE,
-                detail: `Firma digital - Plan ${dto.perfil_firma} - ${dto.apellidos}`,
-                amount: priceCharged,
-                balanceAfter: newBalance,
-                signatureId: signatureRequest.id,
-                note: `Trámite: ${numero_tramite} - Cédula: ${dto.cedula}`,
-              },
-            });
-          }
-        }
-
-        return {
-          signatureRequest,
-          newBalance,
-          priceCharged,
-          usedCredit,
-        };
+      // 7. Transacción de pago y creación de firma
+      const result = await this.processSignaturePayment({
+        distributorId,
+        distributorBalance: distributor.balance,
+        hasActiveCredit,
+        isSuccess,
+        priceToCharge,
+        perfil_firma,
+        numero_tramite,
+        dto,
+        signatureData: {
+          numero_tramite,
+          distributorPlanPriceId: planPrice.id,
+          planId: dto.planId,
+          perfil_firma,
+          nombres: dto.nombres.toUpperCase(),
+          apellidos: dto.apellidos.toUpperCase(),
+          cedula: dto.cedula,
+          correo: dto.correo,
+          codigo_dactilar: dto.codigo_dactilar,
+          celular: dto.celular,
+          provincia: dto.provincia.toUpperCase(),
+          ciudad: dto.ciudad.toUpperCase(),
+          parroquia: dto.parroquia.toUpperCase(),
+          direccion: dto.direccion.toUpperCase(),
+          dateOfBirth: new Date(dto.dateOfBirth),
+          foto_frontal: files.foto_frontal_key,
+          foto_posterior: files.foto_posterior_key,
+          video_face: files.video_face_key || null,
+          clavefirma: dto.clavefirma,
+          ruc: dto.ruc || null,
+          razon_social: dto.razon_social?.toUpperCase() || null,
+          rep_legal: dto.rep_legal?.toUpperCase() || null,
+          cargo: dto.cargo?.toUpperCase() || null,
+          nombramiento: files.nombramiento_key || null,
+          pdf_sri: files.pdf_sri_key || null,
+          tipo_envio: '1',
+          pais: 'ECUADOR',
+          distributorId,
+          status,
+          providerCode: providerResponse.codigo.toString(),
+          providerMessage: providerResponse.mensaje,
+        },
       });
-
-      // Si usó crédito, registrar en el corte (fuera de la transacción anterior)
-      if (isSuccess && result.usedCredit) {
-        try {
-          await this.creditsService.registerSignatureInCredit(
-            distributorId,
-            priceToCharge,
-            result.signatureRequest.id,
-          );
-        } catch (error) {
-          this.logger.error(
-            `Error al registrar firma en crédito: ${error.message}`,
-          );
-        }
-      }
 
       return {
         success: isSuccess,
         message: providerResponse.mensaje,
-        data: result.signatureRequest,
-        balance: result.newBalance,
-        priceCharged: result.priceCharged,
-        usedCredit: result.usedCredit,
+        data: {
+          balance: result.newBalance,
+          priceCharged: result.priceCharged,
+          usedCredit: result.usedCredit,
+        },
       };
     } catch (error) {
-      this.logger.error(
-        `Error al crear solicitud de firma: ${error.message}`,
-        error.stack,
-      );
-      if (
-        error instanceof BadRequestException ||
-        error.name === 'BadRequestException'
-      ) {
-        throw error;
-      }
-      throw new InternalServerErrorException(
-        'Error al procesar la solicitud de firma ENEXT Natural',
-      );
+      this.handleSignatureError(error);
     }
   }
 
@@ -579,115 +332,34 @@ export class SignaturesService {
   ) {
     const type: 'NATURAL' | 'JURIDICA' = 'JURIDICA';
     try {
-      // Calcular edad del solicitante
-      const birthDate = new Date(dto.dateOfBirth);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (
-        monthDiff < 0 ||
-        (monthDiff === 0 && today.getDate() < birthDate.getDate())
-      ) {
-        age--;
-      }
+      // 1. Validaciones iniciales
+      this.validateAgeAndVideo(dto.dateOfBirth, video_face);
+      const distributor = await this.validateDistributor(distributorId);
 
-      // Validar que el video sea obligatorio si edad >= 80
-      if (age >= 80 && !video_face) {
-        throw new BadRequestException(
-          'El video facial es obligatorio para personas de 80 años o más',
-        );
-      }
-
-      // Validar formato de video si se proporciona
-      if (video_face) {
-        const allowedMimeTypes = [
-          'video/mp4',
-          'video/quicktime',
-          'video/x-msvideo',
-          'video/webm',
-        ];
-        if (!allowedMimeTypes.includes(video_face.mimetype)) {
-          throw new BadRequestException(
-            'Formato de video no válido. Use: mp4, mov, avi o webm',
-          );
-        }
-
-        // Validar tamaño (máximo 50MB)
-        const maxSize = 50 * 1024 * 1024; // 50MB
-        if (video_face.size > maxSize) {
-          throw new BadRequestException('El video no puede superar los 50MB');
-        }
-      }
-
-      // Verificar que el distribuidor existe y está activo
-      const distributor = await this.prisma.distributor.findUnique({
-        where: { id: distributorId },
-      });
-
-      if (!distributor) {
-        throw new BadRequestException('Distribuidor no encontrado');
-      }
-
-      if (!distributor.active) {
-        throw new BadRequestException('Distribuidor inactivo');
-      }
-
-      // Buscar el plan con perfil JURIDICO ENEXT para este distribuidor
-      const planPrice = await this.prisma.distributorPlanPrice.findFirst({
-        where: {
+      // 2. Obtener plan, perfil y precio
+      const { planPrice, perfil_firma, priceToCharge } =
+        await this.getSignaturePlanPrice(
           distributorId,
-          isActive: true,
-          plan: {
-            perfilJuridicoEnext: dto.perfil_firma,
-          },
-        },
-        include: {
-          plan: true,
-        },
-      });
-
-      if (!planPrice) {
-        throw new BadRequestException(
-          `No se encontró el plan ${dto.perfil_firma} asignado al distribuidor`,
+          dto.planId,
+          'perfilJuridicoEnext',
+          'Juridica Enext',
         );
-      }
 
-      // Determinar el precio a cobrar (si hay promo, usar promo, sino usar normal)
-      const priceToCharge = planPrice.customPricePromo
-        ? planPrice.customPricePromo
-        : planPrice.customPrice;
-
-      // Verificar si el distribuidor puede emitir firmas (no está bloqueado por crédito)
-      const canEmit = await this.creditsService.canEmitSignature(distributorId);
-      if (!canEmit) {
-        throw new BadRequestException(
-          'No puede emitir firmas. Tiene un crédito bloqueado por falta de pago.',
-        );
-      }
-
-      // Obtener estado del crédito para saber si opera con crédito o balance directo
-      const creditStatus =
-        await this.creditsService.getCreditStatus(distributorId);
-      const hasActiveCredit = creditStatus !== null && !creditStatus.isBlocked;
-
-      // Si NO tiene crédito activo, verificar que tenga balance suficiente
-      if (!hasActiveCredit && distributor.balance < priceToCharge) {
-        throw new BadRequestException(
-          `Balance insuficiente. Se requieren $${(priceToCharge / 100).toFixed(2)} y tiene $${(distributor.balance / 100).toFixed(2)}`,
-        );
-      }
+      // 3. Validar capacidad de pago
+      const { hasActiveCredit } = await this.validatePaymentCapability(
+        distributorId,
+        distributor.balance,
+        priceToCharge,
+      );
 
       const numero_tramite = this.generateNumeroTramite();
 
-      // URL del proveedor ENEXT Jurídica
-      const providerUrl = this.signProviderBaseUrlJuridica;
-
-      // Preparar el payload para el proveedor
+      // 4. Llamar al proveedor
       const providerPayload: any = {
         numero_tramite,
-        usuario: this.signProviderUser,
-        password: this.signProviderPassword,
-        perfil_firma: this.cleanPerfilFirma(dto.perfil_firma),
+        usuario: this.config.signProvider.user,
+        password: this.config.signProvider.password,
+        perfil_firma,
         nombres: dto.nombres.toUpperCase(),
         apellidos: dto.apellidos.toUpperCase(),
         cedula: dto.cedula,
@@ -704,230 +376,294 @@ export class SignaturesService {
         foto_posterior: dto.foto_posterior,
         pais: 'ECUADOR',
         tipo_envio: '1',
+        // Campos específicos jurídica
+        callback: this.config.signProvider.callback || '',
+        razon_social: dto.razon_social?.toUpperCase() || '',
+        rep_legal: dto.rep_legal?.toUpperCase() || '',
+        cargo: dto.cargo?.toUpperCase() || '',
+        pdfSriBase64: dto.pdfSriBase64 || '',
+        nombramientoBase64: dto.nombramientoBase64 || '',
       };
 
-      // Agregar campos específicos para persona jurídica
-      providerPayload.callback = this.signProviderCallback || '';
-      providerPayload.razon_social = dto.razon_social?.toUpperCase() || '';
-      providerPayload.rep_legal = dto.rep_legal?.toUpperCase() || '';
-      providerPayload.cargo = dto.cargo?.toUpperCase() || '';
-      providerPayload.pdfSriBase64 = dto.pdfSriBase64 || '';
-      providerPayload.nombramientoBase64 = dto.nombramientoBase64 || '';
-
-      // Llamar al proveedor de firma
       const providerResponse = await this.callSignatureProviderEnext(
         providerPayload,
-        providerUrl,
+        this.config.signProvider.baseUrlJuridica,
         type,
       );
 
-      // Determinar el estado basado en el código del proveedor
+      // 5. Determinar estado (jurídica queda en PENDING al éxito)
       const isSuccess = providerResponse.codigo === 1;
       const isRejected = providerResponse.codigo === 0;
 
       let status: SignatureStatus;
       if (isSuccess) {
-        status = SignatureStatus.PENDING; // Jurídica siempre queda en PENDING al inicio
+        status = SignatureStatus.PENDING;
       } else if (isRejected) {
         status = SignatureStatus.REJECTED;
       } else {
         status = SignatureStatus.FAILED;
       }
 
-      // Subir archivos ANTES de la transacción para evitar timeout
-      const foto_frontal_key = await this.filesService.uploadFile(
-        dto.foto_frontal,
-        distributorId.toString(),
-        'jpg',
-        'fotos-distribuidores',
-        'fotos-cedulas',
+      // 6. Subir archivos
+      const files = await this.uploadSignatureFiles(
+        distributorId,
+        dto,
+        video_face,
       );
 
-      const foto_posterior_key = await this.filesService.uploadFile(
-        dto.foto_posterior,
-        distributorId.toString(),
-        'jpg',
-        'fotos-distribuidores',
-        'fotos-cedulas',
-      );
-
-      let pdf_sri_key: string | undefined;
-      let nombramiento_key: string | undefined;
-      let video_face_key: string | undefined;
-
-      if (dto.pdfSriBase64) {
-        pdf_sri_key = await this.filesService.uploadFile(
-          dto.pdfSriBase64,
-          distributorId.toString(),
-          'pdf',
-          'pdfs-distribuidores',
-          'pdf-sri',
-        );
-      }
-
-      if (dto.nombramientoBase64) {
-        nombramiento_key = await this.filesService.uploadFile(
-          dto.nombramientoBase64,
-          distributorId.toString(),
-          'pdf',
-          'pdfs-distribuidores',
-          'pdf-nombramiento',
-        );
-      }
-
-      // Subir video si existe
-      if (video_face) {
-        const videoExtension = this.getFileExtension(video_face.mimetype);
-        video_face_key = await this.filesService.uploadFileFromBuffer(
-          video_face.buffer,
-          distributorId.toString(),
-          videoExtension,
-          'fotos-distribuidores',
-          'fotos-cedulas',
-        );
-      }
-
-      const result = await this.prisma.$transaction(async (tx) => {
-        let newBalance = distributor.balance;
-        let priceCharged = priceToCharge;
-        let usedCredit = false;
-
-        // Solo cobrar si la solicitud fue exitosa
-        if (isSuccess) {
-          if (hasActiveCredit) {
-            // Tiene crédito activo: registrar en corte
-            usedCredit = true;
-          } else {
-            // NO tiene crédito: descontar del balance
-            newBalance = distributor.balance - priceToCharge;
-            usedCredit = false;
-
-            // Actualizar el balance del distribuidor
-            await tx.distributor.update({
-              where: { id: distributorId },
-              data: { balance: newBalance },
-            });
-          }
-        }
-
-        // Crear la solicitud de firma (siempre, sin importar el resultado)
-        const signatureRequest = await tx.signatureRequest.create({
-          data: {
-            numero_tramite,
-            perfil_firma: dto.perfil_firma,
-            nombres: dto.nombres.toUpperCase(),
-            apellidos: dto.apellidos.toUpperCase(),
-            cedula: dto.cedula,
-            correo: dto.correo,
-            codigo_dactilar: dto.codigo_dactilar,
-            celular: dto.celular,
-            provincia: dto.provincia.toUpperCase(),
-            ciudad: dto.ciudad.toUpperCase(),
-            parroquia: dto.parroquia.toUpperCase(),
-            direccion: dto.direccion.toUpperCase(),
-            dateOfBirth: new Date(dto.dateOfBirth),
-            foto_frontal: foto_frontal_key,
-            foto_posterior: foto_posterior_key,
-            video_face: video_face_key || null,
-            clavefirma: dto.clavefirma,
-            ruc: dto.ruc || null,
-            razon_social: dto.razon_social?.toUpperCase() || null,
-            rep_legal: dto.rep_legal?.toUpperCase() || null,
-            cargo: dto.cargo?.toUpperCase() || null,
-            nombramiento: nombramiento_key || null,
-            pdf_sri: pdf_sri_key || null,
-            tipo_envio: '1',
-            pais: 'ECUADOR',
-            distributorId,
-            status,
-            providerCode: providerResponse.codigo.toString(),
-            providerMessage: providerResponse.mensaje,
-            priceCharged,
-            paymentMethod: usedCredit
-              ? PaymentMethod.CREDIT
-              : PaymentMethod.BALANCE,
-          },
-        });
-
-        // Si usó crédito, registrar en corte. Si no, crear movimiento de cuenta
-        if (isSuccess) {
-          if (usedCredit) {
-            // El registro en el corte se hace DESPUÉS de esta transacción
-          } else {
-            await tx.accountMovement.create({
-              data: {
-                distributorId,
-                type: MovementType.EXPENSE,
-                detail: `Firma digital - Plan ${dto.perfil_firma} - ${dto.apellidos}`,
-                amount: priceCharged,
-                balanceAfter: newBalance,
-                signatureId: signatureRequest.id,
-                note: `Trámite: ${numero_tramite} - Cédula: ${dto.cedula}`,
-              },
-            });
-          }
-        }
-
-        return {
-          signatureRequest,
-          newBalance,
-          priceCharged,
-          usedCredit,
-        };
+      // 7. Transacción de pago y creación de firma
+      const result = await this.processSignaturePayment({
+        distributorId,
+        distributorBalance: distributor.balance,
+        hasActiveCredit,
+        isSuccess,
+        priceToCharge,
+        perfil_firma,
+        numero_tramite,
+        dto,
+        signatureData: {
+          numero_tramite,
+          distributorPlanPriceId: planPrice.id,
+          planId: dto.planId,
+          perfil_firma,
+          nombres: dto.nombres.toUpperCase(),
+          apellidos: dto.apellidos.toUpperCase(),
+          cedula: dto.cedula,
+          correo: dto.correo,
+          codigo_dactilar: dto.codigo_dactilar,
+          celular: dto.celular,
+          provincia: dto.provincia.toUpperCase(),
+          ciudad: dto.ciudad.toUpperCase(),
+          parroquia: dto.parroquia.toUpperCase(),
+          direccion: dto.direccion.toUpperCase(),
+          dateOfBirth: new Date(dto.dateOfBirth),
+          foto_frontal: files.foto_frontal_key,
+          foto_posterior: files.foto_posterior_key,
+          video_face: files.video_face_key || null,
+          clavefirma: dto.clavefirma,
+          ruc: dto.ruc || null,
+          razon_social: dto.razon_social?.toUpperCase() || null,
+          rep_legal: dto.rep_legal?.toUpperCase() || null,
+          cargo: dto.cargo?.toUpperCase() || null,
+          nombramiento: files.nombramiento_key || null,
+          pdf_sri: files.pdf_sri_key || null,
+          tipo_envio: '1',
+          pais: 'ECUADOR',
+          distributorId,
+          status,
+          providerCode: providerResponse.codigo.toString(),
+          providerMessage: providerResponse.mensaje,
+        },
       });
-
-      // Si usó crédito, registrar en el corte (fuera de la transacción anterior)
-      if (isSuccess && result.usedCredit) {
-        try {
-          await this.creditsService.registerSignatureInCredit(
-            distributorId,
-            priceToCharge,
-            result.signatureRequest.id,
-          );
-        } catch (error) {
-          this.logger.error(
-            `Error al registrar firma en crédito: ${error.message}`,
-          );
-        }
-      }
 
       return {
         success: isSuccess,
         message: providerResponse.mensaje,
-        data: result.signatureRequest,
-        balance: result.newBalance,
-        priceCharged: result.priceCharged,
-        usedCredit: result.usedCredit,
+        data: {
+          balance: result.newBalance,
+          priceCharged: result.priceCharged,
+          usedCredit: result.usedCredit,
+        },
       };
     } catch (error) {
-      this.logger.error(
-        `Error al crear solicitud de firma: ${error.message}`,
-        error.stack,
-      );
-      if (
-        error instanceof BadRequestException ||
-        error.name === 'BadRequestException'
-      ) {
-        throw error;
-      }
-      throw new InternalServerErrorException(
-        'Error al procesar la solicitud de firma',
-      );
+      this.handleSignatureError(error);
     }
   }
 
   /**
    * Crea firma digital UANATACA ARCHIVO para persona NATURAL (pasaporte)
-   * TODO: Implementar integración con Uanataca
    */
   private async createSignatureRequestUanatacaNatural(
     distributorId: string,
     dto: any,
     video_face?: Express.Multer.File,
   ) {
-    throw new BadRequestException(
-      'Firma Uanataca Archivo Natural no implementada aún',
-    );
+    try {
+      // 1. Validaciones iniciales
+      this.validateAgeAndVideo(dto.dateOfBirth, video_face);
+      const distributor = await this.validateDistributor(distributorId);
+
+      // Validar campos requeridos para Uanataca
+      if (!dto.nacionalidad) {
+        throw new BadRequestException(
+          'La nacionalidad es requerida para firmas Uanataca',
+        );
+      }
+      if (!dto.sexo) {
+        throw new BadRequestException(
+          'El sexo es requerido para firmas Uanataca',
+        );
+      }
+      if (!dto.selfie) {
+        throw new BadRequestException(
+          'La selfie es requerida para firmas Uanataca',
+        );
+      }
+
+      // Determinar la identificación según el tipo de documento
+      const identification =
+        dto.documento === 'PASAPORTE'
+          ? dto.pasaporte || dto.cedula
+          : dto.cedula;
+
+      // 2. Obtener plan, perfil (productUuid) y precio
+      const { planPrice, perfil_firma, priceToCharge } =
+        await this.getSignaturePlanPrice(
+          distributorId,
+          dto.planId,
+          'perfilNaturalUanataca',
+          'Natural Uanataca',
+        );
+
+      // 3. Validar capacidad de pago
+      const { hasActiveCredit } = await this.validatePaymentCapability(
+        distributorId,
+        distributor.balance,
+        priceToCharge,
+      );
+
+      const numero_tramite = this.generateNumeroTramite();
+
+      // 4. Autenticarse con Uanataca (token dura 5 min)
+      const accessToken = await this.authenticateUanataca();
+
+      // Separar apellidos (el DTO tiene "apellidos" como campo único)
+      const apellidosParts = dto.apellidos.toUpperCase().split(' ');
+      const lastName1 = apellidosParts[0] || '';
+      const lastName2 = apellidosParts.slice(1).join(' ') || '';
+
+      // 5. Preparar payload para Uanataca
+      const providerPayload: any = {
+        identificationType: this.mapIdentificationTypeUanataca(dto.documento),
+        identification: identification,
+        fingerprintCode: dto.codigo_dactilar || '',
+        names: dto.nombres.toUpperCase(),
+        lastName1,
+        lastName2,
+        birthDate: this.formatDateForUanataca(dto.dateOfBirth),
+        nationality: dto.nacionalidad.toUpperCase(),
+        sex: dto.sexo.toUpperCase(),
+        phoneNumber: dto.celular,
+        email: dto.correo,
+        province: dto.provincia.toUpperCase(),
+        city: dto.ciudad.toUpperCase(),
+        address: dto.direccion.toUpperCase(),
+        productUuid: perfil_firma,
+        frontIdentification: {
+          name: `cedula_frontal_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.foto_frontal,
+        },
+        backIdentification: {
+          name: `cedula_reverso_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.foto_posterior,
+        },
+        selfie: {
+          name: `selfie_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.selfie,
+        },
+      };
+
+      // Agregar video si existe (para mayores de 80)
+      if (video_face) {
+        const videoExtension = this.getFileExtension(video_face.mimetype);
+        const videoBase64 = video_face.buffer.toString('base64');
+        providerPayload.seniorVideo = {
+          name: `video_${identification}.${videoExtension}`,
+          type: video_face.mimetype,
+          base64: videoBase64,
+        };
+      }
+
+      // Agregar RUC si existe
+      if (dto.ruc) {
+        providerPayload.ruc = dto.ruc;
+      }
+
+      // 6. Llamar al proveedor Uanataca
+      const providerResponse = await this.callUanatacaCertificateRequest(
+        providerPayload,
+        accessToken,
+      );
+
+      // 7. Determinar estado
+      const isSuccess = providerResponse.success;
+
+      let status: SignatureStatus;
+      if (isSuccess) {
+        status = SignatureStatus.PENDING;
+      } else {
+        status = SignatureStatus.FAILED;
+      }
+
+      // 8. Subir archivos al storage
+      const files = await this.uploadSignatureFiles(
+        distributorId,
+        dto,
+        video_face,
+      );
+
+      // 9. Transacción de pago y creación de firma
+      const result = await this.processSignaturePayment({
+        distributorId,
+        distributorBalance: distributor.balance,
+        hasActiveCredit,
+        isSuccess,
+        priceToCharge,
+        perfil_firma,
+        numero_tramite,
+        dto,
+        signatureData: {
+          numero_tramite,
+          distributorPlanPriceId: planPrice.id,
+          planId: dto.planId,
+          perfil_firma,
+          nombres: dto.nombres.toUpperCase(),
+          apellidos: dto.apellidos.toUpperCase(),
+          cedula: identification,
+          correo: dto.correo,
+          codigo_dactilar: dto.codigo_dactilar || '',
+          celular: dto.celular,
+          provincia: dto.provincia.toUpperCase(),
+          ciudad: dto.ciudad.toUpperCase(),
+          parroquia: dto.parroquia?.toUpperCase() || dto.ciudad.toUpperCase(),
+          direccion: dto.direccion.toUpperCase(),
+          dateOfBirth: new Date(dto.dateOfBirth),
+          foto_frontal: files.foto_frontal_key,
+          foto_posterior: files.foto_posterior_key,
+          video_face: files.video_face_key || null,
+          clavefirma: dto.clavefirma || '',
+          ruc: dto.ruc || null,
+          razon_social: null,
+          rep_legal: null,
+          cargo: null,
+          nombramiento: null,
+          pdf_sri: null,
+          tipo_envio: '1',
+          pais: 'ECUADOR',
+          distributorId,
+          status,
+          providerCode:
+            providerResponse.providerUuid || (isSuccess ? '1' : '0'),
+          providerMessage: providerResponse.message,
+          provider: 'UANATACA',
+        },
+      });
+
+      return {
+        success: isSuccess,
+        message: providerResponse.message,
+        data: {
+          balance: result.newBalance,
+          priceCharged: result.priceCharged,
+          usedCredit: result.usedCredit,
+        },
+      };
+    } catch (error) {
+      this.handleSignatureError(error);
+    }
   }
 
   /**
@@ -994,12 +730,12 @@ export class SignaturesService {
       // Usar credenciales de biometría para jurídicas, normales para naturales
       const authUsername =
         type === 'JURIDICA'
-          ? this.signProviderAuthUsernameBiometria
-          : this.signProviderAuthUsername;
+          ? this.config.signProvider.authUsernameBiometria
+          : this.config.signProvider.authUsername;
       const authPassword =
         type === 'JURIDICA'
-          ? this.signProviderAuthPasswordBiometria
-          : this.signProviderAuthPassword;
+          ? this.config.signProvider.authPasswordBiometria
+          : this.config.signProvider.authPassword;
 
       const basicAuth = Buffer.from(`${authUsername}:${authPassword}`).toString(
         'base64',
@@ -1007,7 +743,7 @@ export class SignaturesService {
 
       let response;
 
-      if (this.environment === 'development') {
+      if (this.config.environment === 'development') {
         response = {
           data: {
             codigo: 1,
@@ -1103,25 +839,20 @@ export class SignaturesService {
       where: { distributorId },
     });
 
-    // Obtener las solicitudes paginadas
+    // Obtener las solicitudes paginadas con relación al plan
     const signatureRequests = await this.prisma.signatureRequest.findMany({
       where: { distributorId },
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
-    });
-
-    const perfilInfo = await this.prisma.plan.findMany({
-      where: {
-        perfil: { in: signatureRequests.map((sr) => sr.perfil_firma) },
+      include: {
+        plan: true,
       },
     });
 
-    const planMap = new Map(perfilInfo.map((plan) => [plan.perfil, plan]));
-
     // Procesar solicitudes y calcular días de expiración
     const data: SignatureListItemDto[] = signatureRequests.map((request) => {
-      const plan = planMap.get(request.perfil_firma);
+      const plan = request.plan;
       let expiredDays: number | null = null;
 
       if (plan) {
@@ -1192,7 +923,10 @@ export class SignaturesService {
    */
   async verifyEmailBounce(email: string): Promise<boolean | false> {
     try {
-      if (!this.emailVerificationApiUrl || !this.emailVerificationApiKey) {
+      if (
+        !this.config.emailVerification.apiUrl ||
+        !this.config.emailVerification.apiKey
+      ) {
         this.logger.warn(
           'URL o API Key para verificación de email no configurados',
         );
@@ -1200,10 +934,10 @@ export class SignaturesService {
       }
 
       const response = await firstValueFrom(
-        this.httpService.get(`${this.emailVerificationApiUrl}`, {
+        this.httpService.get(`${this.config.emailVerification.apiUrl}`, {
           params: {
             email,
-            apikey: this.emailVerificationApiKey,
+            apikey: this.config.emailVerification.apiKey,
           },
           timeout: 10000, // 10 segundos de timeout
         }),
@@ -1269,7 +1003,7 @@ export class SignaturesService {
     timeZone: 'America/Guayaquil',
   })
   async notifyExpiringSignatures() {
-    if (this.environment !== 'production') {
+    if (this.config.environment !== 'production') {
       this.logger.log(
         'Notificación de firmas por vencer omitida (Entorno no productivo)',
       );
@@ -1293,19 +1027,6 @@ export class SignaturesService {
       const yearsToCheck = [1, 2, 3, 4, 5];
 
       for (const years of yearsToCheck) {
-        const relevantPlans = await this.prisma.plan.findMany({
-          where: {
-            duration: years.toString(),
-            durationType: { in: ['Y', 'YS'] },
-            isActive: true,
-          },
-          select: { perfil: true },
-        });
-
-        if (relevantPlans.length === 0) continue;
-
-        const relevantProfiles = relevantPlans.map((p) => p.perfil);
-
         const targetUpdatedAt = new Date(targetExpiration);
         targetUpdatedAt.setFullYear(targetExpiration.getFullYear() - years);
 
@@ -1315,14 +1036,19 @@ export class SignaturesService {
         const endDate = new Date(targetUpdatedAt);
         endDate.setHours(23, 59, 59, 999);
 
+        // Buscar firmas que expiran, filtrando por la relación con el plan
         const expiringSignatures = await this.prisma.signatureRequest.findMany({
           where: {
             status: SignatureStatus.COMPLETED,
             activeNotification: true,
-            perfil_firma: { in: relevantProfiles },
             updatedAt: {
               gte: startDate,
               lte: endDate,
+            },
+            plan: {
+              duration: years.toString(),
+              durationType: { in: ['Y', 'YS'] },
+              isActive: true,
             },
             distributor: {
               active: true,
@@ -1408,37 +1134,24 @@ export class SignaturesService {
         id,
         distributorId,
       },
+      include: {
+        plan: true,
+      },
     });
 
     if (!signatureRequest) {
       throw new BadRequestException('Solicitud de firma no encontrada');
     }
 
-    // Buscar el plan del distribuidor con el perfil de la firma
-    const distributorPlan = await this.prisma.distributorPlanPrice.findFirst({
-      where: {
-        distributorId,
-        isActive: true,
-        plan: {
-          perfil: signatureRequest.perfil_firma,
-          isActive: true,
-        },
-      },
-      include: {
-        plan: true,
-      },
-    });
+    // Obtener el plan directamente de la relación
+    const plan = signatureRequest.plan;
 
     // Calcular fecha de expiración y duración si el plan existe y la firma está completada
     let expirationDate: Date | null = null;
     let duration: string | null = null;
     let durationType: string | null = null;
 
-    if (
-      distributorPlan &&
-      signatureRequest.status === SignatureStatus.COMPLETED
-    ) {
-      const plan = distributorPlan.plan;
+    if (plan && signatureRequest.status === SignatureStatus.COMPLETED) {
       duration = plan.duration;
       durationType = plan.durationType;
 
@@ -1547,14 +1260,6 @@ export class SignaturesService {
     }
   }
 
-  private cleanPerfilFirma(perfil: string): string {
-    //Limpiar PN- y PJ- al inicio del perfil
-    if (perfil.startsWith('PN-') || perfil.startsWith('PJ-')) {
-      return perfil.slice(3);
-    }
-    return perfil;
-  }
-
   // ========================
   // MÉTODOS PARA ADMINISTRADOR
   // ========================
@@ -1623,7 +1328,7 @@ export class SignaturesService {
     // Obtener el total de registros
     const total = await this.prisma.signatureRequest.count({ where });
 
-    // Obtener las solicitudes paginadas con información del distribuidor
+    // Obtener las solicitudes paginadas con información del distribuidor y plan
     const signatureRequests = await this.prisma.signatureRequest.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -1641,21 +1346,14 @@ export class SignaturesService {
             phone: true,
           },
         },
+        plan: true,
       },
     });
-
-    const perfilInfo = await this.prisma.plan.findMany({
-      where: {
-        perfil: { in: signatureRequests.map((sr) => sr.perfil_firma) },
-      },
-    });
-
-    const planMap = new Map(perfilInfo.map((plan) => [plan.perfil, plan]));
 
     // Procesar solicitudes y calcular días de expiración
     const data: AdminSignatureListItemDto[] = signatureRequests.map(
       (request) => {
-        const plan = planMap.get(request.perfil_firma);
+        const plan = request.plan;
         let expiredDays: number | null = null;
         let duration: string | null = null;
         let durationType: string | null = null;
@@ -1762,6 +1460,7 @@ export class SignaturesService {
             balance: true,
           },
         },
+        plan: true,
       },
     });
 
@@ -1769,13 +1468,8 @@ export class SignaturesService {
       throw new BadRequestException('Solicitud de firma no encontrada');
     }
 
-    // Buscar el plan para calcular duración
-    const plan = await this.prisma.plan.findFirst({
-      where: {
-        perfil: signatureRequest.perfil_firma,
-        isActive: true,
-      },
-    });
+    // Obtener el plan directamente de la relación
+    const plan = signatureRequest.plan;
 
     // Calcular fecha de expiración y duración si el plan existe y la firma está completada
     let expirationDate: Date | null = null;
@@ -1911,7 +1605,6 @@ export class SignaturesService {
       );
     }
 
-    // Verificar que la firma no esté ya anulada
     if (signatureRequest.status === SignatureStatus.ANNULLED) {
       throw new BadRequestException('La solicitud de firma ya está anulada');
     }
@@ -1921,6 +1614,7 @@ export class SignaturesService {
       signatureRequest.paymentMethod === PaymentMethod.CREDIT;
     let targetCutoff: any = null;
     let refundAmount = signatureRequest.priceCharged || 0;
+    let wasAlreadyPaidInCutoff = false;
 
     if (!isPaidViaCredit) {
       const originalMovement = await this.prisma.accountMovement.findFirst({
@@ -1935,11 +1629,10 @@ export class SignaturesService {
         const planPrice = await this.prisma.distributorPlanPrice.findFirst({
           where: {
             distributorId: signatureRequest.distributorId!,
-            plan: { perfil: signatureRequest.perfil_firma },
+            planId: signatureRequest.planId,
           },
         });
         refundAmount = planPrice?.customPrice || 0;
-
         isPaidViaCredit = true;
       }
     }
@@ -1961,6 +1654,10 @@ export class SignaturesService {
           cutoffDate: cutoffDate,
         },
       });
+
+      if (targetCutoff) {
+        wasAlreadyPaidInCutoff = targetCutoff.amountPaid >= refundAmount;
+      }
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -1983,27 +1680,96 @@ export class SignaturesService {
       let actualRefundedToBalance = 0;
       let discountedFromCredit = 0;
       let movementId: string | null = null;
+      let paymentTransferredTo: string | null = null;
 
       if (generateRefund && refundAmount > 0) {
-        if (isPaidViaCredit && targetCutoff && !targetCutoff.isPaid) {
+        if (isPaidViaCredit && targetCutoff) {
           let signatures: string[] = [];
           try {
             signatures = JSON.parse(targetCutoff.signaturesDetails || '[]');
           } catch (e) {
             signatures = [];
           }
+
+          const signatureWasInCutoff = signatures.includes(signatureId);
+
+          if (!signatureWasInCutoff) {
+            this.logger.warn(
+              `Firma ${signatureId} no encontrada en corte ${targetCutoff.id}`,
+            );
+          }
+
+          // Remover la firma anulada del listado
           signatures = signatures.filter((id) => id !== signatureId);
+
+          let newAmountUsed = Math.max(
+            0,
+            targetCutoff.amountUsed - refundAmount,
+          );
+          let newAmountPaid = targetCutoff.amountPaid;
+          let shouldTransferPayment = false;
+
+          if (wasAlreadyPaidInCutoff) {
+            this.logger.log(
+              `Firma anulada ya había sido cobrada ($${(refundAmount / 100).toFixed(2)})`,
+            );
+
+            const otherValidSignaturesInCutoff =
+              await tx.signatureRequest.findMany({
+                where: {
+                  id: { in: signatures },
+                  status: {
+                    in: [SignatureStatus.COMPLETED],
+                  },
+                  paymentMethod: PaymentMethod.CREDIT,
+                },
+                select: {
+                  id: true,
+                  nombres: true,
+                  apellidos: true,
+                  razon_social: true,
+                  priceCharged: true,
+                },
+                orderBy: {
+                  createdAt: 'asc',
+                },
+              });
+
+            if (otherValidSignaturesInCutoff.length > 0) {
+              const targetSignature = otherValidSignaturesInCutoff[0];
+
+              shouldTransferPayment = true;
+              paymentTransferredTo = targetSignature.id;
+
+              this.logger.log(
+                `PAGO TRANSFERIDO: La firma válida ahora está considerada como pagada`,
+              );
+            } else {
+              newAmountPaid = Math.max(
+                0,
+                targetCutoff.amountPaid - refundAmount,
+              );
+            }
+          } else {
+            newAmountPaid = Math.min(targetCutoff.amountPaid, newAmountUsed);
+          }
+
+          const isNowPaid = newAmountUsed <= newAmountPaid;
 
           await tx.creditCutoff.update({
             where: { id: targetCutoff.id },
             data: {
-              amountUsed: { decrement: refundAmount },
-              signaturesCount: { decrement: 1 },
+              amountUsed: newAmountUsed,
+              amountPaid: newAmountPaid,
+              signaturesCount: Math.max(0, targetCutoff.signaturesCount - 1),
               signaturesDetails: JSON.stringify(signatures),
+              isPaid: isNowPaid,
+              isOverdue: isNowPaid ? false : targetCutoff.isOverdue,
             },
           });
           discountedFromCredit = refundAmount;
         } else {
+          // Reembolso directo al balance
           newBalance += refundAmount;
           actualRefundedToBalance = refundAmount;
 
@@ -2016,7 +1782,7 @@ export class SignaturesService {
             data: {
               distributorId: signatureRequest.distributorId!,
               type: MovementType.INCOME,
-              detail: `Reembolso por anulación de firma - ${signatureRequest.apellidos}`,
+              detail: `Reembolso por anulación de firma - ${signatureRequest.apellidos || signatureRequest.razon_social}`,
               amount: refundAmount,
               balanceAfter: newBalance,
               signatureId: signatureRequest.id,
@@ -2035,15 +1801,40 @@ export class SignaturesService {
         discountedFromCredit,
         newDistributorBalance: newBalance,
         movementId,
+        targetCutoffId: targetCutoff?.id,
+        wasAlreadyPaidInCutoff,
+        paymentTransferredTo,
       };
     });
 
+    if (isPaidViaCredit && targetCutoff) {
+      try {
+        const unblockResult =
+          await this.creditsService.checkAndUnblockAfterAnnulment(
+            signatureRequest.distributorId!,
+            targetCutoff.creditId,
+          );
+      } catch (error) {
+        this.logger.error(
+          `Error al verificar desbloqueo después de anulación: ${error.message}`,
+        );
+      }
+    }
+
+    // Construir mensaje de respuesta
     let message = 'Firma anulada exitosamente';
     if (generateRefund) {
       if (result.refundedAmount > 0) {
         message += ` y se reembolsaron $${(result.refundedAmount / 100).toFixed(2)} al saldo del distribuidor.`;
       } else if (result.discountedFromCredit > 0) {
-        message += ` y se descontó el valor de $${(result.discountedFromCredit / 100).toFixed(2)} de la deuda del crédito pendiente.`;
+        if (result.paymentTransferredTo) {
+          message += ` y el pago de $${(result.discountedFromCredit / 100).toFixed(2)} se transfirió a otra firma válida del mismo corte.`;
+        } else {
+          const paymentStatus = result.wasAlreadyPaidInCutoff
+            ? 'cobrada'
+            : 'pendiente de cobro';
+          message += ` y se descontó el valor de $${(result.discountedFromCredit / 100).toFixed(2)} del corte de crédito (firma ${paymentStatus}).`;
+        }
       } else {
         message += ' sin embargo no se generó reembolso (valor calculado 0).';
       }
@@ -2148,6 +1939,34 @@ export class SignaturesService {
   }
 
   /**
+   * Valida el formato y tamaño de un archivo de video
+   * @param video_face Archivo de video a validar
+   * @throws BadRequestException si el video no cumple con los requisitos
+   */
+  private validateVideoFile(video_face?: Express.Multer.File): void {
+    if (!video_face) return;
+
+    const allowedMimeTypes = [
+      'video/mp4',
+      'video/quicktime',
+      'video/x-msvideo',
+      'video/webm',
+    ];
+
+    if (!allowedMimeTypes.includes(video_face.mimetype)) {
+      throw new BadRequestException(
+        'Formato de video no válido. Use: mp4, mov, avi o webm',
+      );
+    }
+
+    // Validar tamaño (máximo 50MB)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (video_face.size > maxSize) {
+      throw new BadRequestException('El video no puede superar los 50MB');
+    }
+  }
+
+  /**
    * Obtiene la extensión del archivo basado en el mimetype
    * @param mimetype MIME type del archivo
    * @returns Extensión del archivo
@@ -2172,5 +1991,493 @@ export class SignaturesService {
       .toString()
       .padStart(4, '0');
     return `${timestamp}${random}`;
+  }
+
+  /**
+   * Valida la edad del solicitante y la obligatoriedad del video
+   * @param dateOfBirth Fecha de nacimiento del solicitante
+   * @param video_face Archivo de video opcional
+   * @throws BadRequestException si edad >= 80 y no hay video
+   */
+  private validateAgeAndVideo(
+    dateOfBirth: string | Date,
+    video_face?: Express.Multer.File,
+  ): void {
+    const age = this.calculateAge(dateOfBirth);
+
+    // Validar que el video sea obligatorio si edad >= 80
+    if (age >= 80 && !video_face) {
+      throw new BadRequestException(
+        'El video facial es obligatorio para personas de 80 años o más',
+      );
+    }
+
+    // Validar formato y tamaño del video
+    this.validateVideoFile(video_face);
+  }
+
+  private calculateAge(dateOfBirth: string | Date): number {
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
+      age--;
+    }
+    return age;
+  }
+  /**
+   * Valida que el distribuidor existe y está activo
+   */
+  private async validateDistributor(distributorId: string) {
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId },
+    });
+
+    if (!distributor) {
+      throw new BadRequestException('Distribuidor no encontrado');
+    }
+
+    if (!distributor.active) {
+      throw new BadRequestException('Distribuidor inactivo');
+    }
+
+    return distributor;
+  }
+
+  /**
+   * Obtiene el plan asignado al distribuidor, su perfil de firma y el precio a cobrar
+   * @param perfilField Campo del plan que contiene el perfil de firma (ej: perfilNaturalEnext)
+   * @param perfilLabel Etiqueta descriptiva para el error (ej: "Natural Enext")
+   */
+  private async getSignaturePlanPrice(
+    distributorId: string,
+    planId: string,
+    perfilField:
+      | 'perfilNaturalEnext'
+      | 'perfilJuridicoEnext'
+      | 'perfilNaturalUanataca'
+      | 'perfilJuridicoUanataca'
+      | 'perfilNaturalTokenUanataca'
+      | 'perfilJuridicoTokenUanataca',
+    perfilLabel: string,
+  ) {
+    const planPrice = await this.prisma.distributorPlanPrice.findFirst({
+      where: {
+        distributorId,
+        planId,
+        isActive: true,
+      },
+      include: {
+        plan: true,
+      },
+    });
+
+    if (!planPrice) {
+      throw new BadRequestException(
+        'No se encontró el plan asignado al distribuidor',
+      );
+    }
+
+    const perfil_firma = planPrice.plan[perfilField];
+    if (!perfil_firma) {
+      throw new BadRequestException(
+        `El plan no tiene perfil configurado para ${perfilLabel}`,
+      );
+    }
+
+    const priceToCharge = planPrice.customPricePromo
+      ? planPrice.customPricePromo
+      : planPrice.customPrice;
+
+    return { planPrice, perfil_firma, priceToCharge };
+  }
+
+  /**
+   * Valida que el distribuidor puede emitir firmas (crédito/balance)
+   * Retorna si tiene crédito activo
+   */
+  private async validatePaymentCapability(
+    distributorId: string,
+    distributorBalance: number,
+    priceToCharge: number,
+  ) {
+    const canEmit = await this.creditsService.canEmitSignature(distributorId);
+    if (!canEmit) {
+      throw new BadRequestException(
+        'No puede emitir firmas. Tiene un crédito bloqueado por falta de pago.',
+      );
+    }
+
+    const creditStatus =
+      await this.creditsService.getCreditStatus(distributorId);
+    const hasActiveCredit = creditStatus !== null && !creditStatus.isBlocked;
+
+    if (!hasActiveCredit && distributorBalance < priceToCharge) {
+      throw new BadRequestException(
+        `Balance insuficiente. Se requieren $${(priceToCharge / 100).toFixed(2)} y tiene $${(distributorBalance / 100).toFixed(2)}`,
+      );
+    }
+
+    return { hasActiveCredit };
+  }
+
+  /**
+   * Sube todos los archivos de una solicitud de firma (fotos, PDFs, video)
+   */
+  private async uploadSignatureFiles(
+    distributorId: string,
+    dto: any,
+    video_face?: Express.Multer.File,
+  ) {
+    const foto_frontal_key = await this.filesService.uploadFile(
+      dto.foto_frontal,
+      distributorId.toString(),
+      'jpg',
+      'fotos-distribuidores',
+      'fotos-cedulas',
+    );
+
+    const foto_posterior_key = await this.filesService.uploadFile(
+      dto.foto_posterior,
+      distributorId.toString(),
+      'jpg',
+      'fotos-distribuidores',
+      'fotos-cedulas',
+    );
+
+    let pdf_sri_key: string | undefined;
+    let nombramiento_key: string | undefined;
+    let video_face_key: string | undefined;
+
+    if (dto.pdfSriBase64) {
+      pdf_sri_key = await this.filesService.uploadFile(
+        dto.pdfSriBase64,
+        distributorId.toString(),
+        'pdf',
+        'pdfs-distribuidores',
+        'pdf-sri',
+      );
+    }
+
+    if (dto.nombramientoBase64) {
+      nombramiento_key = await this.filesService.uploadFile(
+        dto.nombramientoBase64,
+        distributorId.toString(),
+        'pdf',
+        'pdfs-distribuidores',
+        'pdf-nombramiento',
+      );
+    }
+
+    if (video_face) {
+      const videoExtension = this.getFileExtension(video_face.mimetype);
+      video_face_key = await this.filesService.uploadFileFromBuffer(
+        video_face.buffer,
+        distributorId.toString(),
+        videoExtension,
+        'fotos-distribuidores',
+        'fotos-cedulas',
+      );
+    }
+
+    return {
+      foto_frontal_key,
+      foto_posterior_key,
+      pdf_sri_key,
+      nombramiento_key,
+      video_face_key,
+    };
+  }
+
+  /**
+   * Procesa el pago y crea la solicitud de firma en una transacción
+   * Maneja tanto pago por balance como por crédito
+   */
+  private async processSignaturePayment(params: {
+    distributorId: string;
+    distributorBalance: number;
+    hasActiveCredit: boolean;
+    isSuccess: boolean;
+    priceToCharge: number;
+    signatureData: any;
+    perfil_firma: string;
+    numero_tramite: string;
+    dto: any;
+  }) {
+    const {
+      distributorId,
+      distributorBalance,
+      hasActiveCredit,
+      isSuccess,
+      priceToCharge,
+      signatureData,
+      perfil_firma,
+      numero_tramite,
+      dto,
+    } = params;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      let newBalance = distributorBalance;
+      let priceCharged = priceToCharge;
+      let usedCredit = false;
+
+      if (isSuccess) {
+        if (hasActiveCredit) {
+          usedCredit = true;
+        } else {
+          newBalance = distributorBalance - priceToCharge;
+          usedCredit = false;
+
+          await tx.distributor.update({
+            where: { id: distributorId },
+            data: { balance: newBalance },
+          });
+        }
+      }
+
+      const signatureRequest = await tx.signatureRequest.create({
+        data: {
+          ...signatureData,
+          priceCharged,
+          paymentMethod: usedCredit
+            ? PaymentMethod.CREDIT
+            : PaymentMethod.BALANCE,
+        },
+      });
+
+      if (isSuccess && !usedCredit) {
+        await tx.accountMovement.create({
+          data: {
+            distributorId,
+            type: MovementType.EXPENSE,
+            detail: `Firma digital - Plan ${perfil_firma} - ${dto.apellidos}`,
+            amount: priceCharged,
+            balanceAfter: newBalance,
+            signatureId: signatureRequest.id,
+            note: `Trámite: ${numero_tramite} - Cédula: ${dto.cedula}`,
+          },
+        });
+      }
+
+      return { signatureRequest, newBalance, priceCharged, usedCredit };
+    });
+
+    // Si usó crédito, registrar fuera de la transacción
+    if (isSuccess && result.usedCredit) {
+      try {
+        await this.creditsService.registerSignatureInCredit(
+          distributorId,
+          priceToCharge,
+          result.signatureRequest.id,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error al registrar firma en crédito: ${error.message}`,
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Wrapper de error handling para los métodos de creación de firma
+   */
+  private handleSignatureError(error: any): never {
+    this.logger.error(
+      `Error al crear solicitud de firma: ${error.message}`,
+      error.stack,
+    );
+    if (
+      error instanceof BadRequestException ||
+      error.name === 'BadRequestException'
+    ) {
+      throw error;
+    }
+    throw new InternalServerErrorException(
+      error.message || 'Error interno al crear la solicitud de firma',
+    );
+  }
+
+  // ========================================
+  // MÉTODOS UANATACA
+  // ========================================
+
+  /**
+   * Autentica con el API de Uanataca y obtiene un JWT token
+   * El token dura ~5 minutos, se debe llamar antes de cada solicitud
+   * @returns access_token JWT
+   */
+  private async authenticateUanataca(): Promise<string> {
+    const baseUrl = this.config.uanataca.baseUrl;
+    const username = this.config.uanataca.username;
+    const password = this.config.uanataca.password;
+
+    if (!baseUrl || !username || !password) {
+      throw new BadRequestException(
+        'Credenciales de Uanataca no configuradas en variables de entorno',
+      );
+    }
+
+    if (this.config.environment === 'developmen') {
+      this.logger.log('SIMULACION: Autenticación Uanataca exitosa');
+      return 'dev-simulated-token';
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${baseUrl}/api/auth/login`,
+          { username, password },
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 15000,
+          },
+        ),
+      );
+
+      const { access_token } = response.data;
+
+      if (!access_token) {
+        throw new Error('No se recibió access_token de Uanataca');
+      }
+
+      this.logger.log('Autenticación Uanataca exitosa');
+      return access_token;
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+          throw new BadRequestException('Credenciales de Uanataca inválidas');
+        }
+        throw new BadRequestException(
+          `Error de conexión con Uanataca: ${error.message}`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Llama al API de Uanataca para crear una solicitud de certificado
+   * @param payload Datos del certificado
+   * @param accessToken Token JWT de autenticación
+   * @returns Objeto con éxito/fallo y mensaje
+   */
+  private async callUanatacaCertificateRequest(
+    payload: any,
+    accessToken: string,
+  ): Promise<{ success: boolean; message: string; providerUuid?: string }> {
+    const baseUrl = this.config.uanataca.baseUrl;
+
+    if (this.config.environment === 'developmen') {
+      this.logger.log('SIMULACION: Solicitud de certificado Uanataca creada');
+      const simulatedUuid = `simulated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      return {
+        success: true,
+        message: 'SIMULACION: Certificado creado exitosamente',
+        providerUuid: simulatedUuid,
+      };
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(`${baseUrl}/api/certificateRequests`, payload, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          timeout: 30000,
+          // Uanataca responde 201 sin body, el Location viene en headers
+          validateStatus: (status) => status >= 200 && status < 300,
+        }),
+      );
+
+      const location =
+        response.headers?.location || response.headers?.Location || null;
+
+      // Extraer UUID del Location header
+      let providerUuid: string | undefined = undefined;
+      if (location) {
+        const uuidMatch = location.match(/\/([a-f0-9-]{36})$/i);
+        providerUuid = uuidMatch ? uuidMatch[1] : undefined;
+      }
+
+      return {
+        success: true,
+        message: 'Certificado creado exitosamente en Uanataca',
+        providerUuid,
+      };
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        const status = error.response?.status;
+        const errorData = error.response?.data;
+
+        let errorMessage = 'Error al crear certificado en Uanataca';
+
+        if (status === 401 || status === 403) {
+          errorMessage = 'Token de Uanataca expirado o inválido';
+        } else if (status === 400) {
+          errorMessage = `Datos inválidos: ${JSON.stringify(errorData) || 'Error de validación'}`;
+        } else if (status === 422) {
+          errorMessage = `Datos no procesables: ${JSON.stringify(errorData) || 'Error de validación'}`;
+        } else if (error.code === 'ECONNREFUSED') {
+          errorMessage = 'No se pudo conectar con Uanataca';
+        } else if (
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'ECONNABORTED'
+        ) {
+          errorMessage = 'Tiempo de espera agotado al contactar a Uanataca';
+        }
+
+        this.logger.error(
+          `Error Uanataca [${status}]: ${errorMessage}`,
+          error.stack,
+        );
+
+        return {
+          success: false,
+          message: errorMessage,
+        };
+      }
+
+      this.logger.error(
+        `Error inesperado al llamar a Uanataca: ${error.message}`,
+        error.stack,
+      );
+
+      return {
+        success: false,
+        message: `Error interno: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Formatea la fecha de nacimiento de ISO (yyyy-MM-dd) a formato Uanataca (dd/MM/yyyy)
+   */
+  private formatDateForUanataca(dateOfBirth: string | Date): string {
+    const date = new Date(dateOfBirth);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  /**
+   * Convierte el tipo de documento del DTO al formato de Uanataca
+   */
+  private mapIdentificationTypeUanataca(
+    documento: 'CEDULA' | 'PASAPORTE',
+  ): string {
+    const mapping: Record<string, string> = {
+      CEDULA: 'CÉDULA',
+      PASAPORTE: 'PASAPORTE',
+    };
+    return mapping[documento] || 'CÉDULA';
   }
 }

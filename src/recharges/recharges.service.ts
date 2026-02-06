@@ -551,7 +551,7 @@ export class RechargesService {
 
       if (dto.status === RechargeStatus.APPROVED) {
         // Calcular comisión si aplica (ejemplo: 0% para transferencias)
-        const commission = 0; // Se puede parametrizar según el método
+        const commission = 0;
         creditedAmount = recharge.requestedAmount - commission;
         newBalance = recharge.distributor.balance + creditedAmount;
 
