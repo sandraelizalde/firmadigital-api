@@ -177,6 +177,30 @@ export class CreateJuridicalSignatureDto {
   nombramientoBase64: string;
 
   @ApiProperty({
+    description: 'Documento de constitución en Base64',
+    example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+  })
+  @IsString()
+  @IsNotEmpty()
+  constitutionBase64: string;
+
+  @ApiProperty({
+    description: 'Documento de archivo con la aceptación del nombramiento en Base64',
+    example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+  })
+  @IsString()
+  @IsNotEmpty()
+  acceptanceBase64: string;
+
+  @ApiProperty({
+    description: 'Documento de la identificación del representante legal en Base64',
+    example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+  })
+  @IsString()
+  @IsNotEmpty()
+  managerIdentificationBase64: string;
+
+  @ApiProperty({
     description: 'ID del plan asignado al distribuidor',
     example: 'clx123abc456',
   })
@@ -209,6 +233,7 @@ export class CreateJuridicalSignatureDto {
     default: false,
   })
   @IsNotEmpty()
-  @IsBoolean()
-  usaToken: boolean;
+  @IsString()
+  @IsEnum(['true', 'false'])
+  usaToken: string;
 }

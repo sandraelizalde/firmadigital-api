@@ -595,7 +595,7 @@ export class SignaturesController {
       dto.signatureId,
       req.user.firstName + ' ' + req.user.lastName,
       dto.generateRefund,
-      dto.note
+      dto.note,
     );
   }
 

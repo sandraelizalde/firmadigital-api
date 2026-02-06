@@ -36,8 +36,6 @@ export class CreateNaturalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  @Length(10, 10)
-  @Matches(/^[0-9]+$/, { message: 'La cédula debe contener solo números' })
   cedula: string;
 
   @ApiProperty({
@@ -45,8 +43,8 @@ export class CreateNaturalSignatureDto {
     example: 'V43I4444',
   })
   @IsString()
-  @IsNotEmpty()
-  codigo_dactilar: string;
+  @IsOptional()
+  codigo_dactilar?: string;
 
   @ApiProperty({
     description: 'Correo electrónico del solicitante',
@@ -166,19 +164,10 @@ export class CreateNaturalSignatureDto {
     default: false,
   })
   @IsNotEmpty()
-  @IsBoolean()
-  usaToken: boolean;
+  @IsEnum(['true', 'false'])
+  usaToken: string;
 
   // ===== Campos opcionales para Uanataca (pasaporte/token) =====
-
-  @ApiProperty({
-    description: 'Nacionalidad del solicitante (requerido para Uanataca)',
-    example: 'ECUATORIANA',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  nacionalidad?: string;
 
   @ApiProperty({
     description: 'Sexo del solicitante (requerido para Uanataca)',

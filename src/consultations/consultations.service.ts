@@ -119,6 +119,35 @@ export class ConsultationsService {
   }
 
   /**
+   * Verifica que una cédula ecuatoriana sea válida utilizando el dígito verificador
+   * @param cedula Cadena de 10 dígitos
+   * @returns true si la cédula es válida; false en caso contrario
+   */
+  private verifyEcuadorianCedula(cedula: string): boolean {
+    if (!cedula || !/^\d{10}$/.test(cedula)) return false;
+
+    const province = Number(cedula.slice(0, 2));
+    const thirdDigit = Number(cedula[2]);
+    if (Number.isNaN(province) || Number.isNaN(thirdDigit)) return false;
+
+    const validProvince = (province >= 1 && province <= 24) || province === 30;
+    if (!validProvince) return false;
+
+    if (thirdDigit > 5) return false;
+
+    const coefficients = [2, 1, 2, 1, 2, 1, 2, 1, 2];
+    const digits = cedula.split('').map((d) => Number(d));
+
+    const total = coefficients.reduce((acc, coef, index) => {
+      const product = coef * digits[index];
+      return acc + (product > 9 ? product - 9 : product);
+    }, 0);
+
+    const expectedVerifier = (10 - (total % 10)) % 10;
+    return expectedVerifier === digits[9];
+  }
+
+  /**
    * Consulta datos de una cédula
    * @param cedula Número de cédula (10 dígitos)
    * @returns Datos de la cédula o null si no se encuentra
@@ -133,6 +162,9 @@ export class ConsultationsService {
         throw new InternalServerErrorException(
           'Servicio de consulta de cédulas no configurado',
         );
+      }
+      if (!this.verifyEcuadorianCedula(cedula)) {
+        throw new BadRequestException('Número de cédula inválido');
       }
 
       this.logger.log(`Consultando cédula: ${cedula}`);

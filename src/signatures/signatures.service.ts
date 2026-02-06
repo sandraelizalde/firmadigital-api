@@ -72,7 +72,7 @@ export class SignaturesService {
       dto,
       tipoPersona,
       dto.documento,
-      dto.usaToken,
+      dto.usaToken === 'true',
       video_face,
     );
   }
@@ -100,7 +100,7 @@ export class SignaturesService {
       dto,
       tipoPersona,
       dto.documento,
-      dto.usaToken,
+      dto.usaToken === 'true',
       video_face,
     );
   }
@@ -483,12 +483,6 @@ export class SignaturesService {
       this.validateAgeAndVideo(dto.dateOfBirth, video_face);
       const distributor = await this.validateDistributor(distributorId);
 
-      // Validar campos requeridos para Uanataca
-      if (!dto.nacionalidad) {
-        throw new BadRequestException(
-          'La nacionalidad es requerida para firmas Uanataca',
-        );
-      }
       if (!dto.sexo) {
         throw new BadRequestException(
           'El sexo es requerido para firmas Uanataca',
@@ -536,12 +530,11 @@ export class SignaturesService {
       const providerPayload: any = {
         identificationType: this.mapIdentificationTypeUanataca(dto.documento),
         identification: identification,
-        fingerprintCode: dto.codigo_dactilar || '',
         names: dto.nombres.toUpperCase(),
         lastName1,
         lastName2,
         birthDate: this.formatDateForUanataca(dto.dateOfBirth),
-        nationality: dto.nacionalidad.toUpperCase(),
+        nationality: 'ECUATORIANA',
         sex: dto.sexo.toUpperCase(),
         phoneNumber: dto.celular,
         email: dto.correo,
@@ -675,9 +668,105 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
-    throw new BadRequestException(
-      'Firma Uanataca Archivo Jurídica no implementada aún',
+    // 1. Validaciones iniciales
+    this.validateAgeAndVideo(dto.dateOfBirth, video_face);
+    const distributor = await this.validateDistributor(distributorId);
+
+    if (!dto.sexo) {
+      throw new BadRequestException(
+        'El sexo es requerido para firmas Uanataca',
+      );
+    }
+    if (!dto.selfie) {
+      throw new BadRequestException(
+        'La selfie es requerida para firmas Uanataca',
+      );
+    }
+
+    // Determinar la identificación según el tipo de documento
+    const identification =
+      dto.documento === 'PASAPORTE' ? dto.pasaporte || dto.cedula : dto.cedula;
+
+    // 2. Obtener plan, perfil (productUuid) y precio
+    const { planPrice, perfil_firma, priceToCharge } =
+      await this.getSignaturePlanPrice(
+        distributorId,
+        dto.planId,
+        'perfilJuridicoUanataca',
+        'Juridica Uanataca',
+      );
+
+    // 3. Validar capacidad de pago
+    const { hasActiveCredit } = await this.validatePaymentCapability(
+      distributorId,
+      distributor.balance,
+      priceToCharge,
     );
+
+    const numero_tramite = this.generateNumeroTramite();
+
+    // 4. Autenticarse con Uanataca (token dura 5 min)
+    const accessToken = await this.authenticateUanataca();
+
+    // Separar apellidos (el DTO tiene "apellidos" como campo único)
+    const apellidosParts = dto.apellidos.toUpperCase().split(' ');
+    const lastName1 = apellidosParts[0] || '';
+    const lastName2 = apellidosParts.slice(1).join(' ') || '';
+
+    // 5. Preparar payload para Uanataca
+    const providerPayload: any = {
+      identificationType: this.mapIdentificationTypeUanataca(dto.documento),
+      identification: identification,
+      names: dto.nombres.toUpperCase(),
+      lastName1,
+      lastName2,
+      birthDate: this.formatDateForUanataca(dto.dateOfBirth),
+      nationality: 'ECUATORIANA',
+      sex: dto.sexo.toUpperCase(),
+      phoneNumber: dto.celular,
+      email: dto.correo,
+      province: dto.provincia.toUpperCase(),
+      city: dto.ciudad.toUpperCase(),
+      address: dto.direccion.toUpperCase(),
+      productUuid: perfil_firma,
+      frontIdentification: {
+        name: `cedula_frontal_${identification}.jpg`,
+        type: 'image/jpeg',
+        base64: dto.foto_frontal,
+      },
+      backIdentification: {
+        name: `cedula_reverso_${identification}.jpg`,
+        type: 'image/jpeg',
+        base64: dto.foto_posterior,
+      },
+      selfie: {
+        name: `selfie_${identification}.jpg`,
+        type: 'image/jpeg',
+        base64: dto.selfie,
+      },
+      // Campos específicos jurídica
+      rucFile: {
+        name: `ruc_${identification}.jpg`,
+        type: 'image/jpeg',
+        base64: dto.rucFileBase64 || '',
+      },
+      appointment: {
+        name: `nombramiento_${identification}.jpg`,
+        type: 'image/jpeg',
+        base64: dto.nombramientoBase64 || '',
+      },
+
+      constitution: {
+        name: `constitucion_${identification}.pdf`,
+        type: 'application/pdf',
+        base64: dto.constitutionBase64 || '',
+      },
+      managerIdentification: {
+        name: `id_rl_${identification}.jpg`,
+        type: 'image/jpeg',
+        base64: dto.managerIdentificationBase64 || '',
+      },
+    };
   }
 
   /**
@@ -2254,7 +2343,7 @@ export class SignaturesService {
           data: {
             distributorId,
             type: MovementType.EXPENSE,
-            detail: `Firma digital - Plan ${perfil_firma} - ${dto.apellidos}`,
+            detail: `Firma digital - ${priceToCharge / 100} - ${dto.apellidos}`,
             amount: priceCharged,
             balanceAfter: newBalance,
             signatureId: signatureRequest.id,
