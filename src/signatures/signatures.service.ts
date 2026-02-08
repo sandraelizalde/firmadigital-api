@@ -341,6 +341,8 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
+    return new Error('Método Jurídica con pasaporte no implementado aún');
+
     const type: 'NATURAL' | 'JURIDICA' = 'JURIDICA';
     try {
       // 1. Validaciones iniciales

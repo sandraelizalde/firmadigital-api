@@ -43,8 +43,7 @@ export class CreateJuridicalSignatureDto {
     example: 'V43I4444',
   })
   @IsString()
-  @IsNotEmpty()
-  codigo_dactilar: string;
+  codigo_dactilar?: string;
 
   @ApiProperty({
     description: 'Correo electrónico',
@@ -248,4 +247,25 @@ export class CreateJuridicalSignatureDto {
   @IsString()
   @IsEnum(['true', 'false'])
   usa_token: string;
+
+  // ===== Campos opcionales para Uanataca (pasaporte) =====
+
+  @ApiProperty({
+    description: 'Sexo del solicitante (requerido para Uanataca)',
+    example: 'HOMBRE',
+    enum: ['HOMBRE', 'MUJER'],
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['HOMBRE', 'MUJER'])
+  sexo?: 'HOMBRE' | 'MUJER';
+
+  @ApiProperty({
+    description: 'Selfie en Base64 (requerido para Uanataca)',
+    example: 'iVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  selfie?: string;
 }
