@@ -323,6 +323,7 @@ export class SignaturesService {
         success: isSuccess,
         message: providerResponse.mensaje,
         data: {
+          signatureId: result.signatureRequest.id,
           balance: result.newBalance,
           priceCharged: result.priceCharged,
           usedCredit: result.usedCredit,
@@ -341,8 +342,6 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
-    return new Error('Método Jurídica con pasaporte no implementado aún');
-
     const type: 'NATURAL' | 'JURIDICA' = 'JURIDICA';
     try {
       // 1. Validaciones iniciales
@@ -476,6 +475,7 @@ export class SignaturesService {
         success: isSuccess,
         message: providerResponse.mensaje,
         data: {
+          signatureId: result.signatureRequest.id,
           balance: result.newBalance,
           priceCharged: result.priceCharged,
           usedCredit: result.usedCredit,
@@ -665,6 +665,7 @@ export class SignaturesService {
         success: isSuccess,
         message: providerResponse.message,
         data: {
+          signatureId: result.signatureRequest.id,
           balance: result.newBalance,
           priceCharged: result.priceCharged,
           usedCredit: result.usedCredit,
@@ -684,6 +685,8 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
+    return new Error('Método PJ con pasaporte no implementado aún');
+
     // 1. Validaciones iniciales
     this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
     const distributor = await this.validateDistributor(distributorId);
@@ -801,6 +804,86 @@ export class SignaturesService {
         name: `id_rl_${identification}.jpg`,
         type: 'image/jpeg',
         base64: dto.identificacion_representante_base64 || '',
+      },
+    };
+
+    // 6. Llamar al proveedor Uanataca
+    const providerResponse = await this.callUanatacaCertificateRequest(
+      providerPayload,
+      accessToken,
+    );
+
+    // 7. Determinar estado (jurídica queda en PENDING al éxito)
+    const isSuccess = providerResponse.success;
+
+    let status: SignatureStatus;
+    if (isSuccess) {
+      status = SignatureStatus.PENDING;
+    } else {
+      status = SignatureStatus.REJECTED;
+    }
+
+    // 8. Subir archivos al storage
+    const files = await this.uploadSignatureFiles(
+      distributorId,
+      dto,
+      video_face,
+    );
+
+    // 9. Transacción de pago y creación de firma
+    const result = await this.processSignaturePayment({
+      distributorId,
+      distributorBalance: distributor.balance,
+      hasActiveCredit,
+      isSuccess,
+      priceToCharge,
+      perfil_firma,
+      numero_tramite,
+      dto,
+      signatureData: {
+        numero_tramite,
+        distributorPlanPriceId: planPrice.id,
+        planId: dto.plan_id,
+        perfil_firma,
+        nombres: dto.nombres.toUpperCase(),
+        apellidos: dto.apellidos.toUpperCase(),
+        cedula: identification,
+        correo: dto.correo,
+        codigo_dactilar: dto.codigo_dactilar || '',
+        celular: dto.celular,
+        provincia: dto.provincia.toUpperCase(),
+        ciudad: dto.ciudad.toUpperCase(),
+        parroquia: dto.parroquia?.toUpperCase() || dto.ciudad.toUpperCase(),
+        direccion: dto.direccion.toUpperCase(),
+        dateOfBirth: new Date(dto.fecha_nacimiento),
+        foto_frontal: files.foto_frontal_key,
+        foto_posterior: files.foto_posterior_key,
+        video_face: files.video_face_key || null,
+        clavefirma: dto.clave_firma || '',
+        ruc: dto.ruc || '',
+        razon_social: dto.razon_social?.toUpperCase() || null,
+        rep_legal: dto.rep_legal?.toUpperCase() || null,
+        cargo: dto.cargo?.toUpperCase() || null,
+        nombramiento: files.nombramiento_key || null,
+        pdf_sri: files.pdf_sri_key || null,
+        tipo_envio: '1',
+        pais: 'ECUADOR',
+        distributorId,
+        status,
+        providerCode: providerResponse.providerUuid || (isSuccess ? '1' : '0'),
+        providerMessage: providerResponse.message,
+        provider: 'UANATACA',
+      },
+    });
+
+    return {
+      success: isSuccess,
+      message: providerResponse.message,
+      data: {
+        signatureId: result.signatureRequest.id,
+        balance: result.newBalance,
+        priceCharged: result.priceCharged,
+        usedCredit: result.usedCredit,
       },
     };
   }
