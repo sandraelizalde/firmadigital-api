@@ -72,7 +72,7 @@ export class SignaturesService {
       dto,
       tipoPersona,
       dto.documento,
-      dto.usaToken === 'true',
+      dto.usa_token === 'true',
       video_face,
     );
   }
@@ -100,7 +100,7 @@ export class SignaturesService {
       dto,
       tipoPersona,
       dto.documento,
-      dto.usaToken === 'true',
+      dto.usa_token === 'true',
       video_face,
     );
   }
@@ -192,7 +192,7 @@ export class SignaturesService {
     const type: 'NATURAL' | 'JURIDICA' = 'NATURAL';
     try {
       // 1. Validaciones iniciales
-      this.validateAgeAndVideo(dto.dateOfBirth, video_face);
+      this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
       const distributor = await this.validateDistributor(distributorId);
       if (!dto.codigo_dactilar) {
         throw new BadRequestException(
@@ -212,7 +212,7 @@ export class SignaturesService {
       const { planPrice, perfil_firma, priceToCharge } =
         await this.getSignaturePlanPrice(
           distributorId,
-          dto.planId,
+          dto.plan_id,
           'perfilNaturalEnext',
           'Natural Enext',
         );
@@ -243,7 +243,7 @@ export class SignaturesService {
         direccion: dto.direccion.toUpperCase(),
         celular: dto.celular,
         ruc: dto.ruc || '',
-        clavefirma: dto.clavefirma,
+        clavefirma: dto.clave_firma,
         foto_frontal: dto.foto_frontal,
         foto_posterior: dto.foto_posterior,
         pais: 'ECUADOR',
@@ -289,7 +289,7 @@ export class SignaturesService {
         signatureData: {
           numero_tramite,
           distributorPlanPriceId: planPrice.id,
-          planId: dto.planId,
+          planId: dto.plan_id,
           perfil_firma,
           nombres: dto.nombres.toUpperCase(),
           apellidos: dto.apellidos.toUpperCase(),
@@ -301,11 +301,11 @@ export class SignaturesService {
           ciudad: dto.ciudad.toUpperCase(),
           parroquia: dto.parroquia.toUpperCase(),
           direccion: dto.direccion.toUpperCase(),
-          dateOfBirth: new Date(dto.dateOfBirth),
+          dateOfBirth: new Date(dto.fecha_nacimiento),
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: dto.clavefirma,
+          clavefirma: dto.clave_firma,
           ruc: dto.ruc || null,
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -346,14 +346,14 @@ export class SignaturesService {
     const type: 'NATURAL' | 'JURIDICA' = 'JURIDICA';
     try {
       // 1. Validaciones iniciales
-      this.validateAgeAndVideo(dto.dateOfBirth, video_face);
+      this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
       const distributor = await this.validateDistributor(distributorId);
 
       // 2. Obtener plan, perfil y precio
       const { planPrice, perfil_firma, priceToCharge } =
         await this.getSignaturePlanPrice(
           distributorId,
-          dto.planId,
+          dto.plan_id,
           'perfilJuridicoEnext',
           'Juridica Enext',
         );
@@ -384,7 +384,7 @@ export class SignaturesService {
         direccion: dto.direccion.toUpperCase(),
         celular: dto.celular,
         ruc: dto.ruc || '',
-        clavefirma: dto.clavefirma,
+        clavefirma: dto.clave_firma,
         foto_frontal: dto.foto_frontal,
         foto_posterior: dto.foto_posterior,
         pais: 'ECUADOR',
@@ -394,8 +394,8 @@ export class SignaturesService {
         razon_social: dto.razon_social?.toUpperCase() || '',
         rep_legal: dto.rep_legal?.toUpperCase() || '',
         cargo: dto.cargo?.toUpperCase() || '',
-        pdfSriBase64: dto.pdfSriBase64 || '',
-        nombramientoBase64: dto.nombramientoBase64 || '',
+        pdfSriBase64: dto.pdf_sri_base64 || '',
+        nombramientoBase64: dto.nombramiento_base64 || '',
       };
 
       const providerResponse = await this.callSignatureProviderEnext(
@@ -437,7 +437,7 @@ export class SignaturesService {
         signatureData: {
           numero_tramite,
           distributorPlanPriceId: planPrice.id,
-          planId: dto.planId,
+          planId: dto.plan_id,
           perfil_firma,
           nombres: dto.nombres.toUpperCase(),
           apellidos: dto.apellidos.toUpperCase(),
@@ -449,11 +449,11 @@ export class SignaturesService {
           ciudad: dto.ciudad.toUpperCase(),
           parroquia: dto.parroquia.toUpperCase(),
           direccion: dto.direccion.toUpperCase(),
-          dateOfBirth: new Date(dto.dateOfBirth),
+          dateOfBirth: new Date(dto.fecha_nacimiento),
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: dto.clavefirma,
+          clavefirma: dto.clave_firma,
           ruc: dto.ruc || null,
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -493,7 +493,7 @@ export class SignaturesService {
   ) {
     try {
       // 1. Validaciones iniciales
-      this.validateAgeAndVideo(dto.dateOfBirth, video_face);
+      this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
       const distributor = await this.validateDistributor(distributorId);
 
       if (!dto.sexo) {
@@ -513,7 +513,7 @@ export class SignaturesService {
       const { planPrice, perfil_firma, priceToCharge } =
         await this.getSignaturePlanPrice(
           distributorId,
-          dto.planId,
+          dto.plan_id,
           'perfilNaturalUanataca',
           'Natural Uanataca',
         );
@@ -542,7 +542,7 @@ export class SignaturesService {
         names: dto.nombres.toUpperCase(),
         lastName1,
         lastName2,
-        birthDate: this.formatDateForUanataca(dto.dateOfBirth),
+        birthDate: this.formatDateForUanataca(dto.fecha_nacimiento),
         nationality: 'ECUATORIANA',
         sex: dto.sexo.toUpperCase(),
         phoneNumber: dto.celular,
@@ -620,7 +620,7 @@ export class SignaturesService {
         signatureData: {
           numero_tramite,
           distributorPlanPriceId: planPrice.id,
-          planId: dto.planId,
+          planId: dto.plan_id,
           perfil_firma,
           nombres: dto.nombres.toUpperCase(),
           apellidos: dto.apellidos.toUpperCase(),
@@ -632,11 +632,11 @@ export class SignaturesService {
           ciudad: dto.ciudad.toUpperCase(),
           parroquia: dto.parroquia?.toUpperCase() || dto.ciudad.toUpperCase(),
           direccion: dto.direccion.toUpperCase(),
-          dateOfBirth: new Date(dto.dateOfBirth),
+          dateOfBirth: new Date(dto.fecha_nacimiento),
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: dto.clavefirma || '',
+          clavefirma: dto.clave_firma || '',
           ruc: dto.ruc || null,
           razon_social: null,
           rep_legal: null,
@@ -678,7 +678,7 @@ export class SignaturesService {
     video_face?: Express.Multer.File,
   ) {
     // 1. Validaciones iniciales
-    this.validateAgeAndVideo(dto.dateOfBirth, video_face);
+    this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
     const distributor = await this.validateDistributor(distributorId);
 
     if (!dto.sexo) {
@@ -698,7 +698,7 @@ export class SignaturesService {
     const { planPrice, perfil_firma, priceToCharge } =
       await this.getSignaturePlanPrice(
         distributorId,
-        dto.planId,
+        dto.plan_id,
         'perfilJuridicoUanataca',
         'Juridica Uanataca',
       );
@@ -727,7 +727,7 @@ export class SignaturesService {
       names: dto.nombres.toUpperCase(),
       lastName1,
       lastName2,
-      birthDate: this.formatDateForUanataca(dto.dateOfBirth),
+      birthDate: this.formatDateForUanataca(dto.fecha_nacimiento),
       nationality: 'ECUATORIANA',
       sex: dto.sexo.toUpperCase(),
       phoneNumber: dto.celular,
@@ -755,23 +755,23 @@ export class SignaturesService {
       rucFile: {
         name: `ruc_${identification}.jpg`,
         type: 'image/jpeg',
-        base64: dto.rucFileBase64 || '',
+        base64: dto.pdf_sri_base64 || '',
       },
       appointment: {
         name: `nombramiento_${identification}.jpg`,
         type: 'image/jpeg',
-        base64: dto.nombramientoBase64 || '',
+        base64: dto.nombramiento_base64 || '',
       },
 
       constitution: {
         name: `constitucion_${identification}.pdf`,
         type: 'application/pdf',
-        base64: dto.constitutionBase64 || '',
+        base64: dto.constitucion_base64 || '',
       },
       managerIdentification: {
         name: `id_rl_${identification}.jpg`,
         type: 'image/jpeg',
-        base64: dto.managerIdentificationBase64 || '',
+        base64: dto.identificacion_representante_base64 || '',
       },
     };
   }
@@ -2249,9 +2249,9 @@ export class SignaturesService {
     let nombramiento_key: string | undefined;
     let video_face_key: string | undefined;
 
-    if (dto.pdfSriBase64) {
+    if (dto.pdf_sri_base64) {
       pdf_sri_key = await this.filesService.uploadFile(
-        dto.pdfSriBase64,
+        dto.pdf_sri_base64,
         distributorId.toString(),
         'pdf',
         'pdfs-distribuidores',
@@ -2259,9 +2259,9 @@ export class SignaturesService {
       );
     }
 
-    if (dto.nombramientoBase64) {
+    if (dto.nombramiento_base64) {
       nombramiento_key = await this.filesService.uploadFile(
-        dto.nombramientoBase64,
+        dto.nombramiento_base64,
         distributorId.toString(),
         'pdf',
         'pdfs-distribuidores',

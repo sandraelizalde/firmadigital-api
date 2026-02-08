@@ -7,6 +7,7 @@ import {
   Matches,
   Length,
   IsEnum,
+  IsOptional,
 } from 'class-validator';
 
 export class CreateJuridicalSignatureDto {
@@ -138,7 +139,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  clavefirma: string;
+  clave_firma: string;
 
   @ApiProperty({
     description: 'Foto frontal de cédula en Base64',
@@ -157,12 +158,13 @@ export class CreateJuridicalSignatureDto {
   foto_posterior: string;
 
   @ApiProperty({
-    description: 'PDF del SRI en Base64',
+    description:
+      'PDF del SRI / RUC en Base64 (se envía como pdfSriBase64 a ENEXT y como rucFile a UANATACA)',
     example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
   })
   @IsString()
   @IsNotEmpty()
-  pdfSriBase64: string;
+  pdf_sri_base64: string;
 
   @ApiProperty({
     description: 'Documento de nombramiento en Base64',
@@ -170,7 +172,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  nombramientoBase64: string;
+  nombramiento_base64: string;
 
   @ApiProperty({
     description: 'Documento de constitución en Base64',
@@ -178,7 +180,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  constitutionBase64: string;
+  constitucion_base64: string;
 
   @ApiProperty({
     description:
@@ -187,7 +189,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  acceptanceBase64: string;
+  aceptacion_nombramiento_base64: string;
 
   @ApiProperty({
     description:
@@ -196,7 +198,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  managerIdentificationBase64: string;
+  identificacion_representante_base64: string;
 
   @ApiProperty({
     description: 'ID del plan asignado al distribuidor',
@@ -204,7 +206,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  planId: string;
+  plan_id: string;
 
   @ApiProperty({
     description: 'Fecha de nacimiento del representante en formato ISO',
@@ -212,7 +214,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsDateString()
   @IsNotEmpty()
-  dateOfBirth: string;
+  fecha_nacimiento: string;
 
   @ApiProperty({
     description: 'Tipo de documento: CEDULA o PASAPORTE',
@@ -233,5 +235,5 @@ export class CreateJuridicalSignatureDto {
   @IsNotEmpty()
   @IsString()
   @IsEnum(['true', 'false'])
-  usaToken: string;
+  usa_token: string;
 }

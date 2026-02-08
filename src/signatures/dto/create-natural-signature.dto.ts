@@ -104,7 +104,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  clavefirma: string;
+  clave_firma: string;
 
   @ApiProperty({
     description: 'Foto frontal de cédula en Base64',
@@ -127,7 +127,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  planId: string;
+  plan_id: string;
 
   @ApiProperty({
     description: 'Fecha de nacimiento en formato ISO',
@@ -135,7 +135,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsDateString()
   @IsNotEmpty()
-  dateOfBirth: string;
+  fecha_nacimiento: string;
 
   @ApiProperty({
     description: 'RUC (opcional, solo si la persona natural tiene RUC)',
@@ -165,7 +165,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsNotEmpty()
   @IsEnum(['true', 'false'])
-  usaToken: string;
+  usa_token: string;
 
   // ===== Campos opcionales para Uanataca (pasaporte/token) =====
 
