@@ -194,6 +194,11 @@ export class SignaturesService {
       // 1. Validaciones iniciales
       this.validateAgeAndVideo(dto.dateOfBirth, video_face);
       const distributor = await this.validateDistributor(distributorId);
+      if (!dto.codigo_dactilar) {
+        throw new BadRequestException(
+          'El código dactilar es requerido para PN con cedula',
+        );
+      }
 
       // 2. Obtener plan, perfil y precio
       const { planPrice, perfil_firma, priceToCharge } =
