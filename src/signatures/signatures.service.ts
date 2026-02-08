@@ -547,7 +547,6 @@ export class SignaturesService {
         identification: identification,
         names: dto.nombres.toUpperCase(),
         lastName1,
-        lastName2,
         birthDate: this.formatDateForUanataca(dto.fecha_nacimiento),
         nationality: 'ECUATORIANA',
         sex: dto.sexo.toUpperCase(),
@@ -2519,20 +2518,64 @@ export class SignaturesService {
             Authorization: `Bearer ${accessToken}`,
           },
           timeout: 30000,
-          // Uanataca responde 201 sin body, el Location viene en headers
-          validateStatus: (status) => status >= 200 && status < 300,
+          validateStatus: (status) => status >= 200 && status < 500,
         }),
       );
 
+      const status = response.status;
+      const responseData = response.data;
+
+      // Verificar si hay error por status code
+      if (status >= 400) {
+        let errorMessage = 'Error al crear certificado';
+
+        if (status === 401 || status === 403) {
+          errorMessage = 'Token de autenticación expirado o inválido';
+        } else if (status === 400) {
+          errorMessage = `Datos inválidos: ${JSON.stringify(responseData) || 'Error de validación'}`;
+        } else if (status === 422) {
+          errorMessage = `Datos no procesables: ${JSON.stringify(responseData) || 'Error de validación'}`;
+        }
+
+        this.logger.error(`Error del proveedor [${status}]: ${errorMessage}`);
+
+        return {
+          success: false,
+          message: errorMessage,
+        };
+      }
+
+      // Extraer Location header
       const location =
         response.headers?.location || response.headers?.Location || null;
 
+      // Status 2xx: Verificar si realmente es exitoso
+      // Una creación exitosa DEBE tener el Location header
+      if (!location) {
+        // Si no hay Location header pero hay campos de error en el body
+        const errorMessage =
+          responseData?.error ||
+          responseData?.errorMessage ||
+          responseData?.message ||
+          'Error desconocido del proveedor';
+
+        this.logger.error(
+          `Error en respuesta del proveedor [${status}]: sin Location header. ${JSON.stringify(responseData)}`,
+        );
+
+        return {
+          success: false,
+          message:
+            typeof errorMessage === 'string'
+              ? errorMessage
+              : JSON.stringify(errorMessage),
+        };
+      }
+
       // Extraer UUID del Location header
       let providerUuid: string | undefined = undefined;
-      if (location) {
-        const uuidMatch = location.match(/\/([a-f0-9-]{36})$/i);
-        providerUuid = uuidMatch ? uuidMatch[1] : undefined;
-      }
+      const uuidMatch = location.match(/\/([a-f0-9-]{36})$/i);
+      providerUuid = uuidMatch ? uuidMatch[1] : undefined;
 
       return {
         success: true,
