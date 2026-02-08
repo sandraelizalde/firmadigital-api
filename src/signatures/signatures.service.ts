@@ -2412,7 +2412,7 @@ export class SignaturesService {
       );
     }
 
-    if (this.config.environment === 'developmen') {
+    if (this.config.environment === 'development') {
       this.logger.log('SIMULACION: Autenticación Uanataca exitosa');
       return 'dev-simulated-token';
     }
@@ -2463,7 +2463,7 @@ export class SignaturesService {
   ): Promise<{ success: boolean; message: string; providerUuid?: string }> {
     const baseUrl = this.config.uanataca.baseUrl;
 
-    if (this.config.environment === 'developmen') {
+    if (this.config.environment === 'development') {
       this.logger.log('SIMULACION: Solicitud de certificado Uanataca creada');
       const simulatedUuid = `simulated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       return {
