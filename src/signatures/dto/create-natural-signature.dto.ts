@@ -36,7 +36,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  cedula: string;
+  numero_identificacion: string;
 
   @ApiProperty({
     description: 'Código dactilar',
