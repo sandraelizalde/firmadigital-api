@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsBoolean,
   IsEnum,
+  MinLength,
 } from 'class-validator';
 
 export class CreateNaturalSignatureDto {
@@ -84,6 +85,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MinLength(12, { message: 'La dirección debe tener al menos 12 caracteres' })
   direccion: string;
 
   @ApiProperty({
@@ -99,27 +101,35 @@ export class CreateNaturalSignatureDto {
   celular: string;
 
   @ApiProperty({
-    description: 'Clave de firma digital',
+    description:
+      'Clave de firma digital (solo letras y números, sin espacios ni caracteres especiales)',
     example: 'GONZALEZ1752',
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-zA-Z0-9]+$/, {
+    message:
+      'La clave de firma solo puede contener letras y números, sin espacios ni caracteres especiales',
+  })
   clave_firma: string;
 
   @ApiProperty({
     description: 'Foto frontal de cédula en Base64',
     example: 'iVBORw0KGgoAAAANSUhEUgAA...',
   })
+  @IsString()
   @IsNotEmpty()
   foto_frontal: string;
 
   @ApiProperty({
-    description: 'Foto posterior de cédula en Base64',
+    description:
+      'Foto posterior de cédula/pasaporte en Base64 (opcional para pasaporte)',
     example: 'iVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  foto_posterior: string;
+  @IsOptional()
+  foto_posterior?: string;
 
   @ApiProperty({
     description: 'ID del plan asignado al distribuidor',

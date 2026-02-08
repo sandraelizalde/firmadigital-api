@@ -194,11 +194,9 @@ export class SignaturesService {
       // 1. Validaciones iniciales
       this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
       const distributor = await this.validateDistributor(distributorId);
-      if (!dto.codigo_dactilar) {
-        throw new BadRequestException(
-          'El código dactilar es requerido para PN con cedula',
-        );
-      }
+
+      // Validar código dactilar
+      this.validateCodigoDactilar(dto.codigo_dactilar);
 
       //numero_identificacion solo 10 numeros
       const idRegex = /^\d{10}$/;
@@ -348,6 +346,9 @@ export class SignaturesService {
       // 1. Validaciones iniciales
       this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
       const distributor = await this.validateDistributor(distributorId);
+
+      // Validar código dactilar
+      this.validateCodigoDactilar(dto.codigo_dactilar);
 
       // 2. Obtener plan, perfil y precio
       const { planPrice, perfil_firma, priceToCharge } =
@@ -508,6 +509,11 @@ export class SignaturesService {
       }
 
       const identification = dto.numero_identificacion;
+
+      // Duplicar foto_frontal si no viene foto_posterior (caso pasaporte)
+      if (!dto.foto_posterior) {
+        dto.foto_posterior = dto.foto_frontal;
+      }
 
       // 2. Obtener plan, perfil (productUuid) y precio
       const { planPrice, perfil_firma, priceToCharge } =
@@ -693,6 +699,11 @@ export class SignaturesService {
     }
 
     const identification = dto.numero_identificacion;
+
+    // Duplicar foto_frontal si no viene foto_posterior (caso pasaporte)
+    if (!dto.foto_posterior) {
+      dto.foto_posterior = dto.foto_frontal;
+    }
 
     // 2. Obtener plan, perfil (productUuid) y precio
     const { planPrice, perfil_firma, priceToCharge } =
@@ -2110,6 +2121,30 @@ export class SignaturesService {
 
     // Validar formato y tamaño del video
     this.validateVideoFile(video_face);
+  }
+
+  /**
+   * Valida el formato del código dactilar
+   * Formato esperado: Letra + 2-3 dígitos + Letra + 4 dígitos (ej: V43I4444, A123B5678)
+   * @param codigo_dactilar Código dactilar a validar
+   * @throws BadRequestException si el formato es inválido
+   */
+  private validateCodigoDactilar(codigo_dactilar: string): void {
+    if (!codigo_dactilar) {
+      throw new BadRequestException(
+        'El código dactilar es requerido para firmas con cédula',
+      );
+    }
+
+    // Formato: Letra + 2-3-4 dígitos + Letra + 4 dígitos
+    // Ejemplos válidos: V43I4444, A123B5678, V1234I5678
+    const codigoDactilarRegex = /^[A-Z]\d{2,4}[A-Z]\d{4}$/;
+
+    if (!codigoDactilarRegex.test(codigo_dactilar)) {
+      throw new BadRequestException(
+        'El código dactilar debe tener el formato: Letra + 2-4 dígitos + Letra + 4 dígitos (Ejemplo: V4343I4444)',
+      );
+    }
   }
 
   private calculateAge(dateOfBirth: string | Date): number {
