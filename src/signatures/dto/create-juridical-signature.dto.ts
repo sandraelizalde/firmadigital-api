@@ -184,30 +184,33 @@ export class CreateJuridicalSignatureDto {
   nombramiento_base64: string;
 
   @ApiProperty({
-    description: 'Documento de constitución en Base64',
+    description: 'Documento de constitución en Base64 (solo para UANATACA)',
     example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  constitucion_base64: string;
+  @IsOptional()
+  constitucion_base64?: string;
 
   @ApiProperty({
     description:
-      'Documento de archivo con la aceptación del nombramiento en Base64',
+      'Documento de archivo con la aceptación del nombramiento en Base64 (solo para UANATACA)',
     example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  aceptacion_nombramiento_base64: string;
+  @IsOptional()
+  aceptacion_nombramiento_base64?: string;
 
   @ApiProperty({
     description:
-      'Documento de la identificación del representante legal en Base64',
-    example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+      'Documento de la identificación del representante legal en Base64 (solo para UANATACA)',
+    example: 'JVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  identificacion_representante_base64: string;
+  @IsOptional()
+  identificacion_representante_base64?: string;
 
   @ApiProperty({
     description: 'ID del plan asignado al distribuidor',

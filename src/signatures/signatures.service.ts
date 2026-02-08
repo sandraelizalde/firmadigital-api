@@ -697,6 +697,23 @@ export class SignaturesService {
       );
     }
 
+    // Validar campos específicos de UANATACA para jurídicas
+    if (!dto.constitucion_base64) {
+      throw new BadRequestException(
+        'El documento de constitución es requerido para firmas jurídicas con pasaporte',
+      );
+    }
+    if (!dto.aceptacion_nombramiento_base64) {
+      throw new BadRequestException(
+        'El documento de aceptación del nombramiento es requerido para firmas jurídicas con pasaporte',
+      );
+    }
+    if (!dto.identificacion_representante_base64) {
+      throw new BadRequestException(
+        'La identificación del representante legal es requerida para firmas jurídicas con pasaporte',
+      );
+    }
+
     const identification = dto.numero_identificacion;
 
     // Duplicar foto_frontal si no viene foto_posterior (caso pasaporte)
