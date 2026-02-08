@@ -200,6 +200,14 @@ export class SignaturesService {
         );
       }
 
+      //numero_identificacion solo 10 numeros
+      const idRegex = /^\d{10}$/;
+      if (!idRegex.test(dto.numero_identificacion)) {
+        throw new BadRequestException(
+          'El número de identificación debe contener exactamente 10 dígitos numéricos',
+        );
+      }
+
       // 2. Obtener plan, perfil y precio
       const { planPrice, perfil_firma, priceToCharge } =
         await this.getSignaturePlanPrice(
@@ -226,7 +234,7 @@ export class SignaturesService {
         perfil_firma,
         nombres: dto.nombres.toUpperCase(),
         apellidos: dto.apellidos.toUpperCase(),
-        cedula: dto.cedula,
+        cedula: dto.numero_identificacion,
         codigo_dactilar: dto.codigo_dactilar,
         correo: dto.correo,
         provincia: dto.provincia.toUpperCase(),
@@ -285,7 +293,7 @@ export class SignaturesService {
           perfil_firma,
           nombres: dto.nombres.toUpperCase(),
           apellidos: dto.apellidos.toUpperCase(),
-          cedula: dto.cedula,
+          cedula: dto.numero_identificacion,
           correo: dto.correo,
           codigo_dactilar: dto.codigo_dactilar,
           celular: dto.celular,
@@ -367,7 +375,7 @@ export class SignaturesService {
         perfil_firma,
         nombres: dto.nombres.toUpperCase(),
         apellidos: dto.apellidos.toUpperCase(),
-        cedula: dto.cedula,
+        cedula: dto.numero_identificacion,
         codigo_dactilar: dto.codigo_dactilar,
         correo: dto.correo,
         provincia: dto.provincia.toUpperCase(),
@@ -433,7 +441,7 @@ export class SignaturesService {
           perfil_firma,
           nombres: dto.nombres.toUpperCase(),
           apellidos: dto.apellidos.toUpperCase(),
-          cedula: dto.cedula,
+          cedula: dto.numero_identificacion,
           correo: dto.correo,
           codigo_dactilar: dto.codigo_dactilar,
           celular: dto.celular,
@@ -499,11 +507,7 @@ export class SignaturesService {
         );
       }
 
-      // Determinar la identificación según el tipo de documento
-      const identification =
-        dto.documento === 'PASAPORTE'
-          ? dto.pasaporte || dto.cedula
-          : dto.cedula;
+      const identification = dto.numero_identificacion;
 
       // 2. Obtener plan, perfil (productUuid) y precio
       const { planPrice, perfil_firma, priceToCharge } =
@@ -688,9 +692,7 @@ export class SignaturesService {
       );
     }
 
-    // Determinar la identificación según el tipo de documento
-    const identification =
-      dto.documento === 'PASAPORTE' ? dto.pasaporte || dto.cedula : dto.cedula;
+    const identification = dto.numero_identificacion;
 
     // 2. Obtener plan, perfil (productUuid) y precio
     const { planPrice, perfil_firma, priceToCharge } =

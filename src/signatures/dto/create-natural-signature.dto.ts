@@ -29,10 +29,10 @@ export class CreateNaturalSignatureDto {
   apellidos: string;
 
   @ApiProperty({
-    description: 'Número de cédula',
+    description: 'Número de cédula o pasaporte',
     example: '1752549467',
-    minLength: 10,
-    maxLength: 10,
+    minLength: 5,
+    maxLength: 12,
   })
   @IsString()
   @IsNotEmpty()
@@ -187,13 +187,4 @@ export class CreateNaturalSignatureDto {
   @IsOptional()
   @IsString()
   selfie?: string;
-
-  @ApiProperty({
-    description: 'Número de pasaporte (requerido si documento es PASAPORTE)',
-    example: 'A12345678',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  pasaporte?: string;
 }

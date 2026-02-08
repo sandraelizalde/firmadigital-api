@@ -6,8 +6,6 @@ import {
   IsDateString,
   Matches,
   Length,
-  IsOptional,
-  IsBoolean,
   IsEnum,
 } from 'class-validator';
 
@@ -29,16 +27,14 @@ export class CreateJuridicalSignatureDto {
   apellidos: string;
 
   @ApiProperty({
-    description: 'Número de cédula del representante legal',
+    description: 'Número de cédula o pasaporte del representante legal',
     example: '1752549467',
-    minLength: 10,
-    maxLength: 10,
+    minLength: 5,
+    maxLength: 12,
   })
   @IsString()
   @IsNotEmpty()
-  @Length(10, 10)
-  @Matches(/^[0-9]+$/, { message: 'La cédula debe contener solo números' })
-  cedula: string;
+  numero_identificacion: string;
 
   @ApiProperty({
     description: 'Código dactilar',
@@ -185,7 +181,8 @@ export class CreateJuridicalSignatureDto {
   constitutionBase64: string;
 
   @ApiProperty({
-    description: 'Documento de archivo con la aceptación del nombramiento en Base64',
+    description:
+      'Documento de archivo con la aceptación del nombramiento en Base64',
     example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
   })
   @IsString()
@@ -193,7 +190,8 @@ export class CreateJuridicalSignatureDto {
   acceptanceBase64: string;
 
   @ApiProperty({
-    description: 'Documento de la identificación del representante legal en Base64',
+    description:
+      'Documento de la identificación del representante legal en Base64',
     example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
   })
   @IsString()
