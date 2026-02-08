@@ -212,7 +212,7 @@ export class SignaturesService {
           distributorId,
           dto.plan_id,
           'perfilNaturalEnext',
-          'Natural Enext',
+          'PN sin token',
         );
 
       // 3. Validar capacidad de pago
@@ -356,7 +356,7 @@ export class SignaturesService {
           distributorId,
           dto.plan_id,
           'perfilJuridicoEnext',
-          'Juridica Enext',
+          'PJ sin token',
         );
 
       // 3. Validar capacidad de pago
@@ -499,12 +499,12 @@ export class SignaturesService {
 
       if (!dto.sexo) {
         throw new BadRequestException(
-          'El sexo es requerido para firmas Uanataca',
+          'El sexo es requerido para este tipo de firma',
         );
       }
       if (!dto.selfie) {
         throw new BadRequestException(
-          'La selfie es requerida para firmas Uanataca',
+          'La selfie es requerida para este tipo de firma',
         );
       }
 
@@ -521,7 +521,7 @@ export class SignaturesService {
           distributorId,
           dto.plan_id,
           'perfilNaturalUanataca',
-          'Natural Uanataca',
+          'PN sin token',
         );
 
       // 3. Validar capacidad de pago
@@ -689,12 +689,12 @@ export class SignaturesService {
 
     if (!dto.sexo) {
       throw new BadRequestException(
-        'El sexo es requerido para firmas Uanataca',
+        'El sexo es requerido para este tipo de firma',
       );
     }
     if (!dto.selfie) {
       throw new BadRequestException(
-        'La selfie es requerida para firmas Uanataca',
+        'La selfie es requerida para este tipo de firma',
       );
     }
 
@@ -711,7 +711,7 @@ export class SignaturesService {
         distributorId,
         dto.plan_id,
         'perfilJuridicoUanataca',
-        'Juridica Uanataca',
+        'PJ sin token',
       );
 
     // 3. Validar capacidad de pago
@@ -796,9 +796,7 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
-    throw new BadRequestException(
-      'Firma Uanataca Token Natural no implementada aún',
-    );
+    throw new BadRequestException('Firma PN con token no implementada aún');
   }
 
   /**
@@ -810,9 +808,7 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
-    throw new BadRequestException(
-      'Firma Uanataca Token Jurídica no implementada aún',
-    );
+    throw new BadRequestException('Firma PJ con token no implementada aún');
   }
 
   /**
@@ -2450,12 +2446,12 @@ export class SignaturesService {
 
     if (!baseUrl || !username || !password) {
       throw new BadRequestException(
-        'Credenciales de Uanataca no configuradas en variables de entorno',
+        'Credenciales no configuradas en variables de entorno',
       );
     }
 
     if (this.config.environment === 'development') {
-      this.logger.log('SIMULACION: Autenticación Uanataca exitosa');
+      this.logger.log('SIMULACION: Autenticación exitosa');
       return 'dev-simulated-token';
     }
 
@@ -2474,19 +2470,19 @@ export class SignaturesService {
       const { access_token } = response.data;
 
       if (!access_token) {
-        throw new Error('No se recibió access_token de Uanataca');
+        throw new Error('No se recibió access_token del proveedor');
       }
 
-      this.logger.log('Autenticación Uanataca exitosa');
+      this.logger.log('Autenticación con proveedor exitosa');
       return access_token;
     } catch (error) {
       if (error instanceof AxiosError) {
         const status = error.response?.status;
         if (status === 401 || status === 403) {
-          throw new BadRequestException('Credenciales de Uanataca inválidas');
+          throw new BadRequestException('Credenciales del proveedor inválidas');
         }
         throw new BadRequestException(
-          `Error de conexión con Uanataca: ${error.message}`,
+          `Error de conexión con el proveedor: ${error.message}`,
         );
       }
       throw error;
@@ -2506,7 +2502,7 @@ export class SignaturesService {
     const baseUrl = this.config.uanataca.baseUrl;
 
     if (this.config.environment === 'development') {
-      this.logger.log('SIMULACION: Solicitud de certificado Uanataca creada');
+      this.logger.log('SIMULACION: Solicitud de certificado creada');
       const simulatedUuid = `simulated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       return {
         success: true,
@@ -2540,7 +2536,7 @@ export class SignaturesService {
 
       return {
         success: true,
-        message: 'Certificado creado exitosamente en Uanataca',
+        message: 'Certificado creado exitosamente',
         providerUuid,
       };
     } catch (error) {
@@ -2548,25 +2544,25 @@ export class SignaturesService {
         const status = error.response?.status;
         const errorData = error.response?.data;
 
-        let errorMessage = 'Error al crear certificado en Uanataca';
+        let errorMessage = 'Error al crear certificado';
 
         if (status === 401 || status === 403) {
-          errorMessage = 'Token de Uanataca expirado o inválido';
+          errorMessage = 'Token de autenticación expirado o inválido';
         } else if (status === 400) {
           errorMessage = `Datos inválidos: ${JSON.stringify(errorData) || 'Error de validación'}`;
         } else if (status === 422) {
           errorMessage = `Datos no procesables: ${JSON.stringify(errorData) || 'Error de validación'}`;
         } else if (error.code === 'ECONNREFUSED') {
-          errorMessage = 'No se pudo conectar con Uanataca';
+          errorMessage = 'No se pudo conectar con el servicio de certificados';
         } else if (
           error.code === 'ETIMEDOUT' ||
           error.code === 'ECONNABORTED'
         ) {
-          errorMessage = 'Tiempo de espera agotado al contactar a Uanataca';
+          errorMessage = 'Tiempo de espera agotado al crear certificado';
         }
 
         this.logger.error(
-          `Error Uanataca [${status}]: ${errorMessage}`,
+          `Error del proveedor [${status}]: ${errorMessage}`,
           error.stack,
         );
 
@@ -2577,7 +2573,7 @@ export class SignaturesService {
       }
 
       this.logger.error(
-        `Error inesperado al llamar a Uanataca: ${error.message}`,
+        `Error inesperado al llamar al proveedor: ${error.message}`,
         error.stack,
       );
 
