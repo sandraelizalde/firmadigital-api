@@ -43,6 +43,7 @@ export class CreateJuridicalSignatureDto {
     example: 'V43I4444',
   })
   @IsString()
+  @IsOptional()
   codigo_dactilar?: string;
 
   @ApiProperty({
