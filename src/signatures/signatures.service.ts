@@ -2232,16 +2232,6 @@ export class SignaturesService {
         'El código dactilar es requerido para firmas con cédula',
       );
     }
-
-    // Formato: Letra + 2-3-4 dígitos + Letra + 4 dígitos
-    // Ejemplos válidos: V43I4444, A123B5678, V1234I5678
-    const codigoDactilarRegex = /^[A-Z]\d{2,4}[A-Z]\d{4}$/;
-
-    if (!codigoDactilarRegex.test(codigo_dactilar)) {
-      throw new BadRequestException(
-        'El código dactilar debe tener el formato: Letra + 2-4 dígitos + Letra + 4 dígitos (Ejemplo: V4343I4444)',
-      );
-    }
   }
 
   private calculateAge(dateOfBirth: string | Date): number {
