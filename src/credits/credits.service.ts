@@ -1,3 +1,5 @@
+
+
 import {
   Injectable,
   BadRequestException,
@@ -550,7 +552,6 @@ export class CreditsService {
           }
 
           await this.prisma.$transaction(async (prisma) => {
-            // Re-obtener el distribuidor con el saldo actualizado en cada iteración
             const distributor = await prisma.distributor.findUnique({
               where: { id: cutoff.distributor.id },
               select: { balance: true, id: true, email: true },

@@ -227,11 +227,6 @@ export class PlansController {
     description:
       'Obtiene todos los planes activos asignados a un distribuidor específico con sus precios personalizados.',
   })
-  @ApiParam({
-    name: 'distributorId',
-    description: 'ID del distribuidor',
-    type: String,
-  })
   @ApiBearerAuth()
   @ApiResponse({
     status: 200,
@@ -241,10 +236,11 @@ export class PlansController {
     status: 404,
     description: 'Distribuidor no encontrado',
   })
-  @Get('distributor/:distributorId')
+  @Get('distributor/my-plans')
   @Roles(Role.ADMIN, Role.DISTRIBUTOR)
-  async getDistributorPlans(@Param('distributorId') distributorId: string) {
-    return await this.plansService.getDistributorPlans(distributorId);
+  async getDistributorPlans(@Request() req: any) {
+    const id = req.user.userId;
+    return await this.plansService.getDistributorPlans(id);
   }
 
   @ApiOperation({

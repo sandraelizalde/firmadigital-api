@@ -48,6 +48,11 @@ export class AuthController {
           example: '¡Hola, nos alegra verte otra vez!',
         },
         success: { type: 'boolean', example: true },
+        timeExpiresIn: {
+          type: 'number',
+          example: 3600,
+          description: 'Tiempo en segundos para que expire el token',
+        },
       },
     },
   })
@@ -71,6 +76,7 @@ export class AuthController {
       accessToken,
       message: '¡Hola, nos alegra verte otra vez!',
       success: true,
+      timeExpiresIn: parseInt(process.env.JWT_EXPIRES_IN || '3600', 10),
     };
   }
 

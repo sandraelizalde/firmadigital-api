@@ -213,6 +213,7 @@ export class PlansService {
     const distributor = await this.prisma.distributor.findUnique({
       where: { id: distributorId },
     });
+    console.log('Obteniendo planes para distribuidor:', distributorId);
 
     if (!distributor) {
       throw new NotFoundException({
@@ -243,16 +244,35 @@ export class PlansService {
       ],
     });
 
+    const plansDistributor = assignments.map((a) => {
+      const personaNatural: string[] = [];
+      const personaJuridica: string[] = [];
+
+      // Verificar disponibilidad para Persona Natural
+      if (a.plan.perfilNaturalEnext) personaNatural.push('cedula');
+      if (a.plan.perfilNaturalUanataca) personaNatural.push('pasaporte');
+      if (a.plan.perfilNaturalTokenUanataca) personaNatural.push('token');
+
+      // Verificar disponibilidad para Persona Jurídica
+      if (a.plan.perfilJuridicoEnext) personaJuridica.push('cedula');
+      if (a.plan.perfilJuridicoUanataca) personaJuridica.push('pasaporte');
+      if (a.plan.perfilJuridicoTokenUanataca) personaJuridica.push('token');
+
+      return {
+        planId: a.plan.id,
+        price: a.customPrice,
+        pricePromo: a.customPricePromo,
+        duration: this.formatDuration(a.plan.duration, a.plan.durationType),
+        availableFor: {
+          personaNatural,
+          personaJuridica,
+        },
+      };
+    });
+
     return {
       success: true,
-      distributor: {
-        id: distributor.id,
-        firstName: distributor.firstName,
-        lastName: distributor.lastName,
-        socialReason: distributor.socialReason,
-        email: distributor.email,
-      },
-      plans: assignments,
+      plans: plansDistributor,
     };
   }
 
@@ -602,5 +622,17 @@ export class PlansService {
         );
       }
     }
+  }
+
+  private formatDuration(duration: string, durationType: string): string {
+    const typeMap: Record<string, string> = {
+      D: 'días',
+      M: 'mes',
+      MS: 'meses',
+      Y: 'año',
+      YS: 'años',
+    };
+
+    return `${duration} ${typeMap[durationType] || durationType}`;
   }
 }
