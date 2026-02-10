@@ -1709,6 +1709,7 @@ export class SignaturesService {
         ),
       ]);
 
+      let video_url: string | null = null;
       let pdf_sri_url: string | null = null;
       let nombramiento_url: string | null = null;
 
@@ -1723,6 +1724,12 @@ export class SignaturesService {
         nombramiento_url = await this.filesService.getFileUrl(
           signatureRequest.nombramiento,
           'pdf-nombramiento',
+        );
+      }
+      if (signatureRequest.video_face) {
+        video_url = await this.filesService.getFileUrl(
+          signatureRequest.video_face,
+          'fotos-cedulas',
         );
       }
 
@@ -1743,7 +1750,7 @@ export class SignaturesService {
         dateOfBirth: signatureRequest.dateOfBirth,
         foto_frontal_url,
         foto_posterior_url,
-        video_face: signatureRequest.video_face,
+        video_face: video_url,
         pdf_sri_url,
         nombramiento_url,
         razon_social: signatureRequest.razon_social,

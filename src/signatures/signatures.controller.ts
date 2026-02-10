@@ -503,7 +503,7 @@ export class SignaturesController {
         dateOfBirth: '1990-05-15T00:00:00.000Z',
         foto_frontal_url: 'https://s3.wasabisys.com/...',
         foto_posterior_url: 'https://s3.wasabisys.com/...',
-        video_face: null,
+        video_face: 'https://s3.wasabisys.com/...',
         pdf_sri_url: null,
         nombramiento_url: null,
         razon_social: null,
