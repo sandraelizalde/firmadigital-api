@@ -60,7 +60,7 @@ export class RechargesService {
       data: {
         distributorId,
         method: RechargeMethod.CARD,
-        requestedAmount: dto.requestedAmount,
+        requestedAmount: dto.requestedAmount + dto.requestedAmount * 0.06, // Sumar comisión al monto solicitado
         commission: dto.requestedAmount * 0.06, // 6% de comisión
         status: RechargeStatus.PENDING,
         paymentReference: dto.reference || 'Recarga con tarjeta',
@@ -143,7 +143,8 @@ export class RechargesService {
 
       if (status === RechargeStatus.APPROVED) {
         // Usar los valores ya calculados en initCardRecharge
-        const creditedAmount = recharge.requestedAmount - (recharge.commission ?? 0);
+        const creditedAmount =
+          recharge.requestedAmount - (recharge.commission ?? 0);
         newBalance = recharge.distributor.balance + creditedAmount;
 
         // Actualizar balance
@@ -192,7 +193,16 @@ export class RechargesService {
         },
       });
 
-      return updatedRecharge;
+      return {
+        recharge: updatedRecharge,
+        payphone: {
+          transactionId: payphoneResponse.transactionId,
+          authorizationCode: payphoneResponse.authorizationCode,
+          cardBrand: payphoneResponse.cardBrand,
+          lastDigits: payphoneResponse.lastDigits,
+          transactionStatus: payphoneResponse.transactionStatus,
+        },
+      };
     });
 
     // Intentar cobrar créditos vencidos si se aprobó el pago
@@ -201,10 +211,10 @@ export class RechargesService {
       try {
         const creditResult =
           await this.creditsService.attemptCollectOverdueCredits(
-            result.distributorId,
+            result.recharge.distributorId,
           );
         this.logger.log(
-          `Cobro automático de créditos Payphone para distribuidor ${result.distributorId}: ${creditResult.message}`,
+          `Cobro automático de créditos Payphone para distribuidor ${result.recharge.distributorId}: ${creditResult.message}`,
         );
       } catch (error) {
         this.logger.error(
@@ -215,8 +225,9 @@ export class RechargesService {
 
       // 2. Notificación de WhatsApp
       try {
-        const distributor = result.distributor;
-        const name = `${distributor.firstName} ${distributor.lastName}` || 'Distribuidor';
+        const distributor = result.recharge.distributor;
+        const name =
+          `${distributor.firstName} ${distributor.lastName}` || 'Distribuidor';
         await this.whatsappService.sendTemplate(
           distributor.phone,
           'aprobacionrecarga294',
@@ -230,16 +241,7 @@ export class RechargesService {
       }
     }
 
-    return {
-      recharge: result,
-      payphone: {
-        transactionId: payphoneResponse.transactionId,
-        authorizationCode: payphoneResponse.authorizationCode,
-        cardBrand: payphoneResponse.cardBrand,
-        lastDigits: payphoneResponse.lastDigits,
-        transactionStatus: payphoneResponse.transactionStatus,
-      },
-    };
+    return result;
   }
 
   /**
@@ -300,7 +302,9 @@ export class RechargesService {
     // Notificar a los users (enviar nombre del solicitante y monto a la plantilla)
     this.notifyUserPhone(recharge.distributor, recharge.requestedAmount)
       .then((data) => {
-        this.logger.log(`Notificación enviada a users: ${JSON.stringify(data)}`);
+        this.logger.log(
+          `Notificación enviada a users: ${JSON.stringify(data)}`,
+        );
       })
       .catch((error) => {
         this.logger.error(`Error al notificar a users: ${error.message}`);
@@ -367,19 +371,9 @@ export class RechargesService {
       },
     });
 
-    // Convertir receiptFile a base64
-    const rechargesWithReceipt = await Promise.all(
-      recharges.map(async (recharge) => ({
-        ...recharge,
-        receiptFile: recharge.receiptFile
-          ? await this.filesService.getFile(recharge.receiptFile, 'vouchers-nexus')
-          : null,
-      })),
-    );
-
     return {
       success: true,
-      data: rechargesWithReceipt,
+      data: recharges,
       pagination: {
         total,
         page,
@@ -659,13 +653,9 @@ export class RechargesService {
       // Notificación WhatsApp
       try {
         const distributor = updatedRecharge.distributor;
-<<<<<<< HEAD
-        const name = `${distributor.firstName} ${distributor.lastName}` || 'Distribuidor';
-=======
         const name =
           distributor.firstName || distributor.lastName || 'Distribuidor';
 
->>>>>>> dcbbed298f1f94401f1f511b3d02099b8a3435cc
         await this.whatsappService.sendTemplate(
           distributor.phone,
           'aprobacionrecarga294',
@@ -674,7 +664,7 @@ export class RechargesService {
         );
       } catch (error) {
         this.logger.error(
-          `Error enviando notificación de recarga aprobada review: ${error.message}`,
+          `Error enviando notificación de recarga aprobada: ${error.message}`,
         );
       }
     }
@@ -771,7 +761,8 @@ export class RechargesService {
     if (result) {
       try {
         const distributor = result.distributor;
-        const name = `${distributor.firstName} ${distributor.lastName}` || 'Distribuidor';
+        const name =
+          `${distributor.firstName} ${distributor.lastName}` || 'Distribuidor';
         await this.whatsappService.sendTemplate(
           distributor.phone,
           'aprobacionrecarga294',
@@ -836,10 +827,12 @@ export class RechargesService {
       return {
         success: true,
         message: `Se descontaron $${(amount / 100).toFixed(2)} del balance del distribuidor`,
-        data: movement,
-        previousBalance: distributor.balance,
-        newBalance,
-        amountDeducted: amount,
+        data: {
+          movement,
+          previousBalance: distributor.balance,
+          newBalance,
+          amountDeducted: amount,
+        },
       };
     });
   }
@@ -915,8 +908,6 @@ export class RechargesService {
       },
     };
   }
-
-
 
   /**
    * ADMIN: Obtener recargas de un distribuidor específico
@@ -1171,7 +1162,6 @@ export class RechargesService {
     }
   }
 
-
   private async notifyUserPhone(requester?: any, amount?: number) {
     // Ejecutar solo en production
     if (process.env.ENVIRONMENT !== 'production') {
@@ -1230,7 +1220,7 @@ export class RechargesService {
           phone = '593' + phone.substring(1);
         }
 
-        const name = `${u.firstName} ${u.lastName}` || 'Asesor Nexus';
+        const name = u.firstName || u.lastName || 'Asesor Nexus';
         const templateParams = [name, requesterName];
 
         await this.whatsappService.sendTemplate(
