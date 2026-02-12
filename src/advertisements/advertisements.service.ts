@@ -57,6 +57,7 @@ export class AdvertisementsService {
   // Obtener todas las publicidades (para admin)
   async findAll() {
     const advertisements = await this.prisma.advertisement.findMany();
+    // Traer la url firmada de cada imagen si es necesario
 
     return {
       success: true,
