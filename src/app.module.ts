@@ -17,7 +17,6 @@ import { ConfigModule } from '@nestjs/config';
 import { MailModule } from './mail/mail.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CreditsModule } from './credits/credits.module';
-import { QueuesModule } from './queues/queues.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import appConfig from './config/app.config';
 
@@ -41,7 +40,6 @@ import appConfig from './config/app.config';
     ConsultationsModule,
     MailModule,
     CreditsModule,
-    QueuesModule,
     NotificationsModule,
   ],
   controllers: [AppController],
