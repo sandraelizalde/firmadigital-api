@@ -630,7 +630,7 @@ export class RechargesService {
         const distributor = updatedRecharge.distributor;
         const name =
           distributor.firstName || distributor.lastName || 'Distribuidor';
-  
+
         await this.whatsappService.sendTemplate(
           distributor.phone,
           'aprobacionrecarga294',
@@ -1160,9 +1160,6 @@ export class RechargesService {
       return 'Solicitante';
     })();
 
-    const amountFormatted =
-      typeof amount === 'number' ? (amount / 100).toFixed(2) : null;
-
     for (const u of data) {
       try {
         let phone = (u.phoneNumber || u.phone || '').toString().trim();
@@ -1184,13 +1181,12 @@ export class RechargesService {
         const name = u.firstName || u.lastName || 'Asesor Nexus';
 
         const templateParams = [name, requesterName];
-        if (amountFormatted !== null) templateParams.push(amountFormatted);
 
         await this.whatsappService.sendTemplate(
           u.phoneNumber || u.phone,
-          'new_recharge',
+          'alerta_solicitud_recarga ',
           templateParams,
-          'es_EC',
+          'en',
         );
         results.push({ phone: u.phoneNumber || u.phone, status: 'sent' });
       } catch (error) {
