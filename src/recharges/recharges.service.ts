@@ -659,7 +659,13 @@ export class RechargesService {
       // Notificación WhatsApp
       try {
         const distributor = updatedRecharge.distributor;
+<<<<<<< HEAD
         const name = `${distributor.firstName} ${distributor.lastName}` || 'Distribuidor';
+=======
+        const name =
+          distributor.firstName || distributor.lastName || 'Distribuidor';
+
+>>>>>>> dcbbed298f1f94401f1f511b3d02099b8a3435cc
         await this.whatsappService.sendTemplate(
           distributor.phone,
           'aprobacionrecarga294',
@@ -1206,9 +1212,6 @@ export class RechargesService {
       return 'Solicitante';
     })();
 
-    const amountFormatted =
-      typeof amount === 'number' ? (amount / 100).toFixed(2) : null;
-
     for (const u of data) {
       try {
         let phone = (u.phoneNumber || u.phone || '').toString().trim();
@@ -1229,15 +1232,12 @@ export class RechargesService {
 
         const name = `${u.firstName} ${u.lastName}` || 'Asesor Nexus';
         const templateParams = [name, requesterName];
-        if (amountFormatted !== null) {
-          templateParams.push(amountFormatted);
-        }
 
         await this.whatsappService.sendTemplate(
           u.phoneNumber || u.phone,
-          'newrecharge',
+          'alerta_solicitud_recarga ',
           templateParams,
-          'es-EC',
+          'en',
         );
 
         results.push({ phone: u.phoneNumber || u.phone, status: 'sent' });
