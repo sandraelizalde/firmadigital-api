@@ -2686,9 +2686,17 @@ export class SignaturesService {
         const status = error.response?.status;
         const errorData = error.response?.data;
 
+        // Loguear respuesta completa para depuración
+        console.log(
+          'ERROR UANATACA FULL RESPONSE:',
+          JSON.stringify(errorData, null, 2),
+        );
+
         let errorMessage = 'Error al crear certificado';
 
-        if (status === 401 || status === 403) {
+        if (errorData && (errorData.message || errorData.error)) {
+          errorMessage = errorData.message || errorData.error;
+        } else if (status === 401 || status === 403) {
           errorMessage = 'Token de autenticación expirado o inválido';
         } else if (status === 400) {
           errorMessage = `Datos inválidos: ${JSON.stringify(errorData) || 'Error de validación'}`;
