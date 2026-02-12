@@ -27,7 +27,7 @@ export class DistributorsService {
     private readonly mailService: MailService,
     private readonly creditsService: CreditsService,
     private readonly whatsappService: WhatsappService,
-  ) { }
+  ) {}
 
   // Buscar distribuidores por nombre para combobox
   async searchDistributors(name: string) {
@@ -96,11 +96,7 @@ export class DistributorsService {
         planPrices: {
           where: {
             isActive: true,
-            plan: {
-              eligibleClientsType: {
-                has: TypeClient.PERSONA_JURIDICA,
-              },
-            },
+            plan: {},
           },
           include: {
             plan: true,
@@ -114,11 +110,6 @@ export class DistributorsService {
             {
               plan: {
                 duration: 'asc',
-              },
-            },
-            {
-              plan: {
-                perfil: 'asc',
               },
             },
           ],
@@ -364,8 +355,6 @@ export class DistributorsService {
           distributor.identification,
           decryptedPassword,
         );
-
-
       } catch (emailError) {
         // Si falla el envío del email, registrar el error pero no fallar la operación
         this.logger.error('Error al enviar email de bienvenida:', emailError);
@@ -575,7 +564,7 @@ export class DistributorsService {
           amount: creditSummary.totalOwed,
           date:
             creditSummary.unpaidCutoffs &&
-              creditSummary.unpaidCutoffs.length > 0
+            creditSummary.unpaidCutoffs.length > 0
               ? creditSummary.unpaidCutoffs[0].paymentDueDate
               : null,
           canEmit: false,
@@ -920,8 +909,6 @@ export class DistributorsService {
         plan: {
           select: {
             id: true,
-            perfil: true,
-            eligibleClientsType: true,
           },
         },
       },
@@ -946,8 +933,6 @@ export class DistributorsService {
         distributor: any;
         plans: Array<{
           planId: string;
-          perfil: string;
-          eligibleClientsType: any[];
           customPrice: number;
           customPricePromo: number | null;
         }>;
@@ -966,8 +951,6 @@ export class DistributorsService {
 
       distributorMap.get(distId)!.plans.push({
         planId: assignment.plan.id,
-        perfil: assignment.plan.perfil,
-        eligibleClientsType: assignment.plan.eligibleClientsType,
         customPrice: assignment.customPrice,
         customPricePromo: assignment.customPricePromo,
       });

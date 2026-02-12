@@ -7,6 +7,9 @@ import {
   Matches,
   Length,
   IsOptional,
+  IsBoolean,
+  IsEnum,
+  MinLength,
 } from 'class-validator';
 
 export class CreateNaturalSignatureDto {
@@ -27,24 +30,22 @@ export class CreateNaturalSignatureDto {
   apellidos: string;
 
   @ApiProperty({
-    description: 'Número de cédula',
+    description: 'Número de cédula o pasaporte',
     example: '1752549467',
-    minLength: 10,
-    maxLength: 10,
+    minLength: 5,
+    maxLength: 12,
   })
   @IsString()
   @IsNotEmpty()
-  @Length(10, 10)
-  @Matches(/^[0-9]+$/, { message: 'La cédula debe contener solo números' })
-  cedula: string;
+  numero_identificacion: string;
 
   @ApiProperty({
     description: 'Código dactilar',
     example: 'V43I4444',
   })
   @IsString()
-  @IsNotEmpty()
-  codigo_dactilar: string;
+  @IsOptional()
+  codigo_dactilar?: string;
 
   @ApiProperty({
     description: 'Correo electrónico del solicitante',
@@ -84,6 +85,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MinLength(12, { message: 'La dirección debe tener al menos 12 caracteres' })
   direccion: string;
 
   @ApiProperty({
@@ -99,38 +101,43 @@ export class CreateNaturalSignatureDto {
   celular: string;
 
   @ApiProperty({
-    description: 'Clave de firma digital',
+    description:
+      'Clave de firma digital (solo letras y números, sin espacios ni caracteres especiales)',
     example: 'GONZALEZ1752',
   })
   @IsString()
   @IsNotEmpty()
-  clavefirma: string;
+  @Matches(/^[a-zA-Z0-9]+$/, {
+    message:
+      'La clave de firma solo puede contener letras y números, sin espacios ni caracteres especiales',
+  })
+  clave_firma: string;
 
   @ApiProperty({
     description: 'Foto frontal de cédula en Base64',
     example: 'iVBORw0KGgoAAAANSUhEUgAA...',
   })
+  @IsString()
   @IsNotEmpty()
   foto_frontal: string;
 
   @ApiProperty({
-    description: 'Foto posterior de cédula en Base64',
+    description:
+      'Foto posterior de cédula/pasaporte en Base64 (opcional para pasaporte)',
     example: 'iVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  foto_posterior: string;
+  @IsOptional()
+  foto_posterior?: string;
 
   @ApiProperty({
-    description: 'Perfil de firma (PN-001, PN-002, etc.)',
-    example: 'PN-001',
+    description: 'ID del plan asignado al distribuidor',
+    example: 'clx123abc456',
   })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^PN-\d{3}$/, {
-    message: 'El perfil debe tener formato PN-XXX (ej: PN-001)',
-  })
-  perfil_firma: string;
+  plan_id: string;
 
   @ApiProperty({
     description: 'Fecha de nacimiento en formato ISO',
@@ -138,7 +145,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsDateString()
   @IsNotEmpty()
-  dateOfBirth: string;
+  fecha_nacimiento: string;
 
   @ApiProperty({
     description: 'RUC (opcional, solo si la persona natural tiene RUC)',
@@ -148,4 +155,46 @@ export class CreateNaturalSignatureDto {
   @IsOptional()
   @IsString()
   ruc?: string;
+
+  @ApiProperty({
+    description: 'Tipo de documento: CEDULA o PASAPORTE',
+    example: 'CEDULA',
+    enum: ['CEDULA', 'PASAPORTE'],
+    required: false,
+    default: 'CEDULA',
+  })
+  @IsNotEmpty()
+  @IsEnum(['CEDULA', 'PASAPORTE'])
+  documento: 'CEDULA' | 'PASAPORTE';
+
+  @ApiProperty({
+    description: 'Si usa token Uanataca',
+    example: false,
+    required: false,
+    default: false,
+  })
+  @IsNotEmpty()
+  @IsEnum(['true', 'false'])
+  usa_token: string;
+
+  // ===== Campos opcionales para Uanataca (pasaporte/token) =====
+
+  @ApiProperty({
+    description: 'Sexo del solicitante (requerido para Uanataca)',
+    example: 'HOMBRE',
+    enum: ['HOMBRE', 'MUJER'],
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['HOMBRE', 'MUJER'])
+  sexo?: 'HOMBRE' | 'MUJER';
+
+  @ApiProperty({
+    description: 'Selfie en Base64 (requerido para Uanataca)',
+    example: 'iVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  selfie?: string;
 }

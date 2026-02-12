@@ -19,12 +19,14 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { CreditsModule } from './credits/credits.module';
 import { QueuesModule } from './queues/queues.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import appConfig from './config/app.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      load: [appConfig],
     }),
     ScheduleModule.forRoot(),
 
@@ -40,7 +42,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     MailModule,
     CreditsModule,
     QueuesModule,
-    NotificationsModule
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

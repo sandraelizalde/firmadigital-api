@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadBucketCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -11,6 +12,10 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 export class FilesService {
   private readonly s3Client: S3Client;
   private readonly logger = new Logger(FilesService.name);
+
+  // Caché para validación de conexión (válido por 5 minutos)
+  private lastConnectionCheck: number = 0;
+  private readonly CONNECTION_CACHE_MS = 5 * 60 * 1000; // 5 minutos
 
   constructor() {
     const endpoint = process.env.WASABI_ENDPOINT;
@@ -176,6 +181,47 @@ export class FilesService {
     } catch (error) {
       this.logger.error(`Error al subir archivo a ${bucket}: ${error.message}`);
       throw new Error(`Error al subir archivo a ${bucket}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Valida que el servicio de Wasabi esté disponible y funcionando
+   * Usa caché de 5 minutos para evitar validaciones excesivas
+   * @returns true si está disponible
+   * @throws Error si hay problemas de conexión
+   */
+  async checkWasabiConnection(): Promise<boolean> {
+    try {
+      // Si la última validación fue hace menos de 5 minutos, asumir que está OK
+      const now = Date.now();
+      if (now - this.lastConnectionCheck < this.CONNECTION_CACHE_MS) {
+        return true;
+      }
+
+      // Usar HeadBucket que solo verifica acceso sin crear/eliminar archivos
+      const testBucket = process.env.WASABI_BUCKET || 'fotos-cedulas';
+
+      const command = new HeadBucketCommand({
+        Bucket: testBucket,
+      });
+
+      await this.s3Client.send(command);
+
+      // Actualizar timestamp de última validación exitosa
+      this.lastConnectionCheck = now;
+
+      this.logger.log('Conexión con Wasabi verificada exitosamente');
+      return true;
+    } catch (error) {
+      // Invalidar caché en caso de error
+      this.lastConnectionCheck = 0;
+
+      this.logger.error(
+        `Error al verificar conexión con Wasabi: ${error.message}`,
+      );
+      throw new Error(
+        `El servicio de almacenamiento (Wasabi) no está disponible. Por favor, intente más tarde.`,
+      );
     }
   }
 

@@ -65,7 +65,6 @@ export class MailService {
         representativeName: `${distributor.firstName} ${distributor.lastName}`,
         representativeId: distributor.identification,
         plans: juridicalPlans.map((plan) => ({
-          perfil: plan.plan.perfil,
           customPrice: plan.customPrice,
           duration: plan.plan.duration,
           durationType: plan.plan.durationType,

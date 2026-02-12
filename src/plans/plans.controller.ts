@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Request,
 } from '@nestjs/common';
 import {
@@ -226,11 +227,6 @@ export class PlansController {
     description:
       'Obtiene todos los planes activos asignados a un distribuidor específico con sus precios personalizados.',
   })
-  @ApiParam({
-    name: 'distributorId',
-    description: 'ID del distribuidor',
-    type: String,
-  })
   @ApiBearerAuth()
   @ApiResponse({
     status: 200,
@@ -240,10 +236,11 @@ export class PlansController {
     status: 404,
     description: 'Distribuidor no encontrado',
   })
-  @Get('distributor/:distributorId')
+  @Get('distributor/my-plans')
   @Roles(Role.ADMIN, Role.DISTRIBUTOR)
-  async getDistributorPlans(@Param('distributorId') distributorId: string) {
-    return await this.plansService.getDistributorPlans(distributorId);
+  async getDistributorPlans(@Request() req: any) {
+    const id = req.user.userId;
+    return await this.plansService.getDistributorPlans(id);
   }
 
   @ApiOperation({
@@ -335,39 +332,35 @@ export class PlansController {
   }
 
   @ApiOperation({
-    summary: 'Obtener mis planes de persona natural',
+    summary: 'Obtener planes filtrados según tipo de persona y proveedor',
     description:
-      'Obtiene todos los planes para personas naturales asignados al distribuidor autenticado con sus precios personalizados. Incluye planes para PERSONA_NATURAL_SIN_RUC y PERSONA_NATURAL_CON_RUC.',
+      'Obtiene los planes asignados al distribuidor autenticado filtrados por tipo de persona (NATURAL/JURIDICA), documento (CEDULA/PASAPORTE) y si usa token. Devuelve solo los planes con perfil correspondiente no nulo.',
   })
   @ApiBearerAuth()
   @ApiResponse({
     status: 200,
-    description: 'Lista de planes naturales del distribuidor',
+    description: 'Lista de planes filtrados del distribuidor',
     schema: {
       example: {
         success: true,
         plans: [
           {
             id: 'clx123',
-            perfil: 'PN-001',
-            basePrice: 79900,
-            basePricePromo: 69900,
+            perfil: '002',
             duration: '1',
             durationType: 'Y',
-            durationPromo: null,
-            isPromo: true,
-            eligibleClientsType: [
-              'PERSONA_NATURAL_SIN_RUC',
-              'PERSONA_NATURAL_CON_RUC',
-            ],
-            customPrice: 75000,
-            customPricePromo: 65000,
+            customPrice: 149900,
+            customPricePromo: null,
             isActive: true,
             createdAt: '2024-12-20T10:00:00.000Z',
           },
         ],
       },
     },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Parámetros inválidos',
   })
   @ApiResponse({
     status: 401,
@@ -377,57 +370,20 @@ export class PlansController {
     status: 403,
     description: 'Acceso denegado - Solo para distribuidores',
   })
-  @Get('my-plans/natural')
+  @Get('my-plans/filtered')
   @Roles(Role.DISTRIBUTOR)
-  async getMyNaturalPlans(@Request() req: any) {
-    return await this.plansService.getDistributorNaturalPlans(req.user.userId);
-  }
-
-  @ApiOperation({
-    summary: 'Obtener mis planes de persona jurídica',
-    description:
-      'Obtiene todos los planes para personas jurídicas asignados al distribuidor autenticado con sus precios personalizados. Incluye planes con PERSONA_JURIDICA.',
-  })
-  @ApiBearerAuth()
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de planes jurídicos del distribuidor',
-    schema: {
-      example: {
-        success: true,
-        plans: [
-          {
-            id: 'clx456',
-            perfil: 'PJ-003',
-            basePrice: 149900,
-            basePricePromo: 129900,
-            duration: '1',
-            durationType: 'Y',
-            durationPromo: null,
-            isPromo: true,
-            eligibleClientsType: ['PERSONA_JURIDICA'],
-            customPrice: 140000,
-            customPricePromo: 120000,
-            isActive: true,
-            createdAt: '2024-12-20T10:00:00.000Z',
-          },
-        ],
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'No autorizado',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Acceso denegado - Solo para distribuidores',
-  })
-  @Get('my-plans/juridica')
-  @Roles(Role.DISTRIBUTOR)
-  async getMyJuridicalPlans(@Request() req: any) {
-    return await this.plansService.getDistributorJuridicalPlans(
+  async getMyPlansFiltered(
+    @Request() req: any,
+    @Query('tipoPersona') tipoPersona: 'NATURAL' | 'JURIDICA',
+    @Query('documento') documento?: 'CEDULA' | 'PASAPORTE',
+    @Query('usaToken') usaToken?: string,
+  ) {
+    const usaTokenBool = usaToken === 'true';
+    return await this.plansService.getDistributorPlansFiltered(
       req.user.userId,
+      tipoPersona,
+      documento || null,
+      usaTokenBool,
     );
   }
 

@@ -1,0 +1,1138 @@
+{
+  "info": {
+    "_postman_id": "f9b3d3b0-0000-4000-8000-000000000001",
+    "name": "Firmas Digitales - Nexus",
+    "description": "Colección completa para API de firmas digitales. Incluye todos los tipos de firma (Natural y Jurídica con diferentes documentos). Variables: `baseUrl`, `token`, `signatureId`, `planId`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "signatureId",
+      "value": ""
+    },
+    {
+      "key": "planId",
+      "value": ""
+    },
+    {
+      "key": "page",
+      "value": "1"
+    },
+    {
+      "key": "limit",
+      "value": "10"
+    }
+  ],
+  "item": [
+    {
+      "name": "Firmas Persona Natural",
+      "item": [
+        {
+          "name": "Firma Natural con Cédula",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "nombres",
+                  "value": "LUIS XAVIER",
+                  "type": "text"
+                },
+                {
+                  "key": "apellidos",
+                  "value": "GONZALEZ JIMENEZ",
+                  "type": "text"
+                },
+                {
+                  "key": "numero_identificacion",
+                  "value": "1752549467",
+                  "type": "text"
+                },
+                {
+                  "key": "codigo_dactilar",
+                  "value": "V43I4444",
+                  "type": "text"
+                },
+                {
+                  "key": "correo",
+                  "value": "luisg@solucionesnexus.com",
+                  "type": "text"
+                },
+                {
+                  "key": "provincia",
+                  "value": "PICHINCHA",
+                  "type": "text"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "QUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "parroquia",
+                  "value": "IÑAQUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "direccion",
+                  "value": "QUITUS COLONIAL",
+                  "type": "text"
+                },
+                {
+                  "key": "celular",
+                  "value": "0990602199",
+                  "type": "text"
+                },
+                {
+                  "key": "clave_firma",
+                  "value": "GONZALEZ1752",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_frontal",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_posterior",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "plan_id",
+                  "value": "{{planId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "fecha_nacimiento",
+                  "value": "1990-05-15",
+                  "type": "text"
+                },
+                {
+                  "key": "documento",
+                  "value": "CEDULA",
+                  "type": "text"
+                },
+                {
+                  "key": "usa_token",
+                  "value": "false",
+                  "type": "text"
+                },
+                {
+                  "key": "ruc",
+                  "value": "1752549467001",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "video_face",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signatures/natural",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "natural"]
+            },
+            "description": "Crea una firma digital para persona natural con cédula ecuatoriana. Estado final: COMPLETED"
+          },
+          "response": []
+        },
+        {
+          "name": "Firma Natural con Pasaporte",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "nombres",
+                  "value": "JOHN",
+                  "type": "text"
+                },
+                {
+                  "key": "apellidos",
+                  "value": "DOE SMITH",
+                  "type": "text"
+                },
+                {
+                  "key": "numero_identificacion",
+                  "value": "AB123456",
+                  "type": "text"
+                },
+                {
+                  "key": "correo",
+                  "value": "john.doe@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "provincia",
+                  "value": "PICHINCHA",
+                  "type": "text"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "QUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "parroquia",
+                  "value": "IÑAQUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "direccion",
+                  "value": "QUITUS COLONIAL",
+                  "type": "text"
+                },
+                {
+                  "key": "celular",
+                  "value": "0990602199",
+                  "type": "text"
+                },
+                {
+                  "key": "clave_firma",
+                  "value": "DOE123456",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_frontal",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_posterior",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "selfie",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "plan_id",
+                  "value": "{{planId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "fecha_nacimiento",
+                  "value": "1985-03-20",
+                  "type": "text"
+                },
+                {
+                  "key": "documento",
+                  "value": "PASAPORTE",
+                  "type": "text"
+                },
+                {
+                  "key": "usa_token",
+                  "value": "false",
+                  "type": "text"
+                },
+                {
+                  "key": "sexo",
+                  "value": "HOMBRE",
+                  "type": "text"
+                },
+                {
+                  "key": "ruc",
+                  "value": "",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "video_face",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signatures/natural",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "natural"]
+            },
+            "description": "Crea una firma digital para persona natural con pasaporte. Requiere: sexo y selfie. Estado final: PENDING"
+          },
+          "response": []
+        },
+        {
+          "name": "Firma Natural con Token (No implementado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "nombres",
+                  "value": "MARIA",
+                  "type": "text"
+                },
+                {
+                  "key": "apellidos",
+                  "value": "PEREZ LOPEZ",
+                  "type": "text"
+                },
+                {
+                  "key": "numero_identificacion",
+                  "value": "1752549468",
+                  "type": "text"
+                },
+                {
+                  "key": "correo",
+                  "value": "maria.perez@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "provincia",
+                  "value": "PICHINCHA",
+                  "type": "text"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "QUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "parroquia",
+                  "value": "IÑAQUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "direccion",
+                  "value": "QUITUS COLONIAL",
+                  "type": "text"
+                },
+                {
+                  "key": "celular",
+                  "value": "0990602199",
+                  "type": "text"
+                },
+                {
+                  "key": "clave_firma",
+                  "value": "PEREZ1752",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_frontal",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_posterior",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "selfie",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "plan_id",
+                  "value": "{{planId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "fecha_nacimiento",
+                  "value": "1992-08-15",
+                  "type": "text"
+                },
+                {
+                  "key": "documento",
+                  "value": "CEDULA",
+                  "type": "text"
+                },
+                {
+                  "key": "usa_token",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "sexo",
+                  "value": "MUJER",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signatures/natural",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "natural"]
+            },
+            "description": "⚠️ NO IMPLEMENTADO - Firma digital con token físico USB. Requiere: sexo y selfie."
+          },
+          "response": []
+        }
+      ],
+      "description": "Solicitudes de firma digital para personas naturales (con cédula, pasaporte o token)"
+    },
+    {
+      "name": "Firmas Persona Jurídica",
+      "item": [
+        {
+          "name": "Firma Jurídica con Cédula",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "nombres",
+                  "value": "LUIS XAVIER",
+                  "type": "text"
+                },
+                {
+                  "key": "apellidos",
+                  "value": "GONZALEZ JIMENEZ",
+                  "type": "text"
+                },
+                {
+                  "key": "numero_identificacion",
+                  "value": "1752549467",
+                  "type": "text"
+                },
+                {
+                  "key": "codigo_dactilar",
+                  "value": "V43I4444",
+                  "type": "text"
+                },
+                {
+                  "key": "correo",
+                  "value": "luisg@solucionesnexus.com",
+                  "type": "text"
+                },
+                {
+                  "key": "provincia",
+                  "value": "PICHINCHA",
+                  "type": "text"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "QUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "parroquia",
+                  "value": "IÑAQUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "direccion",
+                  "value": "QUITUS COLONIAL",
+                  "type": "text"
+                },
+                {
+                  "key": "celular",
+                  "value": "0990602199",
+                  "type": "text"
+                },
+                {
+                  "key": "ruc",
+                  "value": "1752549467001",
+                  "type": "text"
+                },
+                {
+                  "key": "razon_social",
+                  "value": "DISTRIBUIDORA GONZALEZ S.A.",
+                  "type": "text"
+                },
+                {
+                  "key": "rep_legal",
+                  "value": "LUIS XAVIER GONZALEZ JIMENEZ",
+                  "type": "text"
+                },
+                {
+                  "key": "cargo",
+                  "value": "GERENTE GENERAL",
+                  "type": "text"
+                },
+                {
+                  "key": "clave_firma",
+                  "value": "GONZALEZ1752",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_frontal",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_posterior",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "pdf_sri_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "nombramiento_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "constitucion_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "aceptacion_nombramiento_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "identificacion_representante_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "plan_id",
+                  "value": "{{planId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "fecha_nacimiento",
+                  "value": "1990-05-15",
+                  "type": "text"
+                },
+                {
+                  "key": "documento",
+                  "value": "CEDULA",
+                  "type": "text"
+                },
+                {
+                  "key": "usa_token",
+                  "value": "false",
+                  "type": "text"
+                },
+                {
+                  "key": "video_face",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signatures/juridica",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "juridica"]
+            },
+            "description": "Crea una firma digital para persona jurídica con cédula del representante legal. Estado final: PENDING (requiere aprobación manual)"
+          },
+          "response": []
+        },
+        {
+          "name": "Firma Jurídica con Pasaporte",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "nombres",
+                  "value": "JOHN",
+                  "type": "text"
+                },
+                {
+                  "key": "apellidos",
+                  "value": "DOE SMITH",
+                  "type": "text"
+                },
+                {
+                  "key": "numero_identificacion",
+                  "value": "AB123456",
+                  "type": "text"
+                },
+                {
+                  "key": "correo",
+                  "value": "john.doe@company.com",
+                  "type": "text"
+                },
+                {
+                  "key": "provincia",
+                  "value": "PICHINCHA",
+                  "type": "text"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "QUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "parroquia",
+                  "value": "IÑAQUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "direccion",
+                  "value": "QUITUS COLONIAL",
+                  "type": "text"
+                },
+                {
+                  "key": "celular",
+                  "value": "0990602199",
+                  "type": "text"
+                },
+                {
+                  "key": "ruc",
+                  "value": "1752549467001",
+                  "type": "text"
+                },
+                {
+                  "key": "razon_social",
+                  "value": "INTERNATIONAL COMPANY S.A.",
+                  "type": "text"
+                },
+                {
+                  "key": "rep_legal",
+                  "value": "JOHN DOE SMITH",
+                  "type": "text"
+                },
+                {
+                  "key": "cargo",
+                  "value": "CEO",
+                  "type": "text"
+                },
+                {
+                  "key": "clave_firma",
+                  "value": "DOE123456",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_frontal",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_posterior",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "selfie",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "pdf_sri_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "nombramiento_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "constitucion_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "aceptacion_nombramiento_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "identificacion_representante_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "plan_id",
+                  "value": "{{planId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "fecha_nacimiento",
+                  "value": "1985-03-20",
+                  "type": "text"
+                },
+                {
+                  "key": "documento",
+                  "value": "PASAPORTE",
+                  "type": "text"
+                },
+                {
+                  "key": "usa_token",
+                  "value": "false",
+                  "type": "text"
+                },
+                {
+                  "key": "sexo",
+                  "value": "HOMBRE",
+                  "type": "text"
+                },
+                {
+                  "key": "codigo_dactilar",
+                  "value": "",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "video_face",
+                  "type": "file",
+                  "src": [],
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signatures/juridica",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "juridica"]
+            },
+            "description": "Crea una firma digital para persona jurídica con pasaporte del representante legal. Requiere: sexo y selfie. Estado final: PENDING"
+          },
+          "response": []
+        },
+        {
+          "name": "Firma Jurídica con Token (No implementado)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "nombres",
+                  "value": "MARIA",
+                  "type": "text"
+                },
+                {
+                  "key": "apellidos",
+                  "value": "PEREZ LOPEZ",
+                  "type": "text"
+                },
+                {
+                  "key": "numero_identificacion",
+                  "value": "1752549468",
+                  "type": "text"
+                },
+                {
+                  "key": "correo",
+                  "value": "maria.perez@company.com",
+                  "type": "text"
+                },
+                {
+                  "key": "provincia",
+                  "value": "PICHINCHA",
+                  "type": "text"
+                },
+                {
+                  "key": "ciudad",
+                  "value": "QUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "parroquia",
+                  "value": "IÑAQUITO",
+                  "type": "text"
+                },
+                {
+                  "key": "direccion",
+                  "value": "QUITUS COLONIAL",
+                  "type": "text"
+                },
+                {
+                  "key": "celular",
+                  "value": "0990602199",
+                  "type": "text"
+                },
+                {
+                  "key": "ruc",
+                  "value": "1752549468001",
+                  "type": "text"
+                },
+                {
+                  "key": "razon_social",
+                  "value": "TECH SOLUTIONS S.A.",
+                  "type": "text"
+                },
+                {
+                  "key": "rep_legal",
+                  "value": "MARIA PEREZ LOPEZ",
+                  "type": "text"
+                },
+                {
+                  "key": "cargo",
+                  "value": "GERENTE GENERAL",
+                  "type": "text"
+                },
+                {
+                  "key": "clave_firma",
+                  "value": "PEREZ1752",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_frontal",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "foto_posterior",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "selfie",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "pdf_sri_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "nombramiento_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "constitucion_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "aceptacion_nombramiento_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "identificacion_representante_base64",
+                  "value": "<base64_string>",
+                  "type": "text"
+                },
+                {
+                  "key": "plan_id",
+                  "value": "{{planId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "fecha_nacimiento",
+                  "value": "1992-08-15",
+                  "type": "text"
+                },
+                {
+                  "key": "documento",
+                  "value": "CEDULA",
+                  "type": "text"
+                },
+                {
+                  "key": "usa_token",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "sexo",
+                  "value": "MUJER",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signatures/juridica",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "juridica"]
+            },
+            "description": "⚠️ NO IMPLEMENTADO - Firma digital jurídica con token físico USB. Requiere: sexo y selfie."
+          },
+          "response": []
+        }
+      ],
+      "description": "Solicitudes de firma digital para personas jurídicas (empresas con representante legal)"
+    },
+    {
+      "name": "Consultas",
+      "item": [
+        {
+          "name": "Obtener Firma Específica",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/signatures/unique?id={{signatureId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "unique"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{signatureId}}"
+                }
+              ]
+            },
+            "description": "Obtiene los detalles completos de una firma específica (distribuidor)"
+          },
+          "response": []
+        },
+        {
+          "name": "Listar Todas las Firmas (Paginado)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/signatures/all?page={{page}}&limit={{limit}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "all"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "{{limit}}"
+                }
+              ]
+            },
+            "description": "Lista todas las firmas del distribuidor con paginación"
+          },
+          "response": []
+        },
+        {
+          "name": "Validar Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/signatures/validate-email?email=test@example.com",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "validate-email"],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "test@example.com"
+                }
+              ]
+            },
+            "description": "Valida si un email es válido y seguro para enviar"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints de consulta y validación"
+    },
+    {
+      "name": "Administración",
+      "item": [
+        {
+          "name": "Listar Firmas (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/signatures/admin/all?page={{page}}&limit={{limit}}&status=ALL",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "admin", "all"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "{{page}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "{{limit}}"
+                },
+                {
+                  "key": "status",
+                  "value": "ALL",
+                  "description": "COMPLETED, PENDING, REJECTED, FAILED, ANNULLED, ALL"
+                },
+                {
+                  "key": "distributorId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "identification",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "startDate",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lista todas las firmas de todos los distribuidores con filtros (solo Admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Obtener Firma (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/signatures/admin/unique?id={{signatureId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "admin", "unique"],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{signatureId}}"
+                }
+              ]
+            },
+            "description": "Obtiene los detalles completos de cualquier firma (solo Admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Anular Firma",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureId\": \"{{signatureId}}\",\n  \"generateRefund\": true,\n  \"note\": \"Documento incorrecto\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signatures/admin/annul",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "admin", "annul"]
+            },
+            "description": "Anula una firma y opcionalmente genera reembolso (solo Admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Aprobar Firma Jurídica",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureId\": \"{{signatureId}}\",\n  \"note\": \"Documentos verificados correctamente\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/signatures/admin/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["signatures", "admin", "approve"]
+            },
+            "description": "Aprueba una firma jurídica en estado PENDING (solo Admin)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Endpoints administrativos (requieren rol Admin)"
+    }
+  ]
+}

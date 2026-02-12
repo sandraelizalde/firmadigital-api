@@ -19,136 +19,110 @@ async function main() {
   await prisma.plan.deleteMany();
   console.log('✔️ Planes eliminados');
 
-  // ========== NUEVOS PLANES ==========
+  // ========== 8 PLANES UNIFICADOS (Natural + Jurídica) ==========
   const planes = [
-    // ========== PERSONAS NATURALES ==========
+    // Plan 1: 15 DÍAS
     {
-      perfil: 'PN-018',
+      perfilNaturalEnext: '018',
+      perfilJuridicoEnext: '019',
+      perfilNaturalUanataca: null,
+      perfilJuridicoUanataca: null,
+      perfilNaturalTokenUanataca: null,
+      perfilJuridicoTokenUanataca: null,
       duration: '15',
       basePrice: 699,
       durationType: 'D',
-      eligibleClientsType: [
-        TypeClient.PERSONA_NATURAL_SIN_RUC,
-        TypeClient.PERSONA_NATURAL_CON_RUC,
-      ],
-    },
-    {
-      perfil: 'PN-001',
-      duration: '1',
-      basePrice: 799,
-      durationType: 'M',
-      eligibleClientsType: [
-        TypeClient.PERSONA_NATURAL_SIN_RUC,
-        TypeClient.PERSONA_NATURAL_CON_RUC,
-      ],
-    },
-    {
-      perfil: 'PN-002',
-      duration: '1',
-      basePrice: 1499,
-      durationType: 'Y',
-      eligibleClientsType: [
-        TypeClient.PERSONA_NATURAL_SIN_RUC,
-        TypeClient.PERSONA_NATURAL_CON_RUC,
-      ],
-    },
-    {
-      perfil: 'PN-005',
-      duration: '2',
-      basePrice: 2199,
-      durationType: 'YS',
-      eligibleClientsType: [
-        TypeClient.PERSONA_NATURAL_SIN_RUC,
-        TypeClient.PERSONA_NATURAL_CON_RUC,
-      ],
-    },
-    {
-      perfil: 'PN-010',
-      duration: '3',
-      basePrice: 2999,
-      durationType: 'YS',
-      eligibleClientsType: [
-        TypeClient.PERSONA_NATURAL_SIN_RUC,
-        TypeClient.PERSONA_NATURAL_CON_RUC,
-      ],
-    },
-    {
-      perfil: 'PN-007',
-      duration: '4',
-      basePrice: 3299,
-      durationType: 'YS',
-      eligibleClientsType: [
-        TypeClient.PERSONA_NATURAL_SIN_RUC,
-        TypeClient.PERSONA_NATURAL_CON_RUC,
-      ],
-    },
-    {
-      perfil: 'PN-013',
-      duration: '5',
-      basePrice: 4399,
-      durationType: 'YS',
-      eligibleClientsType: [
-        TypeClient.PERSONA_NATURAL_SIN_RUC,
-        TypeClient.PERSONA_NATURAL_CON_RUC,
-      ],
     },
 
-    // ========== PERSONAS JURÍDICAS ==========
+    // Plan 2: 1 MES
     {
-      perfil: 'PJ-019',
-      duration: '15',
-      basePrice: 699,
-      durationType: 'D',
-      eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
-    },
-    {
-      perfil: 'PJ-017',
+      perfilNaturalEnext: '001',
+      perfilJuridicoEnext: '017',
+      perfilNaturalUanataca: null,
+      perfilJuridicoUanataca: null,
+      perfilNaturalTokenUanataca: null,
+      perfilJuridicoTokenUanataca: null,
       duration: '1',
       basePrice: 799,
       durationType: 'M',
-      eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
+
+    // Plan 3: 6 MESES
     {
-      perfil: 'PJ-016',
+      perfilNaturalEnext: '015',
+      perfilJuridicoEnext: '016',
+      perfilNaturalUanataca: null,
+      perfilJuridicoUanataca: null,
+      perfilNaturalTokenUanataca: null,
+      perfilJuridicoTokenUanataca: null,
       duration: '6',
       basePrice: 1199,
       durationType: 'MS',
-      eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
+
+    // Plan 4: 1 AÑO
     {
-      perfil: 'PJ-003',
+      perfilNaturalEnext: '002',
+      perfilJuridicoEnext: '003',
+      perfilNaturalUanataca: 'b985f150-39c5-49c0-8c4e-6e86d195dde9',
+      perfilJuridicoUanataca: '6acb07b6-6195-417f-8b00-6e9b02ca9fcd',
+      perfilNaturalTokenUanataca: 'a5f7d177-f422-4cab-b653-7a5cff22d449',
+      perfilJuridicoTokenUanataca: '37fde7a5-64ca-43f1-bbe5-816601237ef0',
       duration: '1',
       basePrice: 1499,
       durationType: 'Y',
-      eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
+
+    // Plan 5: 2 AÑOS
     {
-      perfil: 'PJ-006',
+      perfilNaturalEnext: '005',
+      perfilJuridicoEnext: '006',
+      perfilNaturalUanataca: 'f1226ab0-88da-4ebe-9ea3-94e0573e0201',
+      perfilJuridicoUanataca: '79ede8df-01db-41fb-afef-ddb0f0825af8',
+      perfilNaturalTokenUanataca: '57090791-1d73-4d42-9e2a-d46f3c936191',
+      perfilJuridicoTokenUanataca: '2fae510c-1af2-40b2-a2be-290a1121e1a1',
       duration: '2',
       basePrice: 2199,
       durationType: 'YS',
-      eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
+
+    // Plan 6: 3 AÑOS
     {
-      perfil: 'PJ-009',
+      perfilNaturalEnext: '010',
+      perfilJuridicoEnext: '009',
+      perfilNaturalUanataca: '0a61a85d-1aec-42e8-b8c3-02940f2a4528',
+      perfilJuridicoUanataca: '3f3f8507-72a0-4a3c-9b00-a56c46da3a90',
+      perfilNaturalTokenUanataca: '7531b209-a508-40b3-9c44-82e08c7c8cd2',
+      perfilJuridicoTokenUanataca: 'f83ff0d5-c148-4960-b019-c6c582942be2',
       duration: '3',
       basePrice: 2999,
       durationType: 'YS',
-      eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
+
+    // Plan 7: 4 AÑOS
     {
-      perfil: 'PJ-008',
+      perfilNaturalEnext: '007',
+      perfilJuridicoEnext: '008',
+      perfilNaturalUanataca: '48c7f2b1-1eca-4b0a-b5bb-7e866fa4e38f',
+      perfilJuridicoUanataca: '3c0e396e-6e63-4a23-9d94-e6abe242bb93',
+      perfilNaturalTokenUanataca: '1e444318-8cb0-4428-9ec0-364a89371fd0',
+      perfilJuridicoTokenUanataca: '5be569c0-8b1d-41cb-ac91-c9e895e56b32',
       duration: '4',
       basePrice: 3299,
       durationType: 'YS',
-      eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
+
+    // Plan 8: 5 AÑOS
     {
-      perfil: 'PJ-013',
+      perfilNaturalEnext: '013',
+      perfilJuridicoEnext: '014',
+      perfilNaturalUanataca: '28343c8c-7b8f-4c86-9b43-52ddd706e39c',
+      perfilJuridicoUanataca: '1a78e60a-ce37-4208-925b-9723e1ce83bd',
+      perfilNaturalTokenUanataca: 'c62800c7-df2a-4530-a6a6-01a0df083903',
+      perfilJuridicoTokenUanataca: '71e75477-ea18-4823-987b-c7a4642c6cbd',
       duration: '5',
       basePrice: 4399,
       durationType: 'YS',
-      eligibleClientsType: [TypeClient.PERSONA_JURIDICA],
     },
   ];
 

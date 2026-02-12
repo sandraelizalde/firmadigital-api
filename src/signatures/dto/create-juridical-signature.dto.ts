@@ -6,6 +6,9 @@ import {
   IsDateString,
   Matches,
   Length,
+  IsEnum,
+  IsOptional,
+  MinLength,
 } from 'class-validator';
 
 export class CreateJuridicalSignatureDto {
@@ -26,24 +29,22 @@ export class CreateJuridicalSignatureDto {
   apellidos: string;
 
   @ApiProperty({
-    description: 'Número de cédula del representante legal',
+    description: 'Número de cédula o pasaporte del representante legal',
     example: '1752549467',
-    minLength: 10,
-    maxLength: 10,
+    minLength: 5,
+    maxLength: 12,
   })
   @IsString()
   @IsNotEmpty()
-  @Length(10, 10)
-  @Matches(/^[0-9]+$/, { message: 'La cédula debe contener solo números' })
-  cedula: string;
+  numero_identificacion: string;
 
   @ApiProperty({
     description: 'Código dactilar',
     example: 'V43I4444',
   })
   @IsString()
-  @IsNotEmpty()
-  codigo_dactilar: string;
+  @IsOptional()
+  codigo_dactilar?: string;
 
   @ApiProperty({
     description: 'Correo electrónico',
@@ -83,6 +84,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MinLength(12, { message: 'La dirección debe tener al menos 12 caracteres' })
   direccion: string;
 
   @ApiProperty({
@@ -134,12 +136,17 @@ export class CreateJuridicalSignatureDto {
   cargo: string;
 
   @ApiProperty({
-    description: 'Clave de firma digital',
+    description:
+      'Clave de firma digital (solo letras y números, sin espacios ni caracteres especiales)',
     example: 'GONZALEZ1752',
   })
   @IsString()
   @IsNotEmpty()
-  clavefirma: string;
+  @Matches(/^[a-zA-Z0-9]+$/, {
+    message:
+      'La clave de firma solo puede contener letras y números, sin espacios ni caracteres especiales',
+  })
+  clave_firma: string;
 
   @ApiProperty({
     description: 'Foto frontal de cédula en Base64',
@@ -150,20 +157,23 @@ export class CreateJuridicalSignatureDto {
   foto_frontal: string;
 
   @ApiProperty({
-    description: 'Foto posterior de cédula en Base64',
+    description:
+      'Foto posterior de cédula/pasaporte en Base64 (opcional para pasaporte)',
     example: 'iVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
   })
   @IsString()
-  @IsNotEmpty()
-  foto_posterior: string;
+  @IsOptional()
+  foto_posterior?: string;
 
   @ApiProperty({
-    description: 'PDF del SRI en Base64',
+    description:
+      'PDF del SRI / RUC en Base64 (se envía como pdfSriBase64 a ENEXT y como rucFile a UANATACA)',
     example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
   })
   @IsString()
   @IsNotEmpty()
-  pdfSriBase64: string;
+  pdf_sri_base64: string;
 
   @ApiProperty({
     description: 'Documento de nombramiento en Base64',
@@ -171,18 +181,44 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  nombramientoBase64: string;
+  nombramiento_base64: string;
 
   @ApiProperty({
-    description: 'Perfil de firma (017, 018, etc.)',
-    example: '017',
+    description: 'Documento de constitución en Base64 (solo para UANATACA)',
+    example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  constitucion_base64?: string;
+
+  @ApiProperty({
+    description:
+      'Documento de archivo con la aceptación del nombramiento en Base64 (solo para UANATACA)',
+    example: 'JVBERi0xLjQKJeLjz9MKMSAw...',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  aceptacion_nombramiento_base64?: string;
+
+  @ApiProperty({
+    description:
+      'Documento de la identificación del representante legal en Base64 (solo para UANATACA)',
+    example: 'JVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  identificacion_representante_base64?: string;
+
+  @ApiProperty({
+    description: 'ID del plan asignado al distribuidor',
+    example: 'clx123abc456',
   })
   @IsString()
   @IsNotEmpty()
-  @Matches(/^PJ-\d{3}$/, {
-    message: 'El perfil debe tener 3 dígitos (ej: 017, 018)',
-  })
-  perfil_firma: string;
+  plan_id: string;
 
   @ApiProperty({
     description: 'Fecha de nacimiento del representante en formato ISO',
@@ -190,5 +226,47 @@ export class CreateJuridicalSignatureDto {
   })
   @IsDateString()
   @IsNotEmpty()
-  dateOfBirth: string;
+  fecha_nacimiento: string;
+
+  @ApiProperty({
+    description: 'Tipo de documento: CEDULA o PASAPORTE',
+    example: 'CEDULA',
+    enum: ['CEDULA', 'PASAPORTE'],
+    required: false,
+  })
+  @IsNotEmpty()
+  @IsEnum(['CEDULA', 'PASAPORTE'])
+  documento: 'CEDULA' | 'PASAPORTE';
+
+  @ApiProperty({
+    description: 'Si usa token Uanataca',
+    example: false,
+    required: false,
+    default: false,
+  })
+  @IsNotEmpty()
+  @IsString()
+  @IsEnum(['true', 'false'])
+  usa_token: string;
+
+  // ===== Campos opcionales para Uanataca (pasaporte) =====
+
+  @ApiProperty({
+    description: 'Sexo del solicitante (requerido para Uanataca)',
+    example: 'HOMBRE',
+    enum: ['HOMBRE', 'MUJER'],
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(['HOMBRE', 'MUJER'])
+  sexo?: 'HOMBRE' | 'MUJER';
+
+  @ApiProperty({
+    description: 'Selfie en Base64 (requerido para Uanataca)',
+    example: 'iVBORw0KGgoAAAANSUhEUgAA...',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  selfie?: string;
 }
