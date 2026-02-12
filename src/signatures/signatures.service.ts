@@ -1035,17 +1035,49 @@ export class SignaturesService {
     distributorId: string,
     page: number = 1,
     limit: number = 10,
+    status?: string,
+    personType?: string,
+    startDate?: string,
+    endDate?: string,
   ): Promise<PaginatedSignatureListResponseDto> {
     const skip = (page - 1) * limit;
 
+    // Construir condiciones de filtrado
+    const where: any = { distributorId };
+
+    // Filtro por estado
+    if (status) {
+      where.status = status;
+    }
+
+    // Filtro por tipo de persona
+    if (personType) {
+      if (personType === 'NATURAL') {
+        where.razon_social = null;
+      } else if (personType === 'JURIDICA') {
+        where.razon_social = { not: null };
+      }
+    }
+
+    // Filtro por rango de fechas (zona horaria de Ecuador: UTC-5)
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(`${startDate}T00:00:00-05:00`);
+      }
+      if (endDate) {
+        where.createdAt.lte = new Date(`${endDate}T23:59:59.999-05:00`);
+      }
+    }
+
     // Obtener el total de registros
     const total = await this.prisma.signatureRequest.count({
-      where: { distributorId },
+      where,
     });
 
     // Obtener las solicitudes paginadas con relación al plan
     const signatureRequests = await this.prisma.signatureRequest.findMany({
-      where: { distributorId },
+      where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,

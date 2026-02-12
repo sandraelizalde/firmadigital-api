@@ -29,7 +29,7 @@ import { DateFilterDto } from './dto/date-filter.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role, RechargeStatus } from '@prisma/client';
+import { Role, RechargeMethod, RechargeStatus } from '@prisma/client';
 
 @ApiTags('Recargas')
 @Controller('recharges')
@@ -130,8 +130,14 @@ export class RechargesController {
   @ApiOperation({
     summary: 'Obtener mi historial de recargas',
     description:
-      'Retorna todas las recargas del distribuidor autenticado con paginación',
+      'Retorna todas las recargas del distribuidor autenticado con paginación y filtros opcionales',
   })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, enum: RechargeStatus })
+  @ApiQuery({ name: 'method', required: false, enum: RechargeMethod })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'YYYY-MM-DD' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'YYYY-MM-DD' })
   @ApiResponse({
     status: 200,
     description: 'Lista de recargas del distribuidor con paginación',
@@ -139,14 +145,24 @@ export class RechargesController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   async getMyRecharges(
     @Request() req,
-    @Query() paginationDto: PaginationQueryDto,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: RechargeStatus,
+    @Query('method') method?: RechargeMethod,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
     return this.rechargesService.getMyRecharges(
       req.user.userId,
-      paginationDto.page,
-      paginationDto.limit,
+      page || 1,
+      limit || 10,
+      status,
+      method,
+      startDate,
+      endDate,
     );
   }
+
 
   /**
    * Obtener una recarga específica del distribuidor
@@ -173,32 +189,46 @@ export class RechargesController {
     return this.rechargesService.getMyRecharge(req.user.userId, id);
   }
 
-  /**
-   * Obtener movimientos de cuenta del distribuidor
-   */
-  @Get('my-account-movements')
-  @Roles(Role.DISTRIBUTOR)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Obtener mis movimientos de cuenta',
-    description:
-      'Retorna todos los movimientos de cuenta (ingresos, egresos, ajustes) del distribuidor con paginación',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Lista de movimientos de cuenta con paginación',
-  })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
-  async getMyAccountMovements(
-    @Request() req,
-    @Query() paginationDto: PaginationQueryDto,
-  ) {
-    return this.rechargesService.getAccountMovements(
-      req.user.userId,
-      paginationDto.page,
-      paginationDto.limit,
-    );
-  }
+/**
+ * Obtener movimientos de cuenta del distribuidor
+ */
+@Get('my-account-movements')
+@Roles(Role.DISTRIBUTOR)
+@ApiBearerAuth()
+@ApiOperation({
+  summary: 'Obtener mis movimientos de cuenta',
+  description:
+    'Retorna todos los movimientos de cuenta (ingresos, egresos, ajustes) del distribuidor con paginación y filtros',
+})
+@ApiQuery({ name: 'page', required: false, type: Number })
+@ApiQuery({ name: 'limit', required: false, type: Number })
+@ApiQuery({ name: 'type', required: false, enum: ['INCOME', 'EXPENSE', 'ADJUSTMENT', 'CREDIT'], description: 'Filtrar por tipo de movimiento' })
+@ApiQuery({ name: 'startDate', required: false, type: String, description: 'YYYY-MM-DD' })
+@ApiQuery({ name: 'endDate', required: false, type: String, description: 'YYYY-MM-DD' })
+@ApiResponse({
+  status: 200,
+  description: 'Lista de movimientos de cuenta con paginación',
+})
+@ApiResponse({ status: 401, description: 'No autorizado' })
+async getMyAccountMovements(
+  @Request() req,
+  @Query('page') page?: number,
+  @Query('limit') limit?: number,
+  @Query('type') type?: string,
+  @Query('startDate') startDate?: string,
+  @Query('endDate') endDate?: string,
+) {
+  return this.rechargesService.getAccountMovements(
+    req.user.userId,
+    page || 1,
+    limit || 10,
+    type,
+    startDate,
+    endDate,
+  );
+}
+
+
 
   @Get('summary')
   @Roles(Role.DISTRIBUTOR)
@@ -498,8 +528,6 @@ export class RechargesController {
       filterDto,
     );
   }
-
-  // Implement updateRechargeNumberReceipt
 
   @Patch('admin/:rechargeId/number-receipt')
   @Roles(Role.ADMIN)

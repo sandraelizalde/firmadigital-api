@@ -18,6 +18,7 @@ import {
   ApiResponse,
   ApiConsumes,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { SignaturesService } from './signatures.service';
 import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
@@ -359,8 +360,35 @@ export class SignaturesController {
   @Get('all')
   @Roles(Role.DISTRIBUTOR)
   @ApiOperation({
+    summary: 'Obtener todas las solicitudes de firma del distribuidor',
     description:
-      'Retorna todas las solicitudes de firma digital creadas por el distribuidor autenticado, con paginación.',
+      'Retorna todas las solicitudes de firma digital creadas por el distribuidor autenticado, con paginación y filtros opcionales.',
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['PENDING', 'COMPLETED', 'REJECTED', 'FAILED', 'ANNULLED'],
+    description: 'Filtrar por estado de la solicitud',
+  })
+  @ApiQuery({
+    name: 'personType',
+    required: false,
+    enum: ['NATURAL', 'JURIDICA'],
+    description: 'Filtrar por tipo de persona',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Fecha de inicio (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Fecha de fin (YYYY-MM-DD)',
   })
   @ApiResponse({
     status: 200,
@@ -376,12 +404,21 @@ export class SignaturesController {
   })
   async getAllSignatureRequests(
     @Request() req,
-    @Query() paginationQuery: PaginationQueryDto,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: string,
+    @Query('personType') personType?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
     return this.signaturesService.getAllSignatureRequests(
       req.user.userId,
-      paginationQuery.page,
-      paginationQuery.limit,
+      page || 1,
+      limit || 10,
+      status,
+      personType,
+      startDate,
+      endDate,
     );
   }
 
