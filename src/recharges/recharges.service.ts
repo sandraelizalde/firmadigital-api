@@ -60,7 +60,7 @@ export class RechargesService {
       data: {
         distributorId,
         method: RechargeMethod.CARD,
-        requestedAmount: dto.requestedAmount + dto.requestedAmount * 0.06,
+        requestedAmount: dto.requestedAmount + dto.requestedAmount * 0.06, // Sumar comisión al monto solicitado
         commission: dto.requestedAmount * 0.06, // 6% de comisión
         status: RechargeStatus.PENDING,
         paymentReference: dto.reference || 'Recarga con tarjeta',
@@ -106,7 +106,9 @@ export class RechargesService {
         distributorId,
         method: RechargeMethod.CARD,
       },
-      include: { distributor: true },
+      include: {
+        distributor: true,
+      },
     });
 
     if (!recharge) {
@@ -156,7 +158,7 @@ export class RechargesService {
           data: {
             distributorId: recharge.distributorId,
             type: MovementType.INCOME,
-            detail: `Recarga con tarjeta aprobada - Payphone`,
+            detail: 'Recarga con tarjeta aprobada - Payphone',
             amount: creditedAmount,
             balanceAfter: newBalance,
             rechargeId: recharge.id,
@@ -205,19 +207,18 @@ export class RechargesService {
 
     // Intentar cobrar créditos vencidos si se aprobó el pago
     if (status === RechargeStatus.APPROVED) {
-      // 1. Cobro de deudas (existente)
+      // 1. Cobro de deudas existente
       try {
         const creditResult =
           await this.creditsService.attemptCollectOverdueCredits(
             result.recharge.distributorId,
           );
-
         this.logger.log(
-          `Cobro automático de créditos (Payphone) para distribuidor ${result.recharge.distributorId}: ${creditResult.message}`,
+          `Cobro automático de créditos Payphone para distribuidor ${result.recharge.distributorId}: ${creditResult.message}`,
         );
       } catch (error) {
         this.logger.error(
-          `Error en cobro automático de créditos (Payphone): ${error.message}`,
+          `Error en cobro automático de créditos Payphone: ${error.message}`,
         );
         // No lanzar error para no afectar la confirmación del pago
       }
@@ -226,8 +227,7 @@ export class RechargesService {
       try {
         const distributor = result.recharge.distributor;
         const name =
-          distributor.firstName || distributor.lastName || 'Distribuidor';
-
+          `${distributor.firstName} ${distributor.lastName}` || 'Distribuidor';
         await this.whatsappService.sendTemplate(
           distributor.phone,
           'aprobacionrecarga294',
@@ -262,13 +262,13 @@ export class RechargesService {
     }
 
     // Subir el archivo a S3 si viene receiptFile
-    let receiptFileUrl: string | undefined;
+    let receiptFileUrl: string | undefined = undefined;
     if (dto.receiptFile) {
       // Detectar la extensión del archivo desde el base64
       const extension = this.detectFileExtension(dto.receiptFile);
       receiptFileUrl = await this.filesService.uploadFile(
         dto.receiptFile,
-        Date.now(),
+        `${Date.now()}`,
         extension,
         'vouchers-distribuidores',
         'vouchers-nexus',
@@ -320,17 +320,49 @@ export class RechargesService {
     distributorId: string,
     page: number = 1,
     limit: number = 10,
+    status?: RechargeStatus,
+    method?: RechargeMethod,
+    startDate?: string,
+    endDate?: string,
   ) {
     const skip = (page - 1) * limit;
 
+    // Construir filtro dinámico
+    const whereCondition: any = {
+      distributorId,
+    };
+
+    // Filtro por estado
+    if (status) {
+      whereCondition.status = status;
+    }
+
+    // Filtro por método
+    if (method) {
+      whereCondition.method = method;
+    }
+
+    // Filtro por rango de fechas
+    if (startDate || endDate) {
+      whereCondition.createdAt = {};
+      if (startDate) {
+        const startDateTime = new Date(`${startDate}T00:00:00-05:00`);
+        whereCondition.createdAt.gte = startDateTime;
+      }
+      if (endDate) {
+        const endDateTime = new Date(`${endDate}T23:59:59.999-05:00`);
+        whereCondition.createdAt.lte = endDateTime;
+      }
+    }
+
     // Obtener total de recargas
     const total = await this.prisma.recharge.count({
-      where: { distributorId },
+      where: whereCondition,
     });
 
     // Obtener recargas paginadas
     const recharges = await this.prisma.recharge.findMany({
-      where: { distributorId },
+      where: whereCondition,
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -338,16 +370,6 @@ export class RechargesService {
         accountMovements: true,
       },
     });
-
-    // Convertir receiptFile a base64
-    // const rechargesWithReceipt = await Promise.all(
-    //   recharges.map(async (recharge) => ({
-    //     ...recharge,
-    //     receiptFile: recharge.receiptFile
-    //       ? await this.filesService.getVoucher(recharge.receiptFile)
-    //       : null,
-    //   })),
-    // );
 
     return {
       success: true,
@@ -414,7 +436,7 @@ export class RechargesService {
   ) {
     const skip = (page - 1) * limit;
 
-    const whereCondition = {} as any;
+    const whereCondition: any = {};
 
     // Filtro por estado
     if (status) {
@@ -433,10 +455,12 @@ export class RechargesService {
         whereCondition.createdAt.lte = endDateTime;
       }
     }
+
     // Filtro por ID de recarga
     if (idRecharge) {
       whereCondition.id = idRecharge;
     }
+
     if (identificationDistributor) {
       whereCondition.distributor = {
         identification: identificationDistributor,
@@ -531,7 +555,9 @@ export class RechargesService {
   ) {
     const recharge = await this.prisma.recharge.findUnique({
       where: { id: rechargeId },
-      include: { distributor: true },
+      include: {
+        distributor: true,
+      },
     });
 
     if (!recharge) {
@@ -550,7 +576,7 @@ export class RechargesService {
       let creditedAmount = 0;
 
       if (dto.status === RechargeStatus.APPROVED) {
-        // Calcular comisión si aplica (ejemplo: 0% para transferencias)
+        // Calcular comisión si aplica (ejemplo: 0 para transferencias)
         const commission = 0;
         creditedAmount = recharge.requestedAmount - commission;
         newBalance = recharge.distributor.balance + creditedAmount;
@@ -614,7 +640,6 @@ export class RechargesService {
           await this.creditsService.attemptCollectOverdueCredits(
             updatedRecharge.distributorId,
           );
-
         this.logger.log(
           `Cobro automático de créditos para distribuidor ${updatedRecharge.distributorId}: ${creditResult.message}`,
         );
@@ -639,7 +664,7 @@ export class RechargesService {
         );
       } catch (error) {
         this.logger.error(
-          `Error enviando notificación de recarga aprobada (review): ${error.message}`,
+          `Error enviando notificación de recarga aprobada: ${error.message}`,
         );
       }
     }
@@ -716,13 +741,12 @@ export class RechargesService {
       });
     });
 
-    //Cobrar créditos vencidos si los hay (AFUERA de la transacción principal)
+    // Cobrar créditos vencidos si los hay (AFUERA de la transacción principal)
     try {
       const creditResult =
         await this.creditsService.attemptCollectOverdueCredits(
           dto.distributorId,
         );
-
       this.logger.log(
         `Cobro automático de créditos (recarga manual) para distribuidor ${dto.distributorId}: ${creditResult.message}`,
       );
@@ -738,8 +762,7 @@ export class RechargesService {
       try {
         const distributor = result.distributor;
         const name =
-          distributor.firstName || distributor.lastName || 'Distribuidor';
-
+          `${distributor.firstName} ${distributor.lastName}` || 'Distribuidor';
         await this.whatsappService.sendTemplate(
           distributor.phone,
           'aprobacionrecarga294',
@@ -795,7 +818,7 @@ export class RechargesService {
           distributorId,
           type: MovementType.ADJUSTMENT,
           detail: note || 'Descuento manual por administrador',
-          amount: amount,
+          amount: -amount,
           balanceAfter: newBalance,
           adminName,
         },
@@ -821,17 +844,43 @@ export class RechargesService {
     distributorId: string,
     page: number = 1,
     limit: number = 10,
+    type?: string,
+    startDate?: string,
+    endDate?: string,
   ) {
     const skip = (page - 1) * limit;
 
+    // Construir filtro dinámico
+    const whereCondition: any = {
+      distributorId,
+    };
+
+    // Filtro por tipo de movimiento
+    if (type) {
+      whereCondition.type = type;
+    }
+
+    // Filtro por rango de fechas
+    if (startDate || endDate) {
+      whereCondition.createdAt = {};
+      if (startDate) {
+        const startDateTime = new Date(`${startDate}T00:00:00-05:00`);
+        whereCondition.createdAt.gte = startDateTime;
+      }
+      if (endDate) {
+        const endDateTime = new Date(`${endDate}T23:59:59.999-05:00`);
+        whereCondition.createdAt.lte = endDateTime;
+      }
+    }
+
     // Obtener total de movimientos
     const total = await this.prisma.accountMovement.count({
-      where: { distributorId },
+      where: whereCondition,
     });
 
     // Obtener movimientos paginados
     const movements = await this.prisma.accountMovement.findMany({
-      where: { distributorId },
+      where: whereCondition,
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
@@ -904,9 +953,7 @@ export class RechargesService {
     }
 
     // Obtener total de recargas
-    const total = await this.prisma.recharge.count({
-      where,
-    });
+    const total = await this.prisma.recharge.count({ where });
 
     // Obtener recargas paginadas
     const recharges = await this.prisma.recharge.findMany({
@@ -964,9 +1011,7 @@ export class RechargesService {
     }
 
     // Obtener total de movimientos
-    const total = await this.prisma.accountMovement.count({
-      where,
-    });
+    const total = await this.prisma.accountMovement.count({ where });
 
     // Obtener movimientos paginados
     const movements = await this.prisma.accountMovement.findMany({
@@ -1083,10 +1128,9 @@ export class RechargesService {
           'image/webp': 'webp',
           'application/pdf': 'pdf',
         };
-        return extensionMap[mimeType] || 'jpg';
+        return extensionMap[mimeType] || 'jpg'; // Por defecto
       }
     }
-    // Por defecto retornar jpg
     return 'jpg';
   }
 
@@ -1108,14 +1152,12 @@ export class RechargesService {
     } catch (error) {
       if (error.code === 'P2002') {
         throw new BadRequestException(
-          `El número de recibo ${numberReceipt} ya está asignado a otra recarga`,
+          `El número de recibo "${numberReceipt}" ya está asignado a otra recarga`,
         );
       }
-
       if (error.code === 'P2025') {
         throw new NotFoundException('Recarga no encontrada');
       }
-
       throw error;
     }
   }
@@ -1124,10 +1166,11 @@ export class RechargesService {
     // Ejecutar solo en production
     if (process.env.ENVIRONMENT !== 'production') {
       this.logger.log(
-        'notifyUserPhone: omitido porque ENVIRONMENT !== production',
+        'notifyUserPhone omitido porque ENVIRONMENT !== production',
       );
-      return [];
+      return;
     }
+
     const { data } = await this.http.axiosRef.get(
       `${process.env.NEXUS_API_URL}/users/phones/active`,
       {
@@ -1139,7 +1182,7 @@ export class RechargesService {
 
     if (!Array.isArray(data) || data.length === 0) {
       this.logger.log('notifyUserPhone: no active users to notify');
-      return [];
+      return;
     }
 
     const results: Array<{
@@ -1153,7 +1196,6 @@ export class RechargesService {
       const first = (requester.firstName || '').toString().trim();
       const last = (requester.lastName || '').toString().trim();
       const social = (requester.socialReason || '').toString().trim();
-
       if (first && last) return `${first} ${last}`.trim();
       if (first) return first;
       if (social) return social;
@@ -1179,7 +1221,6 @@ export class RechargesService {
         }
 
         const name = u.firstName || u.lastName || 'Asesor Nexus';
-
         const templateParams = [name, requesterName];
 
         await this.whatsappService.sendTemplate(
@@ -1188,6 +1229,7 @@ export class RechargesService {
           templateParams,
           'en',
         );
+
         results.push({ phone: u.phoneNumber || u.phone, status: 'sent' });
       } catch (error) {
         const msg = error?.message || String(error);
