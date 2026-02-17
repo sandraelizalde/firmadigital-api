@@ -496,7 +496,7 @@ export class SignaturesService {
   ) {
     try {
       // 1. Validaciones iniciales
-      this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
+      this.validateAgeAndVideo(dto.fecha_nacimiento, video_face, 65);
       const distributor = await this.validateDistributor(distributorId);
 
       if (!dto.sexo) {
@@ -507,6 +507,11 @@ export class SignaturesService {
       if (!dto.selfie) {
         throw new BadRequestException(
           'La selfie es requerida para este tipo de firma',
+        );
+      }
+      if (!dto.nacionalidad) {
+        throw new BadRequestException(
+          'La nacionalidad es requerida para este tipo de firma',
         );
       }
 
@@ -541,7 +546,6 @@ export class SignaturesService {
       // Separar apellidos (el DTO tiene "apellidos" como campo único)
       const apellidosParts = dto.apellidos.toUpperCase().split(' ');
       const lastName1 = apellidosParts[0] || '';
-      const lastName2 = apellidosParts.slice(1).join(' ') || '';
 
       // 5. Preparar payload para Uanataca
       const providerPayload: any = {
@@ -550,7 +554,7 @@ export class SignaturesService {
         names: dto.nombres.toUpperCase(),
         lastName1,
         birthDate: this.formatDateForUanataca(dto.fecha_nacimiento),
-        nationality: 'ECUATORIANA',
+        nationality: dto.nacionalidad.toUpperCase(),
         sex: dto.sexo.toUpperCase(),
         phoneNumber: dto.celular,
         email: dto.correo,
@@ -685,10 +689,8 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
-    return new Error('Método PJ con pasaporte no implementado aún');
-
     // 1. Validaciones iniciales
-    this.validateAgeAndVideo(dto.fecha_nacimiento, video_face);
+    this.validateAgeAndVideo(dto.fecha_nacimiento, video_face, 65);
     const distributor = await this.validateDistributor(distributorId);
 
     if (!dto.sexo) {
@@ -713,9 +715,10 @@ export class SignaturesService {
         'El documento de aceptación del nombramiento es requerido para firmas jurídicas con pasaporte',
       );
     }
-    if (!dto.identificacion_representante_base64) {
+
+    if (!dto.nacionalidad) {
       throw new BadRequestException(
-        'La identificación del representante legal es requerida para firmas jurídicas con pasaporte',
+        'La nacionalidad es requerida para este tipo de firma',
       );
     }
 
@@ -750,7 +753,6 @@ export class SignaturesService {
     // Separar apellidos (el DTO tiene "apellidos" como campo único)
     const apellidosParts = dto.apellidos.toUpperCase().split(' ');
     const lastName1 = apellidosParts[0] || '';
-    const lastName2 = apellidosParts.slice(1).join(' ') || '';
 
     // 5. Preparar payload para Uanataca
     const providerPayload: any = {
@@ -758,9 +760,8 @@ export class SignaturesService {
       identification: identification,
       names: dto.nombres.toUpperCase(),
       lastName1,
-      lastName2,
       birthDate: this.formatDateForUanataca(dto.fecha_nacimiento),
-      nationality: 'ECUATORIANA',
+      nationality: dto.nacionalidad.toUpperCase(),
       sex: dto.sexo.toUpperCase(),
       phoneNumber: dto.celular,
       email: dto.correo,
@@ -768,6 +769,12 @@ export class SignaturesService {
       city: dto.ciudad.toUpperCase(),
       address: dto.direccion.toUpperCase(),
       productUuid: perfil_firma,
+      // Campos de empresa (jurídica)
+      ruc: dto.ruc || '',
+      company: dto.razon_social?.toUpperCase() || '',
+      position: dto.cargo?.toUpperCase() || '',
+      department: 'GERENCIA',
+      reason: 'Firma de documentos legales y tributarios',
       frontIdentification: {
         name: `cedula_frontal_${identification}.jpg`,
         type: 'image/jpeg',
@@ -783,18 +790,29 @@ export class SignaturesService {
         type: 'image/jpeg',
         base64: dto.selfie,
       },
-      // Campos específicos jurídica
+      // Campos del representante legal (manager) - duplicados del titular
+      identificationTypeManager: this.mapIdentificationTypeUanataca(
+        dto.documento,
+      ),
+      identificationManager: identification,
+      namesManager: dto.nombres.toUpperCase(),
+      lastNameManager: dto.apellidos,
+      // Campos específicos jurídica (DOCUMENTOS EN PDF)
       rucFile: {
-        name: `ruc_${identification}.jpg`,
-        type: 'image/jpeg',
+        name: `ruc_${identification}.pdf`,
+        type: 'application/pdf',
         base64: dto.pdf_sri_base64 || '',
       },
       appointment: {
-        name: `nombramiento_${identification}.jpg`,
-        type: 'image/jpeg',
+        name: `nombramiento_${identification}.pdf`,
+        type: 'application/pdf',
         base64: dto.nombramiento_base64 || '',
       },
-
+      acceptanceAppointment: {
+        name: `aceptacion_nombramiento_${identification}.pdf`,
+        type: 'application/pdf',
+        base64: dto.aceptacion_nombramiento_base64 || '',
+      },
       constitution: {
         name: `constitucion_${identification}.pdf`,
         type: 'application/pdf',
@@ -803,9 +821,25 @@ export class SignaturesService {
       managerIdentification: {
         name: `id_rl_${identification}.jpg`,
         type: 'image/jpeg',
-        base64: dto.identificacion_representante_base64 || '',
+        base64: dto.foto_frontal || '',
+      },
+      authorization: {
+        name: `autorizacion_${identification}.pdf`,
+        type: 'application/pdf',
+        base64: dto.pdf_sri_base64 || '',
       },
     };
+
+    // Agregar video si existe (para mayores de 80)
+    if (video_face) {
+      const videoExtension = this.getFileExtension(video_face.mimetype);
+      const videoBase64 = video_face.buffer.toString('base64');
+      providerPayload.seniorVideo = {
+        name: `video_${identification}.${videoExtension}`,
+        type: video_face.mimetype,
+        base64: videoBase64,
+      };
+    }
 
     // 6. Llamar al proveedor Uanataca
     const providerResponse = await this.callUanatacaCertificateRequest(
@@ -2245,13 +2279,14 @@ export class SignaturesService {
   private validateAgeAndVideo(
     dateOfBirth: string | Date,
     video_face?: Express.Multer.File,
+    minAgeForVideo: number = 80,
   ): void {
     const age = this.calculateAge(dateOfBirth);
 
-    // Validar que el video sea obligatorio si edad >= 80
-    if (age >= 80 && !video_face) {
+    // Validar que el video sea obligatorio según edad mínima del proveedor
+    if (age >= minAgeForVideo && !video_face) {
       throw new BadRequestException(
-        'El video facial es obligatorio para personas de 80 años o más',
+        `El video facial es obligatorio para personas de ${minAgeForVideo} años o más`,
       );
     }
 
@@ -2641,6 +2676,12 @@ export class SignaturesService {
       };
     }
 
+    // Imprimir payload con base64 truncados
+    const payloadForLog = this.truncateBase64InObject(payload, 10);
+    this.logger.log(
+      `Enviando solicitud a Uanataca: ${JSON.stringify(payloadForLog, null, 2)}`,
+    );
+
     try {
       const response = await firstValueFrom(
         this.httpService.post(`${baseUrl}/api/certificateRequests`, payload, {
@@ -2680,10 +2721,7 @@ export class SignaturesService {
       const location =
         response.headers?.location || response.headers?.Location || null;
 
-      // Status 2xx: Verificar si realmente es exitoso
-      // Una creación exitosa DEBE tener el Location header
       if (!location) {
-        // Si no hay Location header pero hay campos de error en el body
         const errorMessage =
           responseData?.error ||
           responseData?.errorMessage ||
@@ -2788,5 +2826,48 @@ export class SignaturesService {
       PASAPORTE: 'PASAPORTE',
     };
     return mapping[documento] || 'CÉDULA';
+  }
+
+  /**
+   * Trunca los valores base64 en un objeto de manera recursiva (para logs)
+   * @param obj Objeto a procesar
+   * @param maxLength Cantidad de caracteres a mostrar del base64
+   */
+  private truncateBase64InObject(obj: any, maxLength: number = 10): any {
+    if (!obj) return obj;
+
+    if (typeof obj === 'string') {
+      // Si parece base64 (más de 100 caracteres), truncar
+      if (obj.length > 100) {
+        return `${obj.substring(0, maxLength)}...[${obj.length} chars]`;
+      }
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map((item) => this.truncateBase64InObject(item, maxLength));
+    }
+
+    if (typeof obj === 'object') {
+      const result: any = {};
+      for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          // Si el campo se llama base64 o contiene base64 en el nombre, truncar
+          if (key === 'base64' || key.toLowerCase().includes('base64')) {
+            if (typeof obj[key] === 'string' && obj[key].length > maxLength) {
+              result[key] =
+                `${obj[key].substring(0, maxLength)}...[${obj[key].length} chars]`;
+            } else {
+              result[key] = obj[key];
+            }
+          } else {
+            result[key] = this.truncateBase64InObject(obj[key], maxLength);
+          }
+        }
+      }
+      return result;
+    }
+
+    return obj;
   }
 }
