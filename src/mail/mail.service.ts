@@ -4,6 +4,7 @@ import ContractEmail from './templates/ContractEmail';
 import WelcomeDistributorEmail from './templates/WelcomeDistributorEmail';
 import { Resend } from 'resend';
 import { PdfGeneratorService } from './pdf-generator.service';
+import DistributorUpdateEmail from './templates/DistributorUpdateEmail';
 
 @Injectable()
 export class MailService {
@@ -126,23 +127,28 @@ export class MailService {
     }
   }
 
-  // async sendContractSignedEmail(
-  //   to: string,
-  //   distributorName: string,
-  //   fileBase64: string,
-  //   fileName: string,
-  // ) {
-  //   const subject = 'Contrato firmado - Nexus Soluciones';
-  //   const html = render(
-  //     DocumentSignedEmail({ distributorName }),
-  //   );
+  async sendDistributorUpdateNotification(
+    toEmail: string,
+    distributorName: string,
+    distributorIdentification: string,
+    changes: { field: string; before: string; after: string }[],
+    adminName: string,
+    adminEmail: string,
+  ): Promise<void> {
+    const subject = `Actualización de Distribuidor: ${distributorName}`;
+    
+    // Generar HTML usando el template de React Email
+    const html = await render(
+      DistributorUpdateEmail({
+        distributorName,
+        distributorIdentification,
+        changes,
+        adminName,
+        adminEmail,
+      }),
+    );
 
-  //   await this.sendEmailWithFile(
-  //     to,
-  //     subject,
-  //     html,
-  //     fileBase64,
-  //     fileName,
-  //   );
-  // }
+    await this.sendEmail(toEmail, subject, html);
+  }
+
 }

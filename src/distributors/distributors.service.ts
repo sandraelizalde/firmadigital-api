@@ -15,6 +15,7 @@ import { AuthService } from 'src/auth/auth.service';
 import { MailService } from 'src/mail/mail.service';
 import { CreditsService } from 'src/credits/credits.service';
 import { WhatsappService } from '../notifications/whatsapp.service';
+import { UpdateDistributorDto } from './dto/update-distributor.dto';
 
 @Injectable()
 export class DistributorsService {
@@ -180,6 +181,192 @@ export class DistributorsService {
       },
     };
   }
+
+  // Actualizar información del distribuidor
+  async updateDistributor(
+    distributorId: string,
+    data: UpdateDistributorDto,
+    adminName: string,
+    adminEmail: string,
+  ) {
+    // Verificar que el distribuidor existe
+    const distributor = await this.prisma.distributor.findUnique({
+      where: { id: distributorId },
+    });
+
+    if (!distributor) {
+      throw new NotFoundException({
+        message: 'Distribuidor no encontrado',
+        error: 'DISTRIBUTOR_NOT_FOUND',
+      });
+    }
+
+    // Guardar datos anteriores para el email
+    const previousData = {
+      firstName: distributor.firstName,
+      lastName: distributor.lastName,
+      socialReason: distributor.socialReason,
+      identificationType: distributor.identificationType,
+      identification: distributor.identification,
+      email: distributor.email,
+      phone: distributor.phone,
+      address: distributor.address,
+      city: distributor.city,
+    };
+
+    // Preparar datos para actualización
+    const updateData: any = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      socialReason: data.socialReason,
+      identificationType: data.identificationType,
+      identification: data.identification,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      city: data.city,
+    };
+
+    // Si se proporciona una nueva contraseña, encriptarla
+    let passwordChanged = false;
+    if (data.password) {
+      updateData.password = this.authService.encryptPassword(data.password);
+      passwordChanged = true;
+    }
+
+    // Remover campos undefined para no sobrescribir con null
+    Object.keys(updateData).forEach(
+      (key) => updateData[key] === undefined && delete updateData[key],
+    );
+
+    // Actualizar distribuidor
+    const updatedDistributor = await this.prisma.distributor.update({
+      where: { id: distributorId },
+      data: updateData,
+    });
+
+    // Preparar cambios realizados para el email
+    const changes: { field: string; before: string; after: string }[] = [];
+
+    // Comparar cada campo y agregar a la lista de cambios
+    if (data.firstName && data.firstName !== previousData.firstName) {
+      changes.push({
+        field: 'Nombres',
+        before: previousData.firstName || 'N/A',
+        after: data.firstName,
+      });
+    }
+
+    if (data.lastName && data.lastName !== previousData.lastName) {
+      changes.push({
+        field: 'Apellidos',
+        before: previousData.lastName || 'N/A',
+        after: data.lastName,
+      });
+    }
+
+    if (data.socialReason && data.socialReason !== previousData.socialReason) {
+      changes.push({
+        field: 'Razón Social',
+        before: previousData.socialReason || 'N/A',
+        after: data.socialReason,
+      });
+    }
+
+    if (
+      data.identificationType &&
+      data.identificationType !== previousData.identificationType
+    ) {
+      changes.push({
+        field: 'Tipo de Identificación',
+        before: previousData.identificationType || 'N/A',
+        after: data.identificationType,
+      });
+    }
+
+    if (
+      data.identification &&
+      data.identification !== previousData.identification
+    ) {
+      changes.push({
+        field: 'Identificación',
+        before: previousData.identification || 'N/A',
+        after: data.identification,
+      });
+    }
+
+    if (data.email && data.email !== previousData.email) {
+      changes.push({
+        field: 'Email',
+        before: previousData.email || 'N/A',
+        after: data.email,
+      });
+    }
+
+    if (data.phone && data.phone !== previousData.phone) {
+      changes.push({
+        field: 'Teléfono',
+        before: previousData.phone || 'N/A',
+        after: data.phone,
+      });
+    }
+
+    if (data.address && data.address !== previousData.address) {
+      changes.push({
+        field: 'Dirección',
+        before: previousData.address || 'N/A',
+        after: data.address,
+      });
+    }
+
+    if (data.city && data.city !== previousData.city) {
+      changes.push({
+        field: 'Ciudad',
+        before: previousData.city || 'N/A',
+        after: data.city,
+      });
+    }
+
+    if (passwordChanged) {
+      changes.push({
+        field: 'Contraseña',
+        before: '***********',
+        after: 'ACTUALIZADA',
+      });
+    }
+
+    // Enviar email a gerencia con los cambios
+    if (changes.length > 0) {
+      try {
+        const distributorName =
+          distributor.socialReason ||
+          `${distributor.firstName} ${distributor.lastName}`;
+
+        await this.mailService.sendDistributorUpdateNotification(
+          'gerencia@solucionesnexus.com',
+          distributorName,
+          distributor.identification,
+          changes,
+          adminName,
+          adminEmail,
+        );
+      } catch (emailError) {
+        // Si falla el envío del email, registrar el error pero no fallar la operación
+        this.logger.error(
+          'Error al enviar email de notificación de actualización:',
+          emailError,
+        );
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Distribuidor actualizado exitosamente',
+      distributor: updatedDistributor,
+    };
+  }
+
+
 
   // Crear información de facturación para un distribuidor
   async createBillingInfo(distributorId: string, data: CreateBillingInfoDto) {
