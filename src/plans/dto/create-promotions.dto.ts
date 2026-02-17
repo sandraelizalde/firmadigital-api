@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsDateString,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -59,6 +60,26 @@ export class CreatePromotionsDto {
   })
   @IsNotEmpty()
   sendNotification: boolean;
+
+  @ApiProperty({
+    description: 'Fecha de inicio de la promoción (ISO 8601)',
+    example: '2025-01-15T00:00:00.000Z',
+    type: String,
+    required: false,
+  })
+  @IsOptional()
+  @IsDateString()
+  promoStartDate?: string;
+
+  @ApiProperty({
+    description: 'Fecha de fin de la promoción (ISO 8601)',
+    example: '2025-02-15T23:59:59.000Z',
+    type: String,
+    required: false,
+  })
+  @IsOptional()
+  @IsDateString()
+  promoEndDate?: string;
 
   @ApiProperty({
     description: 'Array de distribuidores con sus precios promocionales',

@@ -2306,6 +2306,28 @@ export class SignaturesService {
   }
 
   /**
+   * Verifica si la promoción está activa por fechas y retorna el precio promo.
+   * Retorna null si no hay promo o si la promo está fuera del rango de fechas.
+   */
+  private getActivePromoPrice(planPrice: {
+    customPricePromo: number | null;
+    promoStartDate: Date | null;
+    promoEndDate: Date | null;
+  }): number | null {
+    if (!planPrice.customPricePromo) return null;
+
+    const now = new Date();
+
+    // Si tiene fecha de inicio y aún no ha comenzado
+    if (planPrice.promoStartDate && now < planPrice.promoStartDate) return null;
+
+    // Si tiene fecha de fin y ya expiró
+    if (planPrice.promoEndDate && now > planPrice.promoEndDate) return null;
+
+    return planPrice.customPricePromo;
+  }
+
+  /**
    * Obtiene el plan asignado al distribuidor, su perfil de firma y el precio a cobrar
    * @param perfilField Campo del plan que contiene el perfil de firma (ej: perfilNaturalEnext)
    * @param perfilLabel Etiqueta descriptiva para el error (ej: "Natural Enext")
@@ -2346,9 +2368,8 @@ export class SignaturesService {
       );
     }
 
-    const priceToCharge = planPrice.customPricePromo
-      ? planPrice.customPricePromo
-      : planPrice.customPrice;
+    const priceToCharge = this.getActivePromoPrice(planPrice)
+      ?? planPrice.customPrice;
 
     return { planPrice, perfil_firma, priceToCharge };
   }
