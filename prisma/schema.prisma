@@ -161,6 +161,9 @@ model DistributorPlanPrice {
   customPrice      Int // Precio personalizado en centavos
   customPricePromo Int? // Precio promo personalizado en centavos (opcional)
 
+  promoStartDate DateTime? // Fecha de inicio de la promoción
+  promoEndDate   DateTime? // Fecha de fin de la promoción
+
   isActive Boolean @default(true)
 
   createdBy         String? // Admin que asignó el precio

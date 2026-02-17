@@ -935,6 +935,8 @@ export class DistributorsService {
           planId: string;
           customPrice: number;
           customPricePromo: number | null;
+          promoStartDate: Date | null;
+          promoEndDate: Date | null;
         }>;
       }
     >();
@@ -953,6 +955,8 @@ export class DistributorsService {
         planId: assignment.plan.id,
         customPrice: assignment.customPrice,
         customPricePromo: assignment.customPricePromo,
+        promoStartDate: assignment.promoStartDate,
+        promoEndDate: assignment.promoEndDate,
       });
     });
 

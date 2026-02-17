@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AssignPlansToDistributorDto } from './dto/assign-plan-to-distributor.dto';
 import { UpdateDistributorPlanPriceDto } from './dto/update-distributor-plan-price.dto';
@@ -258,10 +259,19 @@ export class PlansService {
       if (a.plan.perfilJuridicoUanataca) personaJuridica.push('pasaporte');
       if (a.plan.perfilJuridicoTokenUanataca) personaJuridica.push('token');
 
+      // Solo exponer precio promo si la promo está activa por fechas
+      const promoActive = this.isPromoCurrentlyActive(
+        a.customPricePromo,
+        a.promoStartDate,
+        a.promoEndDate,
+      );
+
       return {
         planId: a.plan.id,
         price: a.customPrice,
-        pricePromo: a.customPricePromo,
+        pricePromo: promoActive ? a.customPricePromo : null,
+        promoStartDate: a.promoStartDate,
+        promoEndDate: a.promoEndDate,
         duration: this.formatDuration(a.plan.duration, a.plan.durationType),
         availableFor: {
           personaNatural,
@@ -456,18 +466,31 @@ export class PlansService {
       ],
     });
 
+    const now = new Date();
+
     return {
       success: true,
-      plans: assignments.map((a) => ({
-        id: a.plan.id,
-        perfil: a.plan[perfilField],
-        duration: a.plan.duration,
-        durationType: a.plan.durationType,
-        customPrice: a.customPrice,
-        customPricePromo: a.customPricePromo,
-        isActive: a.isActive,
-        createdAt: a.createdAt,
-      })),
+      plans: assignments.map((a) => {
+        // Solo exponer precio promo si la promo está activa por fechas
+        const promoActive = this.isPromoCurrentlyActive(
+          a.customPricePromo,
+          a.promoStartDate,
+          a.promoEndDate,
+        );
+
+        return {
+          id: a.plan.id,
+          perfil: a.plan[perfilField],
+          duration: a.plan.duration,
+          durationType: a.plan.durationType,
+          customPrice: a.customPrice,
+          customPricePromo: promoActive ? a.customPricePromo : null,
+          promoStartDate: a.promoStartDate,
+          promoEndDate: a.promoEndDate,
+          isActive: a.isActive,
+          createdAt: a.createdAt,
+        };
+      }),
     };
   }
 
@@ -529,7 +552,7 @@ export class PlansService {
    * Crear promociones para múltiples distribuidores
    */
   async createPromotionsForDistributors(data: CreatePromotionsDto) {
-    const { duration, durationType, distributors } = data;
+    const { duration, durationType, distributors, promoStartDate, promoEndDate } = data;
 
     // Agrupar distribuidores por precio promocional
     const priceGroups = new Map<number | undefined, string[]>();
@@ -541,6 +564,12 @@ export class PlansService {
     });
 
     let totalUpdated = 0;
+
+    // Preparar datos de fechas de promoción
+    const promoDateData: Record<string, Date | null> = {
+      promoStartDate: promoStartDate ? new Date(promoStartDate) : null,
+      promoEndDate: promoEndDate ? new Date(promoEndDate) : null,
+    };
 
     // Ejecutar updateMany por cada grupo de precio
     for (const [pricePromo, distributorIds] of priceGroups) {
@@ -556,6 +585,8 @@ export class PlansService {
         },
         data: {
           customPricePromo: pricePromo,
+          promoStartDate: promoDateData.promoStartDate,
+          promoEndDate: promoDateData.promoEndDate,
         },
       });
 
@@ -624,6 +655,22 @@ export class PlansService {
     }
   }
 
+  /**
+   * Verifica si una promo está actualmente activa según sus fechas.
+   * Sin fechas = permanente (activa siempre).
+   */
+  private isPromoCurrentlyActive(
+    customPricePromo: number | null,
+    promoStartDate: Date | null,
+    promoEndDate: Date | null,
+  ): boolean {
+    if (!customPricePromo) return false;
+    const now = new Date();
+    if (promoStartDate && now < promoStartDate) return false;
+    if (promoEndDate && now > promoEndDate) return false;
+    return true;
+  }
+
   private formatDuration(duration: string, durationType: string): string {
     const typeMap: Record<string, string> = {
       D: 'días',
@@ -634,5 +681,45 @@ export class PlansService {
     };
 
     return `${duration} ${typeMap[durationType] || durationType}`;
+  }
+
+  /**
+   * Cron job: Se ejecuta todos los días a las 00:05 para limpiar promociones expiradas.
+   * Cuando la fecha de fin de promoción ya pasó, se limpia el precio promo y las fechas.
+   */
+  @Cron('5 0 * * *', {
+    name: 'cleanExpiredPromotions',
+    timeZone: 'America/Guayaquil',
+  })
+  async cleanExpiredPromotions() {
+    this.logger.log('Ejecutando limpieza de promociones expiradas...');
+
+    try {
+      const now = new Date();
+
+      const result = await this.prisma.distributorPlanPrice.updateMany({
+        where: {
+          customPricePromo: { not: null },
+          promoEndDate: { lt: now },
+        },
+        data: {
+          customPricePromo: null,
+          promoStartDate: null,
+          promoEndDate: null,
+        },
+      });
+
+      if (result.count > 0) {
+        this.logger.log(
+          `Promociones expiradas limpiadas: ${result.count} asignaciones actualizadas`,
+        );
+      } else {
+        this.logger.log('No hay promociones expiradas para limpiar');
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error al limpiar promociones expiradas: ${error.message}`,
+      );
+    }
   }
 }
