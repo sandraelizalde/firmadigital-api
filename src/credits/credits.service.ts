@@ -1,5 +1,3 @@
-
-
 import {
   Injectable,
   BadRequestException,
@@ -1028,7 +1026,8 @@ export class CreditsService {
       const creditsToUnblock = await this.prisma.distributorCredit.findMany({
         where: {
           distributorId,
-          isBlocked: true,
+          // Buscamos créditos que estén bloqueados O inactivos (por bloqueo previo)
+          OR: [{ isBlocked: true }, { isActive: false }],
         },
       });
 
@@ -1044,11 +1043,11 @@ export class CreditsService {
         if (remainingOverdueUnpaid === 0) {
           await this.prisma.distributorCredit.update({
             where: { id: credit.id },
-            data: { isBlocked: false },
+            data: { isBlocked: false, isActive: true },
           });
 
           this.logger.log(
-            `Crédito ${credit.id} desbloqueado - no quedan deudas vencidas`,
+            `Crédito ${credit.id} desbloqueado y reactivado - no quedan deudas vencidas`,
           );
         }
       }
@@ -1313,7 +1312,6 @@ export class CreditsService {
       });
 
       this.logger.log(`Crédito ${creditId} desbloqueado`);
-
     } else {
       this.logger.log(
         `Crédito sigue bloqueado - Deuda vencida: $${(totalOverdueDebt / 100).toFixed(2)}`,
