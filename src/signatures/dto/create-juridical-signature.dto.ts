@@ -84,7 +84,7 @@ export class CreateJuridicalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(12, { message: 'La dirección debe tener al menos 12 caracteres' })
+  @MinLength(10, { message: 'La dirección debe tener al menos 10 caracteres' })
   direccion: string;
 
   @ApiProperty({
@@ -134,19 +134,6 @@ export class CreateJuridicalSignatureDto {
   @IsString()
   @IsNotEmpty()
   cargo: string;
-
-  @ApiProperty({
-    description:
-      'Clave de firma digital (solo letras y números, sin espacios ni caracteres especiales)',
-    example: 'GONZALEZ1752',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Matches(/^[a-zA-Z0-9]+$/, {
-    message:
-      'La clave de firma solo puede contener letras y números, sin espacios ni caracteres especiales',
-  })
-  clave_firma: string;
 
   @ApiProperty({
     description: 'Foto frontal de cédula en Base64',
@@ -201,16 +188,6 @@ export class CreateJuridicalSignatureDto {
   @IsString()
   @IsOptional()
   aceptacion_nombramiento_base64?: string;
-
-  @ApiProperty({
-    description:
-      'Documento de la identificación del representante legal en Base64 (solo para UANATACA)',
-    example: 'JVBORw0KGgoAAAANSUhEUgAA...',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  identificacion_representante_base64?: string;
 
   @ApiProperty({
     description: 'ID del plan asignado al distribuidor',
@@ -269,4 +246,13 @@ export class CreateJuridicalSignatureDto {
   @IsOptional()
   @IsString()
   selfie?: string;
+
+  @ApiProperty({
+    description: 'Nacionalidad (requerido para Uanataca)',
+    example: 'ECUATORIANA',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  nacionalidad?: string;
 }

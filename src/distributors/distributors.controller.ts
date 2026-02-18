@@ -27,6 +27,7 @@ import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
 import { DistributorFilterDto } from './dto/distributor-filter.dto';
 import { UploadContractDto } from './dto/upload-contract.dto';
+import { UpdateDistributorDto } from './dto/update-distributor.dto';
 
 @ApiTags('Distribuidores')
 @Controller('distributors')
@@ -302,6 +303,42 @@ export class DistributorsController {
   ) {
     return await this.distributorsService.uploadContract(distributorId, data);
   }
+
+  @ApiOperation({
+    summary: 'Actualizar información del distribuidor',
+    description:
+      'Permite actualizar los datos principales de un distribuidor (nombre, email, teléfono, dirección, ciudad, contraseña, etc.)',
+  })
+  @ApiParam({
+    name: 'distributorId',
+    description: 'ID del distribuidor',
+    type: String,
+  })
+  @ApiBody({ type: UpdateDistributorDto })
+  @ApiBearerAuth()
+  @ApiResponse({
+    status: 200,
+    description: 'Distribuidor actualizado exitosamente',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Distribuidor no encontrado',
+  })
+  @Patch(':distributorId')
+  @Roles(Role.ADMIN)
+  async updateDistributor(
+    @Param('distributorId') distributorId: string,
+    @Body() data: UpdateDistributorDto,
+    @Request() req: any,
+  ) {
+    return await this.distributorsService.updateDistributor(
+      distributorId,
+      data,
+      req.user.name || `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || 'Administrador',
+      req.user.email || 'N/A',
+    );
+  }
+
 
   @ApiOperation({
     summary: 'Eliminar un distribuidor (ADMIN)',
