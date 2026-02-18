@@ -85,7 +85,7 @@ export class CreateNaturalSignatureDto {
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(12, { message: 'La dirección debe tener al menos 12 caracteres' })
+  @MinLength(10, { message: 'La dirección debe tener al menos 10 caracteres' })
   direccion: string;
 
   @ApiProperty({
@@ -197,4 +197,13 @@ export class CreateNaturalSignatureDto {
   @IsOptional()
   @IsString()
   selfie?: string;
+
+  @ApiProperty({
+    description: 'Nacionalidad (requerido para Uanataca)',
+    example: 'ECUATORIANA',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  nacionalidad?: string;
 }

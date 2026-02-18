@@ -1220,8 +1220,15 @@ export class RechargesService {
           phone = '593' + phone.substring(1);
         }
 
-        const name = u.firstName || u.lastName || 'Asesor Nexus';
-        const templateParams = [name, requesterName];
+        const date = new Date().toLocaleString('es-EC', {
+          timeZone: 'America/Guayaquil',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const templateParams = [date, requesterName];
 
         await this.whatsappService.sendTemplate(
           u.phoneNumber || u.phone,
