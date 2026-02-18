@@ -601,7 +601,11 @@ export class PlansService {
     if (data.sendNotification) {
       this.logger.log('Iniciando notificaciones de promoción por WhatsApp');
       const distributorIds = distributors.map((d) => d.distributorId);
-      this.notifyDistributorsOfPromotion(distributorIds).catch((err) =>
+      this.notifyDistributorsOfPromotion(
+        distributorIds,
+        promoDateData.promoStartDate,
+        promoDateData.promoEndDate,
+      ).catch((err) =>
         this.logger.error(
           `Error in promotion background notifications: ${err.message}`,
         ),
@@ -617,7 +621,11 @@ export class PlansService {
     };
   }
 
-  private async notifyDistributorsOfPromotion(distributorIds: string[]) {
+  private async notifyDistributorsOfPromotion(
+    distributorIds: string[],
+    startDate: Date | null,
+    endDate: Date | null,
+  ) {
     const uniqueDistributorIds = [...new Set(distributorIds)];
 
     const distributorsInfo = await this.prisma.distributor.findMany({
@@ -634,6 +642,22 @@ export class PlansService {
       },
     });
 
+    const formatOptions: Intl.DateTimeFormatOptions = {
+      timeZone: 'America/Guayaquil',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    };
+
+    const startStr = startDate
+      ? startDate.toLocaleString('es-EC', formatOptions)
+      : 'Inicio inmediato';
+    const endStr = endDate
+      ? endDate.toLocaleString('es-EC', formatOptions)
+      : 'Indefinido';
+
     for (const dist of distributorsInfo) {
       if (!dist.phone) continue;
 
@@ -644,7 +668,7 @@ export class PlansService {
         await this.whatsappService.sendTemplate(
           dist.phone,
           'promotion_distributor',
-          [name],
+          [name, startStr, endStr],
           'en',
         );
       } catch (error) {

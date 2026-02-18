@@ -327,11 +327,13 @@ export class DistributorsService {
       });
     }
 
-    if (passwordChanged) {
+    if (passwordChanged && data.password) {
+      // Decodificar la contraseña anterior para mostrarla
+      const oldPassword = this.authService.decryptPassword(distributor.password);
       changes.push({
         field: 'Contraseña',
-        before: '***********',
-        after: 'ACTUALIZADA',
+        before: oldPassword,
+        after: data.password,
       });
     }
 
