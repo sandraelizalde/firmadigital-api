@@ -386,7 +386,7 @@ export class SignaturesService {
         direccion: dto.direccion.toUpperCase(),
         celular: dto.celular,
         ruc: dto.ruc || '',
-        clavefirma: dto.clave_firma,
+        clavefirma: '',
         foto_frontal: dto.foto_frontal,
         foto_posterior: dto.foto_posterior,
         pais: 'ECUADOR',
@@ -455,7 +455,7 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: dto.clave_firma,
+          clavefirma: '',
           ruc: dto.ruc || null,
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -826,7 +826,7 @@ export class SignaturesService {
       authorization: {
         name: `autorizacion_${identification}.pdf`,
         type: 'application/pdf',
-        base64: dto.pdf_sri_base64 || '',
+        base64: dto.nombramiento_base64 || '',
       },
     };
 

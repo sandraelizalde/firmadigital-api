@@ -136,19 +136,6 @@ export class CreateJuridicalSignatureDto {
   cargo: string;
 
   @ApiProperty({
-    description:
-      'Clave de firma digital (solo letras y números, sin espacios ni caracteres especiales)',
-    example: 'GONZALEZ1752',
-  })
-  @IsString()
-  @Matches(/^[a-zA-Z0-9]+$/, {
-    message:
-      'La clave de firma solo puede contener letras y números, sin espacios ni caracteres especiales',
-  })
-  @IsOptional()
-  clave_firma?: string;
-
-  @ApiProperty({
     description: 'Foto frontal de cédula en Base64',
     example: 'iVBORw0KGgoAAAANSUhEUgAA...',
   })
