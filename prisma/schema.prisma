@@ -67,6 +67,11 @@ enum SignatureProvider {
   UANATACA
 }
 
+enum DeliveryMethod {
+  PICKUP
+  DELIVERY
+}
+
 // ---------------------------
 // DISTRIBUIDORES
 // ---------------------------
@@ -230,6 +235,8 @@ model SignatureRequest {
 
   provider SignatureProvider @default(ENEXT)
 
+  tokenInfo TokenInfo?
+
   @@index([distributorId, createdAt])
   @@index([planId])
 }
@@ -335,6 +342,33 @@ model AccountMovement {
   distributorCreditId String?
 
   @@index([signatureId])
+}
+
+// ---------------------------
+// TOKEN INFO (entrega física de token)
+// ---------------------------
+model TokenInfo {
+  id                     String          @id @default(cuid())
+  signatureRequest       SignatureRequest @relation(fields: [signatureRequestId], references: [id])
+  signatureRequestId     String          @unique
+  shippingTypeUuid       String
+  deliveryMethod         DeliveryMethod
+  office                 String?
+  contactName            String
+  contactPhone           String
+  province               String?
+  city                   String?
+  mainStreet             String?
+  houseNumber            String?
+  secondaryStreet        String?
+  reference              String?
+  recipientIdentification String?
+  recipientName          String?
+  serialToken            String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([signatureRequestId])
 }
 
 // ---------------------------

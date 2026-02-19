@@ -177,7 +177,7 @@ export class ConsultationsService {
 
       const response = await firstValueFrom(
         this.httpService.post<ApiCedulaResponse>(this.apiCedulasUrl, payload, {
-          timeout: 15000, // 15 segundos
+          timeout: 10000, // 10 segundos
         }),
       );
 
@@ -230,7 +230,7 @@ export class ConsultationsService {
 
       const response = await firstValueFrom(
         this.httpService.post<ApiSriResponse>(this.apiSriUrl, payload, {
-          timeout: 15000, // 15 segundos
+          timeout: 10000, // 10 segundos
         }),
       );
 
