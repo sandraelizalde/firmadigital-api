@@ -797,11 +797,11 @@ export class RechargesService {
       throw new NotFoundException('Distribuidor no encontrado');
     }
 
-    if (distributor.balance < amount) {
-      throw new BadRequestException(
-        `Balance insuficiente. El distribuidor tiene $${(distributor.balance / 100).toFixed(2)} y se intentan descontar $${(amount / 100).toFixed(2)}`,
-      );
-    }
+    // if (distributor.balance < amount) {
+    //   throw new BadRequestException(
+    //     `Balance insuficiente. El distribuidor tiene $${(distributor.balance / 100).toFixed(2)} y se intentan descontar $${(amount / 100).toFixed(2)}`,
+    //   );
+    // }
 
     return this.prisma.$transaction(async (tx) => {
       const newBalance = distributor.balance - amount;
