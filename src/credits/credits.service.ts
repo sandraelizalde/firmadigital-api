@@ -578,7 +578,14 @@ export class CreditsService {
                 data: {
                   distributorId: distributor.id,
                   type: 'EXPENSE',
-                  detail: `Cobro de crédito - Corte del ${new Date(cutoff.cutoffDate).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                  detail: `Cobro de crédito - Corte del ${new Date(
+                    cutoff.cutoffDate,
+                  ).toLocaleDateString('es-EC', {
+                    timeZone: 'America/Guayaquil',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })}`,
                   amount: amountOwed,
                   balanceAfter: newBalance,
                   distributorCreditId: cutoff.creditId,
@@ -607,7 +614,14 @@ export class CreditsService {
                 data: {
                   distributorId: distributor.id,
                   type: 'EXPENSE',
-                  detail: `Cobro parcial de crédito - Corte del ${new Date(cutoff.cutoffDate).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                  detail: `Cobro parcial del crédito - Corte del ${new Date(
+                    cutoff.cutoffDate,
+                  ).toLocaleDateString('es-EC', {
+                    timeZone: 'America/Guayaquil',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })}`,
                   amount: amountPaid,
                   balanceAfter: newBalance,
                   distributorCreditId: cutoff.creditId,
@@ -929,7 +943,14 @@ export class CreditsService {
                 data: {
                   distributorId,
                   type: 'EXPENSE',
-                  detail: `Cobro de crédito - Corte del ${new Date(cutoff.cutoffDate).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                  detail: `Cobro de crédito - Corte del ${new Date(
+                    cutoff.cutoffDate,
+                  ).toLocaleDateString('es-EC', {
+                    timeZone: 'America/Guayaquil',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })}`,
                   amount: amountOwed,
                   balanceAfter: newBalance,
                   distributorCreditId: cutoff.creditId,
@@ -974,7 +995,14 @@ export class CreditsService {
                 data: {
                   distributorId,
                   type: 'EXPENSE',
-                  detail: `Cobro parcial de crédito - Corte del ${new Date(cutoff.cutoffDate).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                  detail: `Cobro parcial del crédito - Corte del ${new Date(
+                    cutoff.cutoffDate,
+                  ).toLocaleDateString('es-EC', {
+                    timeZone: 'America/Guayaquil',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })}`,
                   amount: amountPaid,
                   balanceAfter: newBalance,
                   distributorCreditId: cutoff.creditId,
