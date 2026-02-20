@@ -1073,6 +1073,7 @@ export class SignaturesService {
     personType?: string,
     startDate?: string,
     endDate?: string,
+    search?: string,
   ): Promise<PaginatedSignatureListResponseDto> {
     const skip = (page - 1) * limit;
 
@@ -1102,6 +1103,14 @@ export class SignaturesService {
       if (endDate) {
         where.createdAt.lte = new Date(`${endDate}T23:59:59.999-05:00`);
       }
+    }
+
+    // Búsqueda por cédula o RUC
+    if (search) {
+      where.OR = [
+        { cedula: { contains: search } },
+        { ruc: { contains: search } },
+      ];
     }
 
     // Obtener el total de registros
@@ -1163,6 +1172,7 @@ export class SignaturesService {
         durationType: plan ? plan.durationType : null,
         duration: plan ? plan.duration : null,
         expiredDays,
+        priceCharged: request.priceCharged,
         createdAt: request.createdAt,
         updatedAt: request.updatedAt,
       };
