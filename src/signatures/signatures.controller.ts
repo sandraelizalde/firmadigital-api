@@ -390,6 +390,12 @@ export class SignaturesController {
     type: String,
     description: 'Fecha de fin (YYYY-MM-DD)',
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Buscar por cédula o RUC',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista paginada de solicitudes de firma digital',
@@ -410,6 +416,7 @@ export class SignaturesController {
     @Query('personType') personType?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
   ) {
     return this.signaturesService.getAllSignatureRequests(
       req.user.userId,
@@ -419,6 +426,7 @@ export class SignaturesController {
       personType,
       startDate,
       endDate,
+      search,
     );
   }
 
