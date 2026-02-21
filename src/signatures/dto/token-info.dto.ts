@@ -127,13 +127,4 @@ export class TokenInfoDto {
   @IsOptional()
   @IsString()
   recipientName?: string;
-
-  @ApiProperty({
-    description: 'Número de serie del token (opcional)',
-    example: 'SN-123456',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  serialToken?: string;
 }

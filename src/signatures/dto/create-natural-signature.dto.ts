@@ -7,12 +7,11 @@ import {
   Matches,
   Length,
   IsOptional,
-  IsBoolean,
   IsEnum,
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, plainToInstance } from 'class-transformer';
 import { TokenInfoDto } from './token-info.dto';
 
 export class CreateNaturalSignatureDto {
@@ -222,7 +221,10 @@ export class CreateNaturalSignatureDto {
     type: () => TokenInfoDto,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return plainToInstance(TokenInfoDto, parsed);
+  })
   @ValidateNested()
-  @Type(() => TokenInfoDto)
   token_info?: TokenInfoDto;
 }

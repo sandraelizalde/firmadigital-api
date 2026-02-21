@@ -125,15 +125,15 @@ export class SignaturesService {
   ) {
     switch (true) {
       // ===== NATURAL =====
-      case tipoPersona === 'NATURAL' && documento === 'PASAPORTE':
-        return this.createSignatureRequestUanatacaNatural(
+      case tipoPersona === 'NATURAL' && usaToken:
+        return this.createSignatureRequestUanatacaTokenNatural(
           distributorId,
           dto,
           video_face,
         );
 
-      case tipoPersona === 'NATURAL' && usaToken:
-        return this.createSignatureRequestUanatacaTokenNatural(
+      case tipoPersona === 'NATURAL' && documento === 'PASAPORTE':
+        return this.createSignatureRequestUanatacaNatural(
           distributorId,
           dto,
           video_face,
@@ -2942,6 +2942,19 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
+    if (this.config.environment === 'development') {
+      this.logger.log('SIMULACION: Subida de archivos omitida en desarrollo');
+      return {
+        foto_frontal_key: 'dev-foto-frontal.jpg',
+        foto_posterior_key: 'dev-foto-posterior.jpg',
+        pdf_sri_key: dto.pdf_sri_base64 ? 'dev-pdf-sri.pdf' : undefined,
+        nombramiento_key: dto.nombramiento_base64
+          ? 'dev-nombramiento.pdf'
+          : undefined,
+        video_face_key: video_face ? 'dev-video-face.mp4' : undefined,
+      };
+    }
+
     const foto_frontal_key = await this.filesService.uploadFile(
       dto.foto_frontal,
       distributorId.toString(),
@@ -3097,7 +3110,6 @@ export class SignaturesService {
               recipientIdentification:
                 tokenInfo.recipientIdentification ?? null,
               recipientName: tokenInfo.recipientName?.toUpperCase() ?? null,
-              serialToken: tokenInfo.serialToken ?? null,
             },
           });
         }
@@ -3217,6 +3229,11 @@ export class SignaturesService {
 
     if (this.config.environment === 'development') {
       this.logger.log('SIMULACION: Solicitud de certificado creada');
+      // Imprimir payload con base64 truncados
+      const payloadForLog = this.truncateBase64InObject(payload, 10);
+      this.logger.log(
+        `Enviando solicitud a Uanataca: ${JSON.stringify(payloadForLog, null, 2)}`,
+      );
       const simulatedUuid = `simulated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       return {
         success: true,
@@ -3224,12 +3241,6 @@ export class SignaturesService {
         providerUuid: simulatedUuid,
       };
     }
-
-    // Imprimir payload con base64 truncados
-    const payloadForLog = this.truncateBase64InObject(payload, 10);
-    this.logger.log(
-      `Enviando solicitud a Uanataca: ${JSON.stringify(payloadForLog, null, 2)}`,
-    );
 
     try {
       const response = await firstValueFrom(

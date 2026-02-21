@@ -348,25 +348,24 @@ model AccountMovement {
 // TOKEN INFO (entrega física de token)
 // ---------------------------
 model TokenInfo {
-  id                     String          @id @default(cuid())
-  signatureRequest       SignatureRequest @relation(fields: [signatureRequestId], references: [id])
-  signatureRequestId     String          @unique
-  shippingTypeUuid       String
-  deliveryMethod         DeliveryMethod
-  office                 String?
-  contactName            String
-  contactPhone           String
-  province               String?
-  city                   String?
-  mainStreet             String?
-  houseNumber            String?
-  secondaryStreet        String?
-  reference              String?
+  id                      String           @id @default(cuid())
+  signatureRequest        SignatureRequest @relation(fields: [signatureRequestId], references: [id])
+  signatureRequestId      String           @unique
+  shippingTypeUuid        String
+  deliveryMethod          DeliveryMethod
+  office                  String?
+  contactName             String
+  contactPhone            String
+  province                String?
+  city                    String?
+  mainStreet              String?
+  houseNumber             String?
+  secondaryStreet         String?
+  reference               String?
   recipientIdentification String?
-  recipientName          String?
-  serialToken            String?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  recipientName           String?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
 
   @@index([signatureRequestId])
 }
