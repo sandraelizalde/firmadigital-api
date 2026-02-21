@@ -125,15 +125,15 @@ export class SignaturesService {
   ) {
     switch (true) {
       // ===== NATURAL =====
-      case tipoPersona === 'NATURAL' && documento === 'PASAPORTE':
-        return this.createSignatureRequestUanatacaNatural(
+      case tipoPersona === 'NATURAL' && usaToken:
+        return this.createSignatureRequestUanatacaTokenNatural(
           distributorId,
           dto,
           video_face,
         );
 
-      case tipoPersona === 'NATURAL' && usaToken:
-        return this.createSignatureRequestUanatacaTokenNatural(
+      case tipoPersona === 'NATURAL' && documento === 'PASAPORTE':
+        return this.createSignatureRequestUanatacaNatural(
           distributorId,
           dto,
           video_face,
@@ -682,7 +682,6 @@ export class SignaturesService {
 
   /**
    * Crea firma digital UANATACA ARCHIVO para persona JURIDICA (pasaporte)
-   * TODO: Implementar integración con Uanataca
    */
   private async createSignatureRequestUanatacaJuridica(
     distributorId: string,
@@ -924,26 +923,520 @@ export class SignaturesService {
 
   /**
    * Crea firma digital UANATACA TOKEN para persona NATURAL
-   * TODO: Implementar integración con Uanataca Token
+   * Envía el bloque tokenInfo al proveedor para gestionar el envío del token físico.
    */
   private async createSignatureRequestUanatacaTokenNatural(
     distributorId: string,
     dto: any,
     video_face?: Express.Multer.File,
   ) {
-    throw new BadRequestException('Firma PN con token no implementada aún');
+    try {
+      // 1. Validaciones iniciales
+      this.validateAgeAndVideo(dto.fecha_nacimiento, video_face, 65);
+      const distributor = await this.validateDistributor(distributorId);
+
+      if (!dto.sexo) {
+        throw new BadRequestException(
+          'El sexo es requerido para firma con token',
+        );
+      }
+      if (!dto.selfie) {
+        throw new BadRequestException(
+          'La selfie es requerida para firma con token',
+        );
+      }
+      if (!dto.nacionalidad) {
+        throw new BadRequestException(
+          'La nacionalidad es requerida para firma con token',
+        );
+      }
+      if (!dto.token_info) {
+        throw new BadRequestException(
+          'La información de envío del token (token_info) es requerida',
+        );
+      }
+
+      const tokenInfo = dto.token_info;
+
+      this.validateTokenInfo(tokenInfo);
+
+      const identification = dto.numero_identificacion;
+
+      // Duplicar foto_frontal si no viene foto_posterior (caso pasaporte)
+      if (!dto.foto_posterior) {
+        dto.foto_posterior = dto.foto_frontal;
+      }
+
+      // 2. Obtener plan, perfil (productUuid) y precio
+      const { planPrice, perfil_firma, priceToCharge } =
+        await this.getSignaturePlanPrice(
+          distributorId,
+          dto.plan_id,
+          'perfilNaturalTokenUanataca',
+          'PN con token',
+        );
+
+      // 3. Validar capacidad de pago
+      const { hasActiveCredit } = await this.validatePaymentCapability(
+        distributorId,
+        distributor.balance,
+        priceToCharge,
+      );
+
+      const numero_tramite = this.generateNumeroTramite();
+
+      // 4. Autenticarse con Uanataca
+      const accessToken = await this.authenticateUanataca();
+
+      // Separar apellidos
+      const apellidosParts = dto.apellidos.toUpperCase().split(' ');
+      const lastName1 = apellidosParts[0] || '';
+
+      // 5. Preparar payload para Uanataca (igual que archivo + tokenInfo)
+      const providerPayload: any = {
+        identificationType: this.mapIdentificationTypeUanataca(dto.documento),
+        identification: identification,
+        names: dto.nombres.toUpperCase(),
+        lastName1,
+        birthDate: this.formatDateForUanataca(dto.fecha_nacimiento),
+        nationality: dto.nacionalidad.toUpperCase(),
+        sex: dto.sexo.toUpperCase(),
+        phoneNumber: dto.celular,
+        email: dto.correo,
+        province: dto.provincia.toUpperCase(),
+        city: dto.ciudad.toUpperCase(),
+        address: dto.direccion.toUpperCase(),
+        productUuid: perfil_firma,
+        frontIdentification: {
+          name: `cedula_frontal_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.foto_frontal,
+        },
+        backIdentification: {
+          name: `cedula_reverso_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.foto_posterior,
+        },
+        selfie: {
+          name: `selfie_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.selfie,
+        },
+        tokenInfo: this.buildTokenInfoPayload(tokenInfo),
+      };
+
+      // Agregar video si existe (mayores de 65)
+      if (video_face) {
+        const videoExtension = this.getFileExtension(video_face.mimetype);
+        const videoBase64 = video_face.buffer.toString('base64');
+        providerPayload.seniorVideo = {
+          name: `video_${identification}.${videoExtension}`,
+          type: video_face.mimetype,
+          base64: videoBase64,
+        };
+      }
+
+      if (dto.ruc) {
+        providerPayload.ruc = dto.ruc;
+      }
+
+      // 6. Llamar al proveedor Uanataca
+      const providerResponse = await this.callUanatacaCertificateRequest(
+        providerPayload,
+        accessToken,
+      );
+
+      const isSuccess = providerResponse.success;
+      const status: SignatureStatus = isSuccess
+        ? SignatureStatus.PENDING
+        : SignatureStatus.FAILED;
+
+      // 7. Subir archivos al storage
+      const files = await this.uploadSignatureFiles(
+        distributorId,
+        dto,
+        video_face,
+      );
+
+      // 8. Transacción: pago + firma + TokenInfo
+      const result = await this.processSignaturePayment({
+        distributorId,
+        distributorBalance: distributor.balance,
+        hasActiveCredit,
+        isSuccess,
+        priceToCharge,
+        perfil_firma,
+        numero_tramite,
+        dto,
+        tokenInfo,
+        signatureData: {
+          numero_tramite,
+          distributorPlanPriceId: planPrice.id,
+          planId: dto.plan_id,
+          perfil_firma,
+          nombres: dto.nombres.toUpperCase(),
+          apellidos: dto.apellidos.toUpperCase(),
+          cedula: identification,
+          correo: dto.correo,
+          codigo_dactilar: dto.codigo_dactilar || '',
+          celular: dto.celular,
+          provincia: dto.provincia.toUpperCase(),
+          ciudad: dto.ciudad.toUpperCase(),
+          parroquia: dto.parroquia?.toUpperCase() || dto.ciudad.toUpperCase(),
+          direccion: dto.direccion.toUpperCase(),
+          dateOfBirth: new Date(dto.fecha_nacimiento),
+          foto_frontal: files.foto_frontal_key,
+          foto_posterior: files.foto_posterior_key,
+          video_face: files.video_face_key || null,
+          clavefirma: dto.clave_firma || '',
+          ruc: dto.ruc || null,
+          razon_social: null,
+          rep_legal: null,
+          cargo: null,
+          nombramiento: null,
+          pdf_sri: null,
+          tipo_envio: '1',
+          pais: 'ECUADOR',
+          distributorId,
+          status,
+          providerCode:
+            providerResponse.providerUuid || (isSuccess ? '1' : '0'),
+          providerMessage: providerResponse.message,
+          provider: 'UANATACA',
+        },
+      });
+
+      return {
+        success: isSuccess,
+        message: providerResponse.message,
+        data: {
+          signatureId: result.signatureRequest.id,
+          balance: result.newBalance,
+          priceCharged: result.priceCharged,
+          usedCredit: result.usedCredit,
+        },
+      };
+    } catch (error) {
+      this.handleSignatureError(error);
+    }
   }
 
   /**
    * Crea firma digital UANATACA TOKEN para persona JURIDICA
-   * TODO: Implementar integración con Uanataca Token
+   * Envía el bloque tokenInfo al proveedor para gestionar el envío del token físico.
    */
   private async createSignatureRequestUanatacaTokenJuridica(
     distributorId: string,
     dto: any,
     video_face?: Express.Multer.File,
   ) {
-    throw new BadRequestException('Firma PJ con token no implementada aún');
+    try {
+      // 1. Validaciones iniciales
+      this.validateAgeAndVideo(dto.fecha_nacimiento, video_face, 65);
+      const distributor = await this.validateDistributor(distributorId);
+
+      if (!dto.constitucion_base64) {
+        throw new BadRequestException(
+          'La escritura de constitución es requerida para firma jurídica con token',
+        );
+      }
+      if (!dto.aceptacion_nombramiento_base64) {
+        throw new BadRequestException(
+          'La aceptación de nombramiento es requerida para firma jurídica con token',
+        );
+      }
+      if (!dto.nacionalidad) {
+        throw new BadRequestException(
+          'La nacionalidad es requerida para firma jurídica con token',
+        );
+      }
+      if (!dto.token_info) {
+        throw new BadRequestException(
+          'La información de envío del token (token_info) es requerida',
+        );
+      }
+
+      const tokenInfo = dto.token_info;
+
+      this.validateTokenInfo(tokenInfo);
+
+      const identification = dto.numero_identificacion;
+
+      if (!dto.foto_posterior) {
+        dto.foto_posterior = dto.foto_frontal;
+      }
+
+      // 2. Obtener plan, perfil y precio
+      const { planPrice, perfil_firma, priceToCharge } =
+        await this.getSignaturePlanPrice(
+          distributorId,
+          dto.plan_id,
+          'perfilJuridicoTokenUanataca',
+          'PJ con token',
+        );
+
+      // 3. Validar capacidad de pago
+      const { hasActiveCredit } = await this.validatePaymentCapability(
+        distributorId,
+        distributor.balance,
+        priceToCharge,
+      );
+
+      const numero_tramite = this.generateNumeroTramite();
+
+      // 4. Autenticarse con Uanataca
+      const accessToken = await this.authenticateUanataca();
+
+      // Separar apellidos
+      const apellidosParts = dto.apellidos.toUpperCase().split(' ');
+      const lastName1 = apellidosParts[0] || '';
+
+      // 5. Payload para Uanataca (jurídica + tokenInfo)
+      const providerPayload: any = {
+        identificationType: this.mapIdentificationTypeUanataca(dto.documento),
+        identification: identification,
+        names: dto.nombres.toUpperCase(),
+        lastName1,
+        birthDate: this.formatDateForUanataca(dto.fecha_nacimiento),
+        nationality: dto.nacionalidad.toUpperCase(),
+        sex: dto.sexo?.toUpperCase() || 'HOMBRE',
+        phoneNumber: dto.celular,
+        email: dto.correo,
+        province: dto.provincia.toUpperCase(),
+        city: dto.ciudad.toUpperCase(),
+        address: dto.direccion.toUpperCase(),
+        productUuid: perfil_firma,
+        ruc: dto.ruc || '',
+        company: dto.razon_social?.toUpperCase() || '',
+        position: dto.cargo?.toUpperCase() || '',
+        department: 'GERENCIA',
+        reason: 'Firma de documentos legales y tributarios',
+        frontIdentification: {
+          name: `cedula_frontal_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.foto_frontal,
+        },
+        backIdentification: {
+          name: `cedula_reverso_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.foto_posterior,
+        },
+        selfie: {
+          name: `selfie_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.selfie,
+        },
+        identificationTypeManager: this.mapIdentificationTypeUanataca(
+          dto.documento,
+        ),
+        identificationManager: identification,
+        namesManager: dto.nombres.toUpperCase(),
+        lastNameManager: dto.apellidos.toUpperCase(),
+        rucFile: {
+          name: `ruc_${identification}.pdf`,
+          type: 'application/pdf',
+          base64: dto.pdf_sri_base64 || '',
+        },
+        appointment: {
+          name: `nombramiento_${identification}.pdf`,
+          type: 'application/pdf',
+          base64: dto.nombramiento_base64 || '',
+        },
+        acceptanceAppointment: {
+          name: `aceptacion_nombramiento_${identification}.pdf`,
+          type: 'application/pdf',
+          base64: dto.aceptacion_nombramiento_base64 || '',
+        },
+        constitution: {
+          name: `constitucion_${identification}.pdf`,
+          type: 'application/pdf',
+          base64: dto.constitucion_base64 || '',
+        },
+        managerIdentification: {
+          name: `id_rl_${identification}.jpg`,
+          type: 'image/jpeg',
+          base64: dto.foto_frontal || '',
+        },
+        authorization: {
+          name: `autorizacion_${identification}.pdf`,
+          type: 'application/pdf',
+          base64: dto.nombramiento_base64 || '',
+        },
+        tokenInfo: this.buildTokenInfoPayload(tokenInfo),
+      };
+
+      if (video_face) {
+        const videoExtension = this.getFileExtension(video_face.mimetype);
+        const videoBase64 = video_face.buffer.toString('base64');
+        providerPayload.seniorVideo = {
+          name: `video_${identification}.${videoExtension}`,
+          type: video_face.mimetype,
+          base64: videoBase64,
+        };
+      }
+
+      // 6. Llamar al proveedor
+      const providerResponse = await this.callUanatacaCertificateRequest(
+        providerPayload,
+        accessToken,
+      );
+
+      const isSuccess = providerResponse.success;
+      const status: SignatureStatus = isSuccess
+        ? SignatureStatus.PENDING
+        : SignatureStatus.FAILED;
+
+      // 7. Subir archivos
+      const files = await this.uploadSignatureFiles(
+        distributorId,
+        dto,
+        video_face,
+      );
+
+      // 8. Transacción: pago + firma + TokenInfo
+      const result = await this.processSignaturePayment({
+        distributorId,
+        distributorBalance: distributor.balance,
+        hasActiveCredit,
+        isSuccess,
+        priceToCharge,
+        perfil_firma,
+        numero_tramite,
+        dto,
+        tokenInfo,
+        signatureData: {
+          numero_tramite,
+          distributorPlanPriceId: planPrice.id,
+          planId: dto.plan_id,
+          perfil_firma,
+          nombres: dto.nombres.toUpperCase(),
+          apellidos: dto.apellidos.toUpperCase(),
+          cedula: identification,
+          correo: dto.correo,
+          codigo_dactilar: dto.codigo_dactilar || '',
+          celular: dto.celular,
+          provincia: dto.provincia.toUpperCase(),
+          ciudad: dto.ciudad.toUpperCase(),
+          parroquia: dto.parroquia?.toUpperCase() || dto.ciudad.toUpperCase(),
+          direccion: dto.direccion.toUpperCase(),
+          dateOfBirth: new Date(dto.fecha_nacimiento),
+          foto_frontal: files.foto_frontal_key,
+          foto_posterior: files.foto_posterior_key,
+          video_face: files.video_face_key || null,
+          clavefirma: dto.clave_firma || '',
+          ruc: dto.ruc || '',
+          razon_social: dto.razon_social?.toUpperCase() || null,
+          rep_legal: dto.rep_legal?.toUpperCase() || null,
+          cargo: dto.cargo?.toUpperCase() || null,
+          nombramiento: files.nombramiento_key || null,
+          pdf_sri: files.pdf_sri_key || null,
+          tipo_envio: '1',
+          pais: 'ECUADOR',
+          distributorId,
+          status,
+          providerCode:
+            providerResponse.providerUuid || (isSuccess ? '1' : '0'),
+          providerMessage: providerResponse.message,
+          provider: 'UANATACA',
+        },
+      });
+
+      return {
+        success: isSuccess,
+        message: providerResponse.message,
+        data: {
+          signatureId: result.signatureRequest.id,
+          balance: result.newBalance,
+          priceCharged: result.priceCharged,
+          usedCredit: result.usedCredit,
+        },
+      };
+    } catch (error) {
+      this.handleSignatureError(error);
+    }
+  }
+
+  // ----------------------------------------
+  // HELPERS PARA TOKEN INFO
+  // ----------------------------------------
+
+  /**
+   * Valida los campos requeridos de tokenInfo según el deliveryMethod
+   */
+  private validateTokenInfo(tokenInfo: any): void {
+    if (!tokenInfo.shippingTypeUuid) {
+      throw new BadRequestException('tokenInfo.shippingTypeUuid es requerido');
+    }
+    if (!tokenInfo.deliveryMethod) {
+      throw new BadRequestException('tokenInfo.deliveryMethod es requerido');
+    }
+    if (!tokenInfo.contactName) {
+      throw new BadRequestException('tokenInfo.contactName es requerido');
+    }
+    if (!tokenInfo.contactPhone) {
+      throw new BadRequestException('tokenInfo.contactPhone es requerido');
+    }
+
+    if (tokenInfo.deliveryMethod === 'PICKUP') {
+      if (!tokenInfo.office) {
+        throw new BadRequestException(
+          'tokenInfo.office es requerido para retiro en oficina (PICKUP)',
+        );
+      }
+    } else if (tokenInfo.deliveryMethod === 'DELIVERY') {
+      const required = [
+        'province',
+        'city',
+        'mainStreet',
+        'houseNumber',
+        'recipientIdentification',
+        'recipientName',
+      ] as const;
+      for (const field of required) {
+        if (!tokenInfo[field]) {
+          throw new BadRequestException(
+            `tokenInfo.${field} es requerido para envío a domicilio (DELIVERY)`,
+          );
+        }
+      }
+    } else {
+      throw new BadRequestException(
+        `tokenInfo.deliveryMethod inválido: ${tokenInfo.deliveryMethod}. Use PICKUP o DELIVERY`,
+      );
+    }
+  }
+
+  /**
+   * Construye el objeto tokenInfo que se envía al proveedor Uanataca.
+   * Incluye solo los campos relevantes según el deliveryMethod.
+   */
+  private buildTokenInfoPayload(tokenInfo: any): Record<string, any> {
+    const base: Record<string, any> = {
+      shippingTypeUuid: tokenInfo.shippingTypeUuid,
+      deliveryMethod: tokenInfo.deliveryMethod,
+      contactName: tokenInfo.contactName.toUpperCase(),
+      contactPhone: tokenInfo.contactPhone,
+    };
+
+    if (tokenInfo.deliveryMethod === 'PICKUP') {
+      base.office = tokenInfo.office.toUpperCase();
+    } else {
+      // DELIVERY — aplica tanto para Ecuador continental como Galápagos
+      base.province = tokenInfo.province.toUpperCase();
+      base.city = tokenInfo.city.toUpperCase();
+      base.mainStreet = tokenInfo.mainStreet.toUpperCase();
+      base.houseNumber = tokenInfo.houseNumber.toUpperCase();
+      if (tokenInfo.secondaryStreet) {
+        base.secondaryStreet = tokenInfo.secondaryStreet.toUpperCase();
+      }
+      if (tokenInfo.reference) {
+        base.reference = tokenInfo.reference.toUpperCase();
+      }
+      base.recipientIdentification = tokenInfo.recipientIdentification;
+      base.recipientName = tokenInfo.recipientName.toUpperCase();
+    }
+
+    return base;
   }
 
   /**
@@ -1947,152 +2440,155 @@ export class SignaturesService {
       }
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const distributor = await tx.distributor.findUnique({
-        where: { id: signatureRequest.distributorId! },
-        select: { balance: true },
-      });
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const distributor = await tx.distributor.findUnique({
+          where: { id: signatureRequest.distributorId! },
+          select: { balance: true },
+        });
 
-      let newBalance = distributor?.balance || 0;
+        let newBalance = distributor?.balance || 0;
 
-      await tx.signatureRequest.update({
-        where: { id: signatureId },
-        data: {
-          status: SignatureStatus.ANNULLED,
-          annulledBy: adminName,
-          annulledNote: note || 'Anulada por administrador',
-        },
-      });
+        await tx.signatureRequest.update({
+          where: { id: signatureId },
+          data: {
+            status: SignatureStatus.ANNULLED,
+            annulledBy: adminName,
+            annulledNote: note || 'Anulada por administrador',
+          },
+        });
 
-      let actualRefundedToBalance = 0;
-      let discountedFromCredit = 0;
-      let movementId: string | null = null;
-      let paymentTransferredTo: string | null = null;
+        let actualRefundedToBalance = 0;
+        let discountedFromCredit = 0;
+        let movementId: string | null = null;
+        let paymentTransferredTo: string | null = null;
 
-      if (generateRefund && refundAmount > 0) {
-        if (isPaidViaCredit && targetCutoff) {
-          let signatures: string[] = [];
-          try {
-            signatures = JSON.parse(targetCutoff.signaturesDetails || '[]');
-          } catch (e) {
-            signatures = [];
-          }
+        if (generateRefund && refundAmount > 0) {
+          if (isPaidViaCredit && targetCutoff) {
+            let signatures: string[] = [];
+            try {
+              signatures = JSON.parse(targetCutoff.signaturesDetails || '[]');
+            } catch (e) {
+              signatures = [];
+            }
 
-          const signatureWasInCutoff = signatures.includes(signatureId);
+            const signatureWasInCutoff = signatures.includes(signatureId);
 
-          if (!signatureWasInCutoff) {
-            this.logger.warn(
-              `Firma ${signatureId} no encontrada en corte ${targetCutoff.id}`,
-            );
-          }
-
-          // Remover la firma anulada del listado
-          signatures = signatures.filter((id) => id !== signatureId);
-
-          let newAmountUsed = Math.max(
-            0,
-            targetCutoff.amountUsed - refundAmount,
-          );
-          let newAmountPaid = targetCutoff.amountPaid;
-          let shouldTransferPayment = false;
-
-          if (wasAlreadyPaidInCutoff) {
-            this.logger.log(
-              `Firma anulada ya había sido cobrada ($${(refundAmount / 100).toFixed(2)})`,
-            );
-
-            const otherValidSignaturesInCutoff =
-              await tx.signatureRequest.findMany({
-                where: {
-                  id: { in: signatures },
-                  status: {
-                    in: [SignatureStatus.COMPLETED],
-                  },
-                  paymentMethod: PaymentMethod.CREDIT,
-                },
-                select: {
-                  id: true,
-                  nombres: true,
-                  apellidos: true,
-                  razon_social: true,
-                  priceCharged: true,
-                },
-                orderBy: {
-                  createdAt: 'asc',
-                },
-              });
-
-            if (otherValidSignaturesInCutoff.length > 0) {
-              const targetSignature = otherValidSignaturesInCutoff[0];
-
-              shouldTransferPayment = true;
-              paymentTransferredTo = targetSignature.id;
-
-              this.logger.log(
-                `PAGO TRANSFERIDO: La firma válida ahora está considerada como pagada`,
-              );
-            } else {
-              newAmountPaid = Math.max(
-                0,
-                targetCutoff.amountPaid - refundAmount,
+            if (!signatureWasInCutoff) {
+              this.logger.warn(
+                `Firma ${signatureId} no encontrada en corte ${targetCutoff.id}`,
               );
             }
+
+            // Remover la firma anulada del listado
+            signatures = signatures.filter((id) => id !== signatureId);
+
+            let newAmountUsed = Math.max(
+              0,
+              targetCutoff.amountUsed - refundAmount,
+            );
+            let newAmountPaid = targetCutoff.amountPaid;
+            let shouldTransferPayment = false;
+
+            if (wasAlreadyPaidInCutoff) {
+              this.logger.log(
+                `Firma anulada ya había sido cobrada ($${(refundAmount / 100).toFixed(2)})`,
+              );
+
+              const otherValidSignaturesInCutoff =
+                await tx.signatureRequest.findMany({
+                  where: {
+                    id: { in: signatures },
+                    status: {
+                      in: [SignatureStatus.COMPLETED],
+                    },
+                    paymentMethod: PaymentMethod.CREDIT,
+                  },
+                  select: {
+                    id: true,
+                    nombres: true,
+                    apellidos: true,
+                    razon_social: true,
+                    priceCharged: true,
+                  },
+                  orderBy: {
+                    createdAt: 'asc',
+                  },
+                });
+
+              if (otherValidSignaturesInCutoff.length > 0) {
+                const targetSignature = otherValidSignaturesInCutoff[0];
+
+                shouldTransferPayment = true;
+                paymentTransferredTo = targetSignature.id;
+
+                this.logger.log(
+                  `PAGO TRANSFERIDO: La firma válida ahora está considerada como pagada`,
+                );
+              } else {
+                newAmountPaid = Math.max(
+                  0,
+                  targetCutoff.amountPaid - refundAmount,
+                );
+              }
+            } else {
+              newAmountPaid = Math.min(targetCutoff.amountPaid, newAmountUsed);
+            }
+
+            const isNowPaid = newAmountUsed <= newAmountPaid;
+
+            await tx.creditCutoff.update({
+              where: { id: targetCutoff.id },
+              data: {
+                amountUsed: newAmountUsed,
+                amountPaid: newAmountPaid,
+                signaturesCount: Math.max(0, targetCutoff.signaturesCount - 1),
+                signaturesDetails: JSON.stringify(signatures),
+                isPaid: isNowPaid,
+                isOverdue: isNowPaid ? false : targetCutoff.isOverdue,
+              },
+            });
+            discountedFromCredit = refundAmount;
           } else {
-            newAmountPaid = Math.min(targetCutoff.amountPaid, newAmountUsed);
+            // Reembolso directo al balance
+            newBalance += refundAmount;
+            actualRefundedToBalance = refundAmount;
+
+            await tx.distributor.update({
+              where: { id: signatureRequest.distributorId! },
+              data: { balance: newBalance },
+            });
+
+            const movement = await tx.accountMovement.create({
+              data: {
+                distributorId: signatureRequest.distributorId!,
+                type: MovementType.INCOME,
+                detail: `Reembolso por anulación de firma - ${signatureRequest.apellidos || signatureRequest.razon_social}`,
+                amount: refundAmount,
+                balanceAfter: newBalance,
+                signatureId: signatureRequest.id,
+                adminName: adminName,
+                note: note || `Anulación de firma`,
+              },
+            });
+            movementId = movement.id;
           }
-
-          const isNowPaid = newAmountUsed <= newAmountPaid;
-
-          await tx.creditCutoff.update({
-            where: { id: targetCutoff.id },
-            data: {
-              amountUsed: newAmountUsed,
-              amountPaid: newAmountPaid,
-              signaturesCount: Math.max(0, targetCutoff.signaturesCount - 1),
-              signaturesDetails: JSON.stringify(signatures),
-              isPaid: isNowPaid,
-              isOverdue: isNowPaid ? false : targetCutoff.isOverdue,
-            },
-          });
-          discountedFromCredit = refundAmount;
-        } else {
-          // Reembolso directo al balance
-          newBalance += refundAmount;
-          actualRefundedToBalance = refundAmount;
-
-          await tx.distributor.update({
-            where: { id: signatureRequest.distributorId! },
-            data: { balance: newBalance },
-          });
-
-          const movement = await tx.accountMovement.create({
-            data: {
-              distributorId: signatureRequest.distributorId!,
-              type: MovementType.INCOME,
-              detail: `Reembolso por anulación de firma - ${signatureRequest.apellidos || signatureRequest.razon_social}`,
-              amount: refundAmount,
-              balanceAfter: newBalance,
-              signatureId: signatureRequest.id,
-              adminName: adminName,
-              note: note || `Anulación de firma`,
-            },
-          });
-          movementId = movement.id;
         }
-      }
 
-      return {
-        signatureId,
-        distributorId: signatureRequest.distributorId,
-        refundedAmount: actualRefundedToBalance,
-        discountedFromCredit,
-        newDistributorBalance: newBalance,
-        movementId,
-        targetCutoffId: targetCutoff?.id,
-        wasAlreadyPaidInCutoff,
-        paymentTransferredTo,
-      };
-    });
+        return {
+          signatureId,
+          distributorId: signatureRequest.distributorId,
+          refundedAmount: actualRefundedToBalance,
+          discountedFromCredit,
+          newDistributorBalance: newBalance,
+          movementId,
+          targetCutoffId: targetCutoff?.id,
+          wasAlreadyPaidInCutoff,
+          paymentTransferredTo,
+        };
+      },
+      { timeout: 300_000 },
+    );
 
     if (isPaidViaCredit && targetCutoff) {
       try {
@@ -2413,8 +2909,8 @@ export class SignaturesService {
       );
     }
 
-    const priceToCharge = this.getActivePromoPrice(planPrice)
-      ?? planPrice.customPrice;
+    const priceToCharge =
+      this.getActivePromoPrice(planPrice) ?? planPrice.customPrice;
 
     return { planPrice, perfil_firma, priceToCharge };
   }
@@ -2456,6 +2952,19 @@ export class SignaturesService {
     dto: any,
     video_face?: Express.Multer.File,
   ) {
+    if (this.config.environment === 'development') {
+      this.logger.log('SIMULACION: Subida de archivos omitida en desarrollo');
+      return {
+        foto_frontal_key: 'dev-foto-frontal.jpg',
+        foto_posterior_key: 'dev-foto-posterior.jpg',
+        pdf_sri_key: dto.pdf_sri_base64 ? 'dev-pdf-sri.pdf' : undefined,
+        nombramiento_key: dto.nombramiento_base64
+          ? 'dev-nombramiento.pdf'
+          : undefined,
+        video_face_key: video_face ? 'dev-video-face.mp4' : undefined,
+      };
+    }
+
     const foto_frontal_key = await this.filesService.uploadFile(
       dto.foto_frontal,
       distributorId.toString(),
@@ -2530,6 +3039,7 @@ export class SignaturesService {
     perfil_firma: string;
     numero_tramite: string;
     dto: any;
+    tokenInfo?: any; // Datos de envío del token físico (solo firmas Uanataca token)
   }) {
     const {
       distributorId,
@@ -2541,53 +3051,83 @@ export class SignaturesService {
       perfil_firma,
       numero_tramite,
       dto,
+      tokenInfo,
     } = params;
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      let newBalance = distributorBalance;
-      let priceCharged = priceToCharge;
-      let usedCredit = false;
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        let newBalance = distributorBalance;
+        let priceCharged = priceToCharge;
+        let usedCredit = false;
 
-      if (isSuccess) {
-        if (hasActiveCredit) {
-          usedCredit = true;
-        } else {
-          newBalance = distributorBalance - priceToCharge;
-          usedCredit = false;
+        if (isSuccess) {
+          if (hasActiveCredit) {
+            usedCredit = true;
+          } else {
+            newBalance = distributorBalance - priceToCharge;
+            usedCredit = false;
 
-          await tx.distributor.update({
-            where: { id: distributorId },
-            data: { balance: newBalance },
-          });
+            await tx.distributor.update({
+              where: { id: distributorId },
+              data: { balance: newBalance },
+            });
+          }
         }
-      }
 
-      const signatureRequest = await tx.signatureRequest.create({
-        data: {
-          ...signatureData,
-          priceCharged,
-          paymentMethod: usedCredit
-            ? PaymentMethod.CREDIT
-            : PaymentMethod.BALANCE,
-        },
-      });
-
-      if (isSuccess && !usedCredit) {
-        await tx.accountMovement.create({
+        const signatureRequest = await tx.signatureRequest.create({
           data: {
-            distributorId,
-            type: MovementType.EXPENSE,
-            detail: `Firma digital - ${priceToCharge / 100} - ${dto.apellidos}`,
-            amount: priceCharged,
-            balanceAfter: newBalance,
-            signatureId: signatureRequest.id,
-            note: `Trámite: ${numero_tramite} - Cédula: ${dto.cedula}`,
+            ...signatureData,
+            priceCharged,
+            paymentMethod: usedCredit
+              ? PaymentMethod.CREDIT
+              : PaymentMethod.BALANCE,
           },
         });
-      }
 
-      return { signatureRequest, newBalance, priceCharged, usedCredit };
-    });
+        if (isSuccess && !usedCredit) {
+          await tx.accountMovement.create({
+            data: {
+              distributorId,
+              type: MovementType.EXPENSE,
+              detail: `Firma digital - ${priceToCharge / 100} - ${dto.apellidos}`,
+              amount: priceCharged,
+              balanceAfter: newBalance,
+              signatureId: signatureRequest.id,
+              note: `Trámite: ${numero_tramite} - Cédula: ${dto.cedula}`,
+            },
+          });
+        }
+
+        // Guardar TokenInfo dentro de la transacción (firmas Uanataca con token físico)
+        if (tokenInfo) {
+          await tx.tokenInfo.create({
+            data: {
+              signatureRequestId: signatureRequest.id,
+              shippingTypeUuid: tokenInfo.shippingTypeUuid,
+              deliveryMethod: tokenInfo.deliveryMethod,
+              office:
+                tokenInfo.deliveryMethod === 'PICKUP'
+                  ? (tokenInfo.office?.toUpperCase() ?? null)
+                  : null,
+              contactName: tokenInfo.contactName.toUpperCase(),
+              contactPhone: tokenInfo.contactPhone,
+              province: tokenInfo.province?.toUpperCase() ?? null,
+              city: tokenInfo.city?.toUpperCase() ?? null,
+              mainStreet: tokenInfo.mainStreet?.toUpperCase() ?? null,
+              houseNumber: tokenInfo.houseNumber?.toUpperCase() ?? null,
+              secondaryStreet: tokenInfo.secondaryStreet?.toUpperCase() ?? null,
+              reference: tokenInfo.reference?.toUpperCase() ?? null,
+              recipientIdentification:
+                tokenInfo.recipientIdentification ?? null,
+              recipientName: tokenInfo.recipientName?.toUpperCase() ?? null,
+            },
+          });
+        }
+
+        return { signatureRequest, newBalance, priceCharged, usedCredit };
+      },
+      { timeout: 300_000 },
+    );
 
     // Si usó crédito, registrar fuera de la transacción
     if (isSuccess && result.usedCredit) {
@@ -2699,6 +3239,11 @@ export class SignaturesService {
 
     if (this.config.environment === 'development') {
       this.logger.log('SIMULACION: Solicitud de certificado creada');
+      // Imprimir payload con base64 truncados
+      const payloadForLog = this.truncateBase64InObject(payload, 10);
+      this.logger.log(
+        `Enviando solicitud a Uanataca: ${JSON.stringify(payloadForLog, null, 2)}`,
+      );
       const simulatedUuid = `simulated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       return {
         success: true,
@@ -2706,12 +3251,6 @@ export class SignaturesService {
         providerUuid: simulatedUuid,
       };
     }
-
-    // Imprimir payload con base64 truncados
-    const payloadForLog = this.truncateBase64InObject(payload, 10);
-    this.logger.log(
-      `Enviando solicitud a Uanataca: ${JSON.stringify(payloadForLog, null, 2)}`,
-    );
 
     try {
       const response = await firstValueFrom(

@@ -7,10 +7,12 @@ import {
   Matches,
   Length,
   IsOptional,
-  IsBoolean,
   IsEnum,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Transform, plainToInstance } from 'class-transformer';
+import { TokenInfoDto } from './token-info.dto';
 
 export class CreateNaturalSignatureDto {
   @ApiProperty({
@@ -206,4 +208,23 @@ export class CreateNaturalSignatureDto {
   @IsOptional()
   @IsString()
   nacionalidad?: string;
+
+  // ===== Campos para firma con token físico (solo Uanataca token) =====
+
+  @ApiProperty({
+    description:
+      'Información de envío del token físico (requerido cuando usa_token=true). ' +
+      'shippingTypeUuid — Retiro oficina: 591b23e8-db22-485e-884f-0ec8ca1e5b52 | ' +
+      'Ecuador continental: 1ca5c108-cb25-4c52-85b5-0d4e8202b1be | ' +
+      'Galápagos: afb41ea2-c6d1-4130-916a-fa9a3417eab7',
+    required: false,
+    type: () => TokenInfoDto,
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return plainToInstance(TokenInfoDto, parsed);
+  })
+  @ValidateNested()
+  token_info?: TokenInfoDto;
 }
