@@ -1,28 +1,28 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
 
+export enum ShippingType {
+  /** Retiro en oficina de Uanataca (Quito) */
+  RETIRO_OFICINA = 'RETIRO_OFICINA',
+  /** Envío a Ecuador Continental */
+  ENVIO_ECUADOR_CONTINENTAL = 'ENVIO_ECUADOR_CONTINENTAL',
+  /** Envío a Galápagos */
+  ENVIO_GALAPAGOS = 'ENVIO_GALAPAGOS',
+}
+
 export class TokenInfoDto {
   @ApiProperty({
     description:
-      'UUID del tipo de envío. ' +
-      'Retiro en oficina (Quito, Guayaquil, Manta): 591b23e8-db22-485e-884f-0ec8ca1e5b52 | ' +
-      'Envío Ecuador continental: 1ca5c108-cb25-4c52-85b5-0d4e8202b1be | ' +
-      'Envío Galápagos: afb41ea2-c6d1-4130-916a-fa9a3417eab7',
-    example: '591b23e8-db22-485e-884f-0ec8ca1e5b52',
+      'Tipo de envío del token físico. ' +
+      'RETIRO_OFICINA = Retiro en oficina de Uanataca (Quito) | ' +
+      'ENVIO_ECUADOR_CONTINENTAL = Envío a Ecuador Continental | ' +
+      'ENVIO_GALAPAGOS = Envío a Galápagos',
+    enum: ShippingType,
+    example: ShippingType.RETIRO_OFICINA,
   })
-  @IsString()
+  @IsEnum(ShippingType)
   @IsNotEmpty()
-  shippingTypeUuid: string;
-
-  @ApiProperty({
-    description:
-      'Método de entrega. PICKUP = retiro en oficina, DELIVERY = envío a domicilio',
-    enum: ['PICKUP', 'DELIVERY'],
-    example: 'PICKUP',
-  })
-  @IsEnum(['PICKUP', 'DELIVERY'])
-  @IsNotEmpty()
-  deliveryMethod: 'PICKUP' | 'DELIVERY';
+  shippingType: ShippingType;
 
   @ApiProperty({
     description: 'Nombre de contacto del destinatario',
@@ -40,23 +40,11 @@ export class TokenInfoDto {
   @IsNotEmpty()
   contactPhone: string;
 
-  // ===== Solo para PICKUP =====
+  // ===== Solo para ENVIO_ECUADOR_CONTINENTAL y ENVIO_GALAPAGOS =====
 
   @ApiProperty({
     description:
-      'Nombre de la oficina para retiro (requerido cuando deliveryMethod = PICKUP). ' +
-      'Valores posibles: QUITO, GUAYAQUIL, MANTA',
-    example: 'QUITO',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  office?: string;
-
-  // ===== Solo para DELIVERY =====
-
-  @ApiProperty({
-    description: 'Provincia de envío (requerido cuando deliveryMethod = DELIVERY)',
+      'Provincia de envío (requerido cuando shippingType = ENVIO_ECUADOR_CONTINENTAL o ENVIO_GALAPAGOS)',
     example: 'PICHINCHA',
     required: false,
   })
@@ -65,7 +53,8 @@ export class TokenInfoDto {
   province?: string;
 
   @ApiProperty({
-    description: 'Ciudad de envío (requerido cuando deliveryMethod = DELIVERY)',
+    description:
+      'Ciudad de envío (requerido cuando shippingType = ENVIO_ECUADOR_CONTINENTAL o ENVIO_GALAPAGOS)',
     example: 'QUITO',
     required: false,
   })
@@ -74,7 +63,8 @@ export class TokenInfoDto {
   city?: string;
 
   @ApiProperty({
-    description: 'Calle principal (requerido cuando deliveryMethod = DELIVERY)',
+    description:
+      'Calle principal (requerido cuando shippingType = ENVIO_ECUADOR_CONTINENTAL o ENVIO_GALAPAGOS)',
     example: 'AV. AMAZONAS',
     required: false,
   })
@@ -83,7 +73,8 @@ export class TokenInfoDto {
   mainStreet?: string;
 
   @ApiProperty({
-    description: 'Número de casa/edificio (requerido cuando deliveryMethod = DELIVERY)',
+    description:
+      'Número de casa/edificio (requerido cuando shippingType = ENVIO_ECUADOR_CONTINENTAL o ENVIO_GALAPAGOS)',
     example: 'N34-56',
     required: false,
   })
@@ -92,7 +83,8 @@ export class TokenInfoDto {
   houseNumber?: string;
 
   @ApiProperty({
-    description: 'Calle secundaria / intersección (opcional para DELIVERY)',
+    description:
+      'Calle secundaria / intersección (opcional para envíos a domicilio)',
     example: 'Y COLÓN',
     required: false,
   })
@@ -101,7 +93,7 @@ export class TokenInfoDto {
   secondaryStreet?: string;
 
   @ApiProperty({
-    description: 'Referencia de ubicación (opcional para DELIVERY)',
+    description: 'Referencia de ubicación (opcional para envíos a domicilio)',
     example: 'EDIFICIO AZUL, PISO 3',
     required: false,
   })
@@ -111,7 +103,7 @@ export class TokenInfoDto {
 
   @ApiProperty({
     description:
-      'Número de identificación del receptor (requerido cuando deliveryMethod = DELIVERY)',
+      'Número de identificación del receptor (requerido cuando shippingType = ENVIO_ECUADOR_CONTINENTAL o ENVIO_GALAPAGOS)',
     example: '1104689321',
     required: false,
   })
@@ -120,7 +112,8 @@ export class TokenInfoDto {
   recipientIdentification?: string;
 
   @ApiProperty({
-    description: 'Nombre completo del receptor (requerido cuando deliveryMethod = DELIVERY)',
+    description:
+      'Nombre completo del receptor (requerido cuando shippingType = ENVIO_ECUADOR_CONTINENTAL o ENVIO_GALAPAGOS)',
     example: 'MARIO ANDRÉS LOZANO SALAZAR',
     required: false,
   })
