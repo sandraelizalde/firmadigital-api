@@ -968,16 +968,21 @@ export class SignaturesService {
       }
 
       // 2. Obtener plan, perfil (productUuid) y precio
-      const { planPrice, perfil_firma, priceToCharge: planPrice_ } =
-        await this.getSignaturePlanPrice(
-          distributorId,
-          dto.plan_id,
-          'perfilNaturalTokenUanataca',
-          'PN con token',
-        );
+      const {
+        planPrice,
+        perfil_firma,
+        priceToCharge: planPrice_,
+      } = await this.getSignaturePlanPrice(
+        distributorId,
+        dto.plan_id,
+        'perfilNaturalTokenUanataca',
+        'PN con token',
+      );
 
       // 2b. Calcular tarifa adicional de envío del token físico
-      const deliveryFee = this.calculateTokenDeliveryFee(tokenInfo.shippingType);
+      const deliveryFee = this.calculateTokenDeliveryFee(
+        tokenInfo.shippingType,
+      );
       const priceToCharge = planPrice_ + deliveryFee;
 
       // 3. Validar capacidad de pago (precio plan + envío)
@@ -1006,6 +1011,7 @@ export class SignaturesService {
         nationality: dto.nacionalidad.toUpperCase(),
         sex: dto.sexo.toUpperCase(),
         phoneNumber: dto.celular,
+        fingerprintCode: dto.codigo_dactilar,
         email: dto.correo,
         province: dto.provincia.toUpperCase(),
         city: dto.ciudad.toUpperCase(),
@@ -1171,16 +1177,21 @@ export class SignaturesService {
       }
 
       // 2. Obtener plan, perfil y precio
-      const { planPrice, perfil_firma, priceToCharge: planPrice_ } =
-        await this.getSignaturePlanPrice(
-          distributorId,
-          dto.plan_id,
-          'perfilJuridicoTokenUanataca',
-          'PJ con token',
-        );
+      const {
+        planPrice,
+        perfil_firma,
+        priceToCharge: planPrice_,
+      } = await this.getSignaturePlanPrice(
+        distributorId,
+        dto.plan_id,
+        'perfilJuridicoTokenUanataca',
+        'PJ con token',
+      );
 
       // 2b. Calcular tarifa adicional de envío del token físico
-      const deliveryFee = this.calculateTokenDeliveryFee(tokenInfo.shippingType);
+      const deliveryFee = this.calculateTokenDeliveryFee(
+        tokenInfo.shippingType,
+      );
       const priceToCharge = planPrice_ + deliveryFee;
 
       // 3. Validar capacidad de pago (precio plan + envío)
@@ -1210,6 +1221,7 @@ export class SignaturesService {
         sex: dto.sexo?.toUpperCase() || 'HOMBRE',
         phoneNumber: dto.celular,
         email: dto.correo,
+        fingerprintCode: dto.codigo_dactilar,
         province: dto.provincia.toUpperCase(),
         city: dto.ciudad.toUpperCase(),
         address: dto.direccion.toUpperCase(),
@@ -1423,11 +1435,16 @@ export class SignaturesService {
 
       case 'ENVIO_ECUADOR_CONTINENTAL':
         // Token ($7) + envío con IVA ($4.00 * 1.15 = $4.60) = $11.60
-        return tokenCents + Math.round(fees.envioEcuadorContinentalCents * (1 + ivaRate));
+        return (
+          tokenCents +
+          Math.round(fees.envioEcuadorContinentalCents * (1 + ivaRate))
+        );
 
       case 'ENVIO_GALAPAGOS':
         // Token ($7) + envío con IVA
-        return tokenCents + Math.round(fees.envioGalapagosCents * (1 + ivaRate));
+        return (
+          tokenCents + Math.round(fees.envioGalapagosCents * (1 + ivaRate))
+        );
 
       default:
         throw new BadRequestException(
@@ -2043,16 +2060,16 @@ export class SignaturesService {
       if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
         pdf_sri_url = signatureRequest.pdf_sri
           ? await this.filesService.getFileUrl(
-            signatureRequest.pdf_sri,
-            'pdf-sri',
-          )
+              signatureRequest.pdf_sri,
+              'pdf-sri',
+            )
           : null;
 
         nombramiento_url = signatureRequest.nombramiento
           ? await this.filesService.getFileUrl(
-            signatureRequest.nombramiento,
-            'pdf-nombramiento',
-          )
+              signatureRequest.nombramiento,
+              'pdf-nombramiento',
+            )
           : null;
       }
 
@@ -2252,14 +2269,14 @@ export class SignaturesService {
           updatedAt: request.updatedAt,
           distributor: request.distributor
             ? {
-              id: request.distributor.id,
-              firstName: request.distributor.firstName,
-              lastName: request.distributor.lastName,
-              socialReason: request.distributor.socialReason,
-              identification: request.distributor.identification,
-              email: request.distributor.email,
-              phone: request.distributor.phone,
-            }
+                id: request.distributor.id,
+                firstName: request.distributor.firstName,
+                lastName: request.distributor.lastName,
+                socialReason: request.distributor.socialReason,
+                identification: request.distributor.identification,
+                email: request.distributor.email,
+                phone: request.distributor.phone,
+              }
             : null,
         };
       },
@@ -2695,7 +2712,7 @@ export class SignaturesService {
         const clientName = signatureRequest.perfil_firma.startsWith('PJ-')
           ? `${signatureRequest.razon_social}`
           : `${signatureRequest.nombres} ${signatureRequest.apellidos}` ||
-          'Cliente';
+            'Cliente';
         const reason = note || 'Anulada por administrador';
 
         await this.whatsappService.sendTemplate(
@@ -3169,8 +3186,7 @@ export class SignaturesService {
               signatureRequestId: signatureRequest.id,
               shippingTypeUuid,
               deliveryMethod,
-              office:
-                deliveryMethod === 'PICKUP' ? 'QUITO' : null,
+              office: deliveryMethod === 'PICKUP' ? 'QUITO' : null,
               contactName: tokenInfo.contactName.toUpperCase(),
               contactPhone: tokenInfo.contactPhone,
               province: tokenInfo.province?.toUpperCase() ?? null,
@@ -3299,13 +3315,15 @@ export class SignaturesService {
   ): Promise<{ success: boolean; message: string; providerUuid?: string }> {
     const baseUrl = this.config.uanataca.baseUrl;
 
+    const payloadForLog = this.truncateBase64InObject(payload, 10);
+    this.logger.log(
+      `Enviando solicitud a Uanataca: ${JSON.stringify(payloadForLog, null, 2)}`,
+    );
+
     if (this.config.environment === 'development') {
       this.logger.log('SIMULACION: Solicitud de certificado creada');
       // Imprimir payload con base64 truncados
-      const payloadForLog = this.truncateBase64InObject(payload, 10);
-      this.logger.log(
-        `Enviando solicitud a Uanataca: ${JSON.stringify(payloadForLog, null, 2)}`,
-      );
+
       const simulatedUuid = `simulated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       return {
         success: true,
