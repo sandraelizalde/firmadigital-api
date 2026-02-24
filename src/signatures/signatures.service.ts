@@ -968,7 +968,7 @@ export class SignaturesService {
       }
 
       // 2. Obtener plan, perfil (productUuid) y precio
-      const { planPrice, perfil_firma, priceToCharge } =
+      const { planPrice, perfil_firma, priceToCharge: planPrice_ } =
         await this.getSignaturePlanPrice(
           distributorId,
           dto.plan_id,
@@ -976,7 +976,11 @@ export class SignaturesService {
           'PN con token',
         );
 
-      // 3. Validar capacidad de pago
+      // 2b. Calcular tarifa adicional de envío del token físico
+      const deliveryFee = this.calculateTokenDeliveryFee(tokenInfo.shippingType);
+      const priceToCharge = planPrice_ + deliveryFee;
+
+      // 3. Validar capacidad de pago (precio plan + envío)
       const { hasActiveCredit } = await this.validatePaymentCapability(
         distributorId,
         distributor.balance,
@@ -1167,7 +1171,7 @@ export class SignaturesService {
       }
 
       // 2. Obtener plan, perfil y precio
-      const { planPrice, perfil_firma, priceToCharge } =
+      const { planPrice, perfil_firma, priceToCharge: planPrice_ } =
         await this.getSignaturePlanPrice(
           distributorId,
           dto.plan_id,
@@ -1175,7 +1179,11 @@ export class SignaturesService {
           'PJ con token',
         );
 
-      // 3. Validar capacidad de pago
+      // 2b. Calcular tarifa adicional de envío del token físico
+      const deliveryFee = this.calculateTokenDeliveryFee(tokenInfo.shippingType);
+      const priceToCharge = planPrice_ + deliveryFee;
+
+      // 3. Validar capacidad de pago (precio plan + envío)
       const { hasActiveCredit } = await this.validatePaymentCapability(
         distributorId,
         distributor.balance,
@@ -1361,14 +1369,81 @@ export class SignaturesService {
   // ----------------------------------------
 
   /**
+   * Resuelve el shippingTypeUuid y deliveryMethod a partir del ShippingType enum.
+   * Centraliza los UUIDs del proveedor Uanataca para que no se expongan al frontend.
+   */
+  private resolveShippingConfig(shippingType: string): {
+    shippingTypeUuid: string;
+    deliveryMethod: 'PICKUP' | 'DELIVERY';
+  } {
+    const uuids = this.config.uanatacaToken.shippingUuids;
+    const configs: Record<
+      string,
+      { shippingTypeUuid: string; deliveryMethod: 'PICKUP' | 'DELIVERY' }
+    > = {
+      RETIRO_OFICINA: {
+        shippingTypeUuid: uuids.retiroOficina,
+        deliveryMethod: 'PICKUP',
+      },
+      ENVIO_ECUADOR_CONTINENTAL: {
+        shippingTypeUuid: uuids.envioEcuadorContinental,
+        deliveryMethod: 'DELIVERY',
+      },
+      ENVIO_GALAPAGOS: {
+        shippingTypeUuid: uuids.envioGalapagos,
+        deliveryMethod: 'DELIVERY',
+      },
+    };
+
+    const config = configs[shippingType];
+    if (!config) {
+      throw new BadRequestException(
+        `Tipo de envío inválido: ${shippingType}. Valores permitidos: RETIRO_OFICINA, ENVIO_ECUADOR_CONTINENTAL, ENVIO_GALAPAGOS`,
+      );
+    }
+    return config;
+  }
+
+  /**
+   * Calcula el costo adicional de envío del token físico en centavos.
+   * - RETIRO_OFICINA:             tarifa fija (sin IVA)
+   * - ENVIO_ECUADOR_CONTINENTAL:  tarifa base + IVA
+   * - ENVIO_GALAPAGOS:            tarifa base + IVA
+   */
+  private calculateTokenDeliveryFee(shippingType: string): number {
+    const fees = this.config.uanatacaToken.deliveryFees;
+    const ivaRate = fees.ivaRate;
+    // El token siempre cuesta $7 (700 centavos)
+    const tokenCents = fees.retiroOficinaCents;
+
+    switch (shippingType) {
+      case 'RETIRO_OFICINA':
+        // Solo el token ($7), sin costo adicional de envío
+        return tokenCents;
+
+      case 'ENVIO_ECUADOR_CONTINENTAL':
+        // Token ($7) + envío con IVA ($4.00 * 1.15 = $4.60) = $11.60
+        return tokenCents + Math.round(fees.envioEcuadorContinentalCents * (1 + ivaRate));
+
+      case 'ENVIO_GALAPAGOS':
+        // Token ($7) + envío con IVA
+        return tokenCents + Math.round(fees.envioGalapagosCents * (1 + ivaRate));
+
+      default:
+        throw new BadRequestException(
+          `Tipo de envío inválido para calcular tarifa: ${shippingType}`,
+        );
+    }
+  }
+
+  /**
    * Valida los campos requeridos de tokenInfo según el deliveryMethod
    */
   private validateTokenInfo(tokenInfo: any): void {
-    if (!tokenInfo.shippingTypeUuid) {
-      throw new BadRequestException('tokenInfo.shippingTypeUuid es requerido');
-    }
-    if (!tokenInfo.deliveryMethod) {
-      throw new BadRequestException('tokenInfo.deliveryMethod es requerido');
+    if (!tokenInfo.shippingType) {
+      throw new BadRequestException(
+        'El campo shippingType es requerido en token_info. Valores: RETIRO_OFICINA, ENVIO_ECUADOR_CONTINENTAL, ENVIO_GALAPAGOS',
+      );
     }
     if (!tokenInfo.contactName) {
       throw new BadRequestException('tokenInfo.contactName es requerido');
@@ -1377,13 +1452,11 @@ export class SignaturesService {
       throw new BadRequestException('tokenInfo.contactPhone es requerido');
     }
 
-    if (tokenInfo.deliveryMethod === 'PICKUP') {
-      if (!tokenInfo.office) {
-        throw new BadRequestException(
-          'tokenInfo.office es requerido para retiro en oficina (PICKUP)',
-        );
-      }
-    } else if (tokenInfo.deliveryMethod === 'DELIVERY') {
+    const { deliveryMethod } = this.resolveShippingConfig(
+      tokenInfo.shippingType,
+    );
+
+    if (deliveryMethod === 'DELIVERY') {
       const required = [
         'province',
         'city',
@@ -1395,14 +1468,10 @@ export class SignaturesService {
       for (const field of required) {
         if (!tokenInfo[field]) {
           throw new BadRequestException(
-            `tokenInfo.${field} es requerido para envío a domicilio (DELIVERY)`,
+            `tokenInfo.${field} es requerido para envío a domicilio`,
           );
         }
       }
-    } else {
-      throw new BadRequestException(
-        `tokenInfo.deliveryMethod inválido: ${tokenInfo.deliveryMethod}. Use PICKUP o DELIVERY`,
-      );
     }
   }
 
@@ -1411,15 +1480,19 @@ export class SignaturesService {
    * Incluye solo los campos relevantes según el deliveryMethod.
    */
   private buildTokenInfoPayload(tokenInfo: any): Record<string, any> {
+    const { shippingTypeUuid, deliveryMethod } = this.resolveShippingConfig(
+      tokenInfo.shippingType,
+    );
+
     const base: Record<string, any> = {
-      shippingTypeUuid: tokenInfo.shippingTypeUuid,
-      deliveryMethod: tokenInfo.deliveryMethod,
+      shippingTypeUuid,
+      deliveryMethod,
       contactName: tokenInfo.contactName.toUpperCase(),
       contactPhone: tokenInfo.contactPhone,
     };
 
-    if (tokenInfo.deliveryMethod === 'PICKUP') {
-      base.office = tokenInfo.office.toUpperCase();
+    if (deliveryMethod === 'PICKUP') {
+      base.office = 'QUITO';
     } else {
       // DELIVERY — aplica tanto para Ecuador continental como Galápagos
       base.province = tokenInfo.province.toUpperCase();
@@ -1970,16 +2043,16 @@ export class SignaturesService {
       if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
         pdf_sri_url = signatureRequest.pdf_sri
           ? await this.filesService.getFileUrl(
-              signatureRequest.pdf_sri,
-              'pdf-sri',
-            )
+            signatureRequest.pdf_sri,
+            'pdf-sri',
+          )
           : null;
 
         nombramiento_url = signatureRequest.nombramiento
           ? await this.filesService.getFileUrl(
-              signatureRequest.nombramiento,
-              'pdf-nombramiento',
-            )
+            signatureRequest.nombramiento,
+            'pdf-nombramiento',
+          )
           : null;
       }
 
@@ -2179,14 +2252,14 @@ export class SignaturesService {
           updatedAt: request.updatedAt,
           distributor: request.distributor
             ? {
-                id: request.distributor.id,
-                firstName: request.distributor.firstName,
-                lastName: request.distributor.lastName,
-                socialReason: request.distributor.socialReason,
-                identification: request.distributor.identification,
-                email: request.distributor.email,
-                phone: request.distributor.phone,
-              }
+              id: request.distributor.id,
+              firstName: request.distributor.firstName,
+              lastName: request.distributor.lastName,
+              socialReason: request.distributor.socialReason,
+              identification: request.distributor.identification,
+              email: request.distributor.email,
+              phone: request.distributor.phone,
+            }
             : null,
         };
       },
@@ -2488,49 +2561,38 @@ export class SignaturesService {
               targetCutoff.amountUsed - refundAmount,
             );
             let newAmountPaid = targetCutoff.amountPaid;
-            let shouldTransferPayment = false;
 
             if (wasAlreadyPaidInCutoff) {
               this.logger.log(
-                `Firma anulada ya había sido cobrada ($${(refundAmount / 100).toFixed(2)})`,
+                `Firma anulada ya había sido cobrada ($${(refundAmount / 100).toFixed(2)}). Se reembolsa al balance.`,
               );
 
-              const otherValidSignaturesInCutoff =
-                await tx.signatureRequest.findMany({
-                  where: {
-                    id: { in: signatures },
-                    status: {
-                      in: [SignatureStatus.COMPLETED],
-                    },
-                    paymentMethod: PaymentMethod.CREDIT,
-                  },
-                  select: {
-                    id: true,
-                    nombres: true,
-                    apellidos: true,
-                    razon_social: true,
-                    priceCharged: true,
-                  },
-                  orderBy: {
-                    createdAt: 'asc',
-                  },
-                });
+              newAmountPaid = Math.max(
+                0,
+                targetCutoff.amountPaid - refundAmount,
+              );
 
-              if (otherValidSignaturesInCutoff.length > 0) {
-                const targetSignature = otherValidSignaturesInCutoff[0];
+              newBalance += refundAmount;
+              actualRefundedToBalance = refundAmount;
 
-                shouldTransferPayment = true;
-                paymentTransferredTo = targetSignature.id;
+              await tx.distributor.update({
+                where: { id: signatureRequest.distributorId! },
+                data: { balance: newBalance },
+              });
 
-                this.logger.log(
-                  `PAGO TRANSFERIDO: La firma válida ahora está considerada como pagada`,
-                );
-              } else {
-                newAmountPaid = Math.max(
-                  0,
-                  targetCutoff.amountPaid - refundAmount,
-                );
-              }
+              const movement = await tx.accountMovement.create({
+                data: {
+                  distributorId: signatureRequest.distributorId!,
+                  type: MovementType.INCOME,
+                  detail: `Reembolso por anulación de firma - Corte del ${new Date(targetCutoff.cutoffDate).toLocaleDateString('es-EC', { timeZone: 'America/Guayaquil', day: '2-digit', month: '2-digit', year: 'numeric' })})`,
+                  amount: refundAmount,
+                  balanceAfter: newBalance,
+                  signatureId: signatureRequest.id,
+                  adminName: adminName,
+                  note: note || `Anulación de firma`,
+                },
+              });
+              movementId = movement.id;
             } else {
               newAmountPaid = Math.min(targetCutoff.amountPaid, newAmountUsed);
             }
@@ -2633,7 +2695,7 @@ export class SignaturesService {
         const clientName = signatureRequest.perfil_firma.startsWith('PJ-')
           ? `${signatureRequest.razon_social}`
           : `${signatureRequest.nombres} ${signatureRequest.apellidos}` ||
-            'Cliente';
+          'Cliente';
         const reason = note || 'Anulada por administrador';
 
         await this.whatsappService.sendTemplate(
@@ -3100,15 +3162,15 @@ export class SignaturesService {
 
         // Guardar TokenInfo dentro de la transacción (firmas Uanataca con token físico)
         if (tokenInfo) {
+          const { shippingTypeUuid, deliveryMethod } =
+            this.resolveShippingConfig(tokenInfo.shippingType);
           await tx.tokenInfo.create({
             data: {
               signatureRequestId: signatureRequest.id,
-              shippingTypeUuid: tokenInfo.shippingTypeUuid,
-              deliveryMethod: tokenInfo.deliveryMethod,
+              shippingTypeUuid,
+              deliveryMethod,
               office:
-                tokenInfo.deliveryMethod === 'PICKUP'
-                  ? (tokenInfo.office?.toUpperCase() ?? null)
-                  : null,
+                deliveryMethod === 'PICKUP' ? 'QUITO' : null,
               contactName: tokenInfo.contactName.toUpperCase(),
               contactPhone: tokenInfo.contactPhone,
               province: tokenInfo.province?.toUpperCase() ?? null,
