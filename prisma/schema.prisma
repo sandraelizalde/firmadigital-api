@@ -18,12 +18,6 @@ enum IdentificationType {
   RUC
 }
 
-enum TypeClient {
-  PERSONA_NATURAL_SIN_RUC
-  PERSONA_NATURAL_CON_RUC
-  PERSONA_JURIDICA
-}
-
 enum SignatureStatus {
   COMPLETED
   PENDING
@@ -70,6 +64,13 @@ enum SignatureProvider {
 enum DeliveryMethod {
   PICKUP
   DELIVERY
+}
+
+enum BiometryStatus {
+  PENDING // Pendiente
+  COMPLETED // Completado (biometría + contraseña)
+  REJECTED // Rechazado
+  COMPLETED_MISSING_PASSWORD // Completado biometría pero falta contraseña
 }
 
 // ---------------------------
@@ -217,7 +218,6 @@ model SignatureRequest {
   rep_legal          String?
   cargo              String?
   pais               String          @default("ECUADOR")
-  clavefirma         String
   ruc                String?
   tipo_envio         String
   status             SignatureStatus @default(PENDING)
@@ -234,6 +234,8 @@ model SignatureRequest {
   distributorId      String?
 
   provider SignatureProvider @default(ENEXT)
+
+  biometryStatus BiometryStatus? // Estado de biometría (solo firmas ENEXT en proceso)
 
   tokenInfo TokenInfo?
 

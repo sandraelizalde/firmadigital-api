@@ -191,7 +191,6 @@ model SignatureRequest {
   rep_legal          String?
   cargo              String?
   pais               String          @default("ECUADOR")
-  clavefirma         String
   ruc                String?
   tipo_envio         String
   status             SignatureStatus @default(PENDING)

@@ -12,7 +12,12 @@ import { AxiosError } from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
-import { SignatureStatus, MovementType, PaymentMethod } from '@prisma/client';
+import {
+  SignatureStatus,
+  MovementType,
+  PaymentMethod,
+  BiometryStatus,
+} from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { WhatsappService } from 'src/notifications/whatsapp.service';
 import { CreditsService } from 'src/credits/credits.service';
@@ -241,7 +246,6 @@ export class SignaturesService {
         direccion: dto.direccion.toUpperCase(),
         celular: dto.celular,
         ruc: dto.ruc || '',
-        clavefirma: dto.clave_firma,
         foto_frontal: dto.foto_frontal,
         foto_posterior: dto.foto_posterior,
         pais: 'ECUADOR',
@@ -254,13 +258,13 @@ export class SignaturesService {
         type,
       );
 
-      // 5. Determinar estado
+      // 5. Determinar estado — todas quedan en PENDING; el cron de biometría actualiza
       const isSuccess = providerResponse.codigo === 1;
       const isRejected = providerResponse.codigo === 0;
 
       let status: SignatureStatus;
       if (isSuccess) {
-        status = SignatureStatus.COMPLETED;
+        status = SignatureStatus.PENDING;
       } else if (isRejected) {
         status = SignatureStatus.REJECTED;
       } else {
@@ -303,7 +307,6 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: dto.clave_firma,
           ruc: dto.ruc || null,
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -386,7 +389,6 @@ export class SignaturesService {
         direccion: dto.direccion.toUpperCase(),
         celular: dto.celular,
         ruc: dto.ruc || '',
-        clavefirma: '',
         foto_frontal: dto.foto_frontal,
         foto_posterior: dto.foto_posterior,
         pais: 'ECUADOR',
@@ -455,7 +457,6 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: '',
           ruc: dto.ruc || null,
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -647,7 +648,6 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: dto.clave_firma || '',
           ruc: dto.ruc || null,
           razon_social: null,
           rep_legal: null,
@@ -892,7 +892,6 @@ export class SignaturesService {
         foto_frontal: files.foto_frontal_key,
         foto_posterior: files.foto_posterior_key,
         video_face: files.video_face_key || null,
-        clavefirma: dto.clave_firma || '',
         ruc: dto.ruc || '',
         razon_social: dto.razon_social?.toUpperCase() || null,
         rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -1011,7 +1010,7 @@ export class SignaturesService {
         nationality: dto.nacionalidad.toUpperCase(),
         sex: dto.sexo.toUpperCase(),
         phoneNumber: dto.celular,
-        fingerprintCode: dto.codigo_dactilar,
+        ...(dto.codigo_dactilar && { fingerprintCode: dto.codigo_dactilar }),
         email: dto.correo,
         province: dto.provincia.toUpperCase(),
         city: dto.ciudad.toUpperCase(),
@@ -1098,7 +1097,6 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: dto.clave_firma || '',
           ruc: dto.ruc || null,
           razon_social: null,
           rep_legal: null,
@@ -1343,7 +1341,6 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
-          clavefirma: dto.clave_firma || '',
           ruc: dto.ruc || '',
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -1549,14 +1546,8 @@ export class SignaturesService {
       }
 
       // Usar credenciales de biometría para jurídicas, normales para naturales
-      const authUsername =
-        type === 'JURIDICA'
-          ? this.config.signProvider.authUsernameBiometria
-          : this.config.signProvider.authUsername;
-      const authPassword =
-        type === 'JURIDICA'
-          ? this.config.signProvider.authPasswordBiometria
-          : this.config.signProvider.authPassword;
+      const authUsername = this.config.signProvider.authUsernameBiometria;
+      const authPassword = this.config.signProvider.authPasswordBiometria;
 
       const basicAuth = Buffer.from(`${authUsername}:${authPassword}`).toString(
         'base64',
@@ -1849,6 +1840,125 @@ export class SignaturesService {
   }
 
   /**
+   * Cron cada minuto para verificar el estado de biometría de firmas ENEXT en PENDING
+   * Consulta el endpoint de Enext y actualiza biometryStatus (y SignatureStatus si aplica)
+   */
+  @Cron('* * * * *', {
+    timeZone: 'America/Guayaquil',
+  })
+  async checkEnextBiometryStatus() {
+    if (this.config.environment !== 'production') return;
+
+    const biometriaUrl = this.config.signProvider.biometriaUrl;
+    if (!biometriaUrl) {
+      this.logger.warn('URL de biometría Enext no configurada');
+      return;
+    }
+
+    // Buscar firmas ENEXT en PENDING con token guardado
+    const pendingSignatures = await this.prisma.signatureRequest.findMany({
+      where: {
+        provider: 'ENEXT',
+        status: SignatureStatus.PENDING,
+        providerCode: { not: null },
+        biometryStatus: {
+          notIn: [BiometryStatus.COMPLETED, BiometryStatus.REJECTED],
+        },
+      },
+      select: { id: true, providerCode: true },
+    });
+
+    if (pendingSignatures.length === 0) return;
+
+    this.logger.log(
+      `[Biometría] Verificando ${pendingSignatures.length} firma(s) ENEXT pendientes...`,
+    );
+
+    for (const signature of pendingSignatures) {
+      try {
+        const response = await firstValueFrom(
+          this.httpService.post(
+            biometriaUrl,
+            new URLSearchParams({ token: signature.providerCode! }).toString(),
+            {
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              timeout: 10000,
+            },
+          ),
+        );
+
+        const data = response.data;
+
+        if (!data?.success || !data?.data?.biometria) {
+          this.logger.warn(
+            `[Biometría] Respuesta inesperada para firma ${signature.id}: ${JSON.stringify(data)}`,
+          );
+          continue;
+        }
+
+        const { estado, mensaje } = data.data.biometria;
+        const mensajeLower: string = (mensaje || '').toLowerCase();
+
+        this.logger.log(
+          `[Biometría] Firma ${signature.id} → estado: ${estado}, mensaje: "${mensaje}"`,
+        );
+
+        // Mapeo de estados — se irá completando conforme se conozcan los códigos
+        if (estado === 0 || mensajeLower.includes('pendiente')) {
+          // Sigue en proceso, no actualizar
+          continue;
+        }
+
+        let newBiometryStatus: BiometryStatus | null = null;
+        let newSignatureStatus: SignatureStatus | null = null;
+
+        if (
+          mensajeLower.includes('completado') &&
+          mensajeLower.includes('contrase')
+        ) {
+          // Ej: "Completado biometría pero falta contraseña"
+          newBiometryStatus = BiometryStatus.COMPLETED_MISSING_PASSWORD;
+        } else if (
+          mensajeLower.includes('completado') ||
+          mensajeLower.includes('aprobado')
+        ) {
+          newBiometryStatus = BiometryStatus.COMPLETED;
+          newSignatureStatus = SignatureStatus.COMPLETED;
+        } else if (
+          mensajeLower.includes('rechazado') ||
+          mensajeLower.includes('rejected')
+        ) {
+          newBiometryStatus = BiometryStatus.REJECTED;
+          newSignatureStatus = SignatureStatus.REJECTED;
+        } else {
+          // Estado desconocido — solo loguear por ahora
+          this.logger.warn(
+            `[Biometría] Estado desconocido para firma ${signature.id} → estado: ${estado}, mensaje: "${mensaje}"`,
+          );
+          continue;
+        }
+
+        await this.prisma.signatureRequest.update({
+          where: { id: signature.id },
+          data: {
+            biometryStatus: newBiometryStatus,
+            ...(newSignatureStatus && { status: newSignatureStatus }),
+          },
+        });
+
+        this.logger.log(
+          `[Biometría] Firma ${signature.id} actualizada → biometryStatus: ${newBiometryStatus}${newSignatureStatus ? `, status: ${newSignatureStatus}` : ''
+          }`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[Biometría] Error consultando estado de firma ${signature.id}: ${error.message}`,
+        );
+      }
+    }
+  }
+
+  /**
    * Cron diario (12:00 PM) para notificar firmas próximas a vencer (5 días antes)
    * Solo para firmas de 1 a 5 años
    */
@@ -2050,16 +2160,16 @@ export class SignaturesService {
       if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
         pdf_sri_url = signatureRequest.pdf_sri
           ? await this.filesService.getFileUrl(
-              signatureRequest.pdf_sri,
-              'pdf-sri',
-            )
+            signatureRequest.pdf_sri,
+            'pdf-sri',
+          )
           : null;
 
         nombramiento_url = signatureRequest.nombramiento
           ? await this.filesService.getFileUrl(
-              signatureRequest.nombramiento,
-              'pdf-nombramiento',
-            )
+            signatureRequest.nombramiento,
+            'pdf-nombramiento',
+          )
           : null;
       }
 
@@ -2087,7 +2197,6 @@ export class SignaturesService {
         rep_legal: signatureRequest.rep_legal,
         cargo: signatureRequest.cargo,
         pais: signatureRequest.pais,
-        clavefirma: signatureRequest.clavefirma,
         ruc: signatureRequest.ruc,
         tipo_envio: signatureRequest.tipo_envio,
         status: signatureRequest.status,
@@ -2259,14 +2368,14 @@ export class SignaturesService {
           updatedAt: request.updatedAt,
           distributor: request.distributor
             ? {
-                id: request.distributor.id,
-                firstName: request.distributor.firstName,
-                lastName: request.distributor.lastName,
-                socialReason: request.distributor.socialReason,
-                identification: request.distributor.identification,
-                email: request.distributor.email,
-                phone: request.distributor.phone,
-              }
+              id: request.distributor.id,
+              firstName: request.distributor.firstName,
+              lastName: request.distributor.lastName,
+              socialReason: request.distributor.socialReason,
+              identification: request.distributor.identification,
+              email: request.distributor.email,
+              phone: request.distributor.phone,
+            }
             : null,
         };
       },
@@ -2406,7 +2515,6 @@ export class SignaturesService {
         rep_legal: signatureRequest.rep_legal,
         cargo: signatureRequest.cargo,
         pais: signatureRequest.pais,
-        clavefirma: signatureRequest.clavefirma,
         ruc: signatureRequest.ruc,
         tipo_envio: signatureRequest.tipo_envio,
         status: signatureRequest.status,
@@ -2702,7 +2810,7 @@ export class SignaturesService {
         const clientName = signatureRequest.perfil_firma.startsWith('PJ-')
           ? `${signatureRequest.razon_social}`
           : `${signatureRequest.nombres} ${signatureRequest.apellidos}` ||
-            'Cliente';
+          'Cliente';
         const reason = note || 'Anulada por administrador';
 
         await this.whatsappService.sendTemplate(

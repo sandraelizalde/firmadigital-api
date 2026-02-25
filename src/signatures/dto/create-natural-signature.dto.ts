@@ -103,19 +103,6 @@ export class CreateNaturalSignatureDto {
   celular: string;
 
   @ApiProperty({
-    description:
-      'Clave de firma digital (solo letras y números, sin espacios ni caracteres especiales)',
-    example: 'GONZALEZ1752',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Matches(/^[a-zA-Z0-9]+$/, {
-    message:
-      'La clave de firma solo puede contener letras y números, sin espacios ni caracteres especiales',
-  })
-  clave_firma: string;
-
-  @ApiProperty({
     description: 'Foto frontal de cédula en Base64',
     example: 'iVBORw0KGgoAAAANSUhEUgAA...',
   })

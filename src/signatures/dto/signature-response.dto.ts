@@ -24,7 +24,6 @@ export class SignatureResponseDto {
   rep_legal?: string | null;
   cargo?: string | null;
   pais: string;
-  clavefirma: string;
   ruc?: string | null;
   tipo_envio: string;
   status: SignatureStatus;
