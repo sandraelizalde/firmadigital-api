@@ -8,7 +8,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateBillingInfoDto } from './dto/create-billing-info.dto';
 import { UpdateBillingInfoDto } from './dto/update-billing-info.dto';
-import { SignatureStatus, TypeClient } from '@prisma/client';
+import { SignatureStatus } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { UploadContractDto } from './dto/upload-contract.dto';
 import { AuthService } from 'src/auth/auth.service';

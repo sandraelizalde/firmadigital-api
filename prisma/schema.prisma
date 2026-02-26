@@ -21,6 +21,7 @@ enum IdentificationType {
 enum SignatureStatus {
   COMPLETED
   PENDING
+  DOCS_APPROVED
   REJECTED
   FAILED
   ANNULLED
@@ -71,6 +72,15 @@ enum BiometryStatus {
   COMPLETED // Completado (biometría + contraseña)
   REJECTED // Rechazado
   COMPLETED_MISSING_PASSWORD // Completado biometría pero falta contraseña
+}
+
+enum SignatureType {
+  NATURAL_CEDULA    // Cédula ecuatoriana, persona natural
+  NATURAL_PASAPORTE // Pasaporte, persona natural
+  NATURAL_TOKEN     // Token físico, persona natural
+  JURIDICA_CEDULA   // RUC, persona jurídica
+  JURIDICA_PASAPORTE // Pasaporte, persona jurídica
+  JURIDICA_TOKEN    // Token físico, persona jurídica
 }
 
 // ---------------------------
@@ -217,7 +227,6 @@ model SignatureRequest {
   razon_social       String?
   rep_legal          String?
   cargo              String?
-  pais               String          @default("ECUADOR")
   ruc                String?
   tipo_envio         String
   status             SignatureStatus @default(PENDING)
@@ -236,6 +245,8 @@ model SignatureRequest {
   provider SignatureProvider @default(ENEXT)
 
   biometryStatus BiometryStatus? // Estado de biometría (solo firmas ENEXT en proceso)
+
+  signatureType  SignatureType?  // Tipo de firma (transparente, sin mencionar proveedor)
 
   tokenInfo TokenInfo?
 

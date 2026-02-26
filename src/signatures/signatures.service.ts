@@ -17,6 +17,7 @@ import {
   MovementType,
   PaymentMethod,
   BiometryStatus,
+  SignatureType,
 } from '@prisma/client';
 import { FilesService } from 'src/files/files.service';
 import { WhatsappService } from 'src/notifications/whatsapp.service';
@@ -248,8 +249,7 @@ export class SignaturesService {
         ruc: dto.ruc || '',
         foto_frontal: dto.foto_frontal,
         foto_posterior: dto.foto_posterior,
-        pais: 'ECUADOR',
-        tipo_envio: '1',
+        tipo_envio: 'EMAIL',
       };
 
       const providerResponse = await this.callSignatureProviderEnext(
@@ -313,11 +313,11 @@ export class SignaturesService {
           cargo: dto.cargo?.toUpperCase() || null,
           nombramiento: files.nombramiento_key || null,
           pdf_sri: files.pdf_sri_key || null,
-          tipo_envio: '1',
-          pais: 'ECUADOR',
+          tipo_envio: 'EMAIL',
+          signatureType: SignatureType.NATURAL_CEDULA,
           distributorId,
           status,
-          providerCode: providerResponse.codigo.toString(),
+          providerCode: providerResponse.token_biometria,
           providerMessage: providerResponse.mensaje,
         },
       });
@@ -391,8 +391,7 @@ export class SignaturesService {
         ruc: dto.ruc || '',
         foto_frontal: dto.foto_frontal,
         foto_posterior: dto.foto_posterior,
-        pais: 'ECUADOR',
-        tipo_envio: '1',
+        tipo_envio: 'EMAIL',
         // Campos específicos jurídica
         callback: this.config.signProvider.callback || '',
         razon_social: dto.razon_social?.toUpperCase() || '',
@@ -463,11 +462,11 @@ export class SignaturesService {
           cargo: dto.cargo?.toUpperCase() || null,
           nombramiento: files.nombramiento_key || null,
           pdf_sri: files.pdf_sri_key || null,
-          tipo_envio: '1',
-          pais: 'ECUADOR',
+          tipo_envio: 'EMAIL',
+          signatureType: SignatureType.JURIDICA_CEDULA,
           distributorId,
           status,
-          providerCode: providerResponse.codigo.toString(),
+          providerCode: providerResponse.token_biometria,
           providerMessage: providerResponse.mensaje,
         },
       });
@@ -654,8 +653,8 @@ export class SignaturesService {
           cargo: null,
           nombramiento: null,
           pdf_sri: null,
-          tipo_envio: '1',
-          pais: 'ECUADOR',
+          tipo_envio: 'EMAIL',
+          signatureType: SignatureType.NATURAL_PASAPORTE,
           distributorId,
           status,
           providerCode:
@@ -898,8 +897,8 @@ export class SignaturesService {
         cargo: dto.cargo?.toUpperCase() || null,
         nombramiento: files.nombramiento_key || null,
         pdf_sri: files.pdf_sri_key || null,
-        tipo_envio: '1',
-        pais: 'ECUADOR',
+        tipo_envio: 'EMAIL',
+        signatureType: SignatureType.JURIDICA_PASAPORTE,
         distributorId,
         status,
         providerCode: providerResponse.providerUuid || (isSuccess ? '1' : '0'),
@@ -1103,8 +1102,8 @@ export class SignaturesService {
           cargo: null,
           nombramiento: null,
           pdf_sri: null,
-          tipo_envio: '1',
-          pais: 'ECUADOR',
+          tipo_envio: 'EMAIL',
+          signatureType: SignatureType.NATURAL_TOKEN,
           distributorId,
           status,
           providerCode:
@@ -1347,8 +1346,8 @@ export class SignaturesService {
           cargo: dto.cargo?.toUpperCase() || null,
           nombramiento: files.nombramiento_key || null,
           pdf_sri: files.pdf_sri_key || null,
-          tipo_envio: '1',
-          pais: 'ECUADOR',
+          tipo_envio: 'EMAIL',
+          signatureType: SignatureType.JURIDICA_TOKEN,
           distributorId,
           status,
           providerCode:
@@ -1537,7 +1536,7 @@ export class SignaturesService {
     payload: any,
     providerUrl: string | undefined,
     type: 'NATURAL' | 'JURIDICA',
-  ): Promise<{ codigo: number; mensaje: string }> {
+  ): Promise<{ codigo: number; mensaje: string; token_biometria: string | null }> {
     try {
       if (!providerUrl) {
         throw new Error(
@@ -1560,6 +1559,7 @@ export class SignaturesService {
           data: {
             codigo: 1,
             mensaje: 'SIMULACION Firma creada exitosamente',
+            token_biometria: `sim-token-${Date.now()}`,
           },
         };
       } else {
@@ -1577,27 +1577,30 @@ export class SignaturesService {
         );
       }
 
-      const { codigo, mensaje } = response.data;
+      const { codigo, mensaje, token_biometria } = response.data;
 
       if (typeof codigo === 'undefined' || typeof mensaje === 'undefined') {
         return {
           codigo: 0,
           mensaje: 'Formato de respuesta inválido del proveedor',
+          token_biometria: null,
         };
       }
 
       return {
         codigo: Number(codigo),
         mensaje: String(mensaje),
+        token_biometria: token_biometria ? String(token_biometria) : null,
       };
     } catch (error) {
       if (error instanceof AxiosError) {
         if (error.response?.data?.codigo !== undefined) {
-          const { codigo, mensaje } = error.response.data;
+          const { codigo, mensaje, token_biometria } = error.response.data;
 
           return {
             codigo: Number(codigo),
             mensaje: String(mensaje || 'Error desconocido del proveedor'),
+            token_biometria: token_biometria ? String(token_biometria) : null,
           };
         }
 
@@ -1617,6 +1620,7 @@ export class SignaturesService {
         return {
           codigo: 0,
           mensaje: errorMessage,
+          token_biometria: null,
         };
       }
 
@@ -1628,6 +1632,7 @@ export class SignaturesService {
       return {
         codigo: 0,
         mensaje: `Error interno: ${error.message}`,
+        token_biometria: null,
       };
     }
   }
@@ -1732,6 +1737,8 @@ export class SignaturesService {
         ruc: request.ruc,
         razon_social: request.razon_social,
         status: request.status,
+        biometryStatus: request.biometryStatus,
+        signatureType: request.signatureType,
         providerCode: request.providerCode,
         providerMessage: request.providerMessage,
         durationType: plan ? plan.durationType : null,
@@ -1840,8 +1847,127 @@ export class SignaturesService {
   }
 
   /**
-   * Cron cada minuto para verificar el estado de biometría de firmas ENEXT en PENDING
-   * Consulta el endpoint de Enext y actualiza biometryStatus (y SignatureStatus si aplica)
+   * (Admin) Reenvía el link de biometría Enext al correo/celular registrado.
+   * Llama a api_generar_link_biometria.php sin solo_generar para que Enext
+   * envíe el link por correo y WhatsApp automáticamente.
+   * Actualiza providerCode con el nuevo token_biometria retornado.
+   */
+  async resendEnextBiometricLink(signatureId: string): Promise<{
+    success: boolean;
+    message: string;
+    newToken: string;
+    link: string;
+  }> {
+    const generarLinkUrl = this.config.signProvider.generarLinkBiometriaUrl;
+    if (!generarLinkUrl) {
+      throw new BadRequestException(
+        'URL de generación de link biométrico Enext no configurada',
+      );
+    }
+
+    const signature = await this.prisma.signatureRequest.findUnique({
+      where: { id: signatureId },
+      select: {
+        id: true,
+        provider: true,
+        providerCode: true,
+        correo: true,
+        status: true,
+      },
+    });
+
+    if (!signature) {
+      throw new BadRequestException('Firma no encontrada');
+    }
+    if (signature.provider !== 'ENEXT') {
+      throw new BadRequestException(
+        'Esta operación solo aplica para firmas ENEXT',
+      );
+    }
+    if (!signature.providerCode) {
+      throw new BadRequestException(
+        'La firma no tiene token de biometría registrado',
+      );
+    }
+
+    let responseData: any;
+
+    if (this.config.environment === 'development') {
+      // Simulación en desarrollo
+      responseData = {
+        token: `sim-token-resend-${Date.now()}`,
+        link: `https://enext.online/biometria.php?token=sim-token-resend-${Date.now()}`,
+        correo: signature.correo,
+        soloGenerar: false,
+      };
+      this.logger.log(
+        `[Biometría] SIMULACIÓN reenvío link para firma ${signatureId}`,
+      );
+    } else {
+      try {
+        const body = new URLSearchParams({
+          token_actual: signature.providerCode,
+          correo: signature.correo,
+        }).toString();
+
+        const response = await firstValueFrom(
+          this.httpService.post(generarLinkUrl, body, {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            timeout: 15000,
+          }),
+        );
+
+        if (!response.data?.success || !response.data?.data?.token) {
+          throw new BadRequestException(
+            response.data?.message ||
+            'El proveedor no pudo generar el link de biometría',
+          );
+        }
+
+        responseData = response.data.data;
+      } catch (error) {
+        if (error instanceof BadRequestException) throw error;
+        this.logger.error(
+          `[Biometría] Error al reenviar link de firma ${signatureId}: ${error.message}`,
+        );
+        throw new BadRequestException(
+          `Error al comunicarse con el proveedor: ${error.message}`,
+        );
+      }
+    }
+
+    // Actualizar providerCode con el nuevo token
+    await this.prisma.signatureRequest.update({
+      where: { id: signatureId },
+      data: { providerCode: responseData.token },
+    });
+
+    this.logger.log(
+      `[Biometría] Link reenviado para firma ${signatureId}. Nuevo token guardado.`,
+    );
+
+    return {
+      success: true,
+      message: 'Link de biometría generado y enviado por correo y WhatsApp',
+      newToken: responseData.token,
+      link: responseData.link,
+    };
+  }
+
+  /**
+   * Cron cada minuto para verificar el estado de biometría de firmas ENEXT en PENDING.
+   * Estados `biometria.estado`:
+   *   0  → Pendiente (sin cambios)
+   *   1  → Biometría Completa (PN: COMPLETED | PJ: depende de aprobacion.estadoTramite)
+   *   2  → Bloqueada / Rechazada
+   *   3  → Biometría OK pero falta clave (COMPLETED_MISSING_PASSWORD)
+   *  -1  → No disponible / flujo anterior (sin cambios)
+   *
+   * `aprobacion.estadoTramite` (solo PJ):
+   *   0  → En revisión
+   *   1  → Completado
+   *   2  → Rechazado
+   *   3  → Docs aprobados – pendiente biometría
    */
   @Cron('* * * * *', {
     timeZone: 'America/Guayaquil',
@@ -1855,7 +1981,7 @@ export class SignaturesService {
       return;
     }
 
-    // Buscar firmas ENEXT en PENDING con token guardado
+    // Buscar firmas ENEXT en PENDING con token_biometria guardado en providerCode
     const pendingSignatures = await this.prisma.signatureRequest.findMany({
       where: {
         provider: 'ENEXT',
@@ -1869,10 +1995,6 @@ export class SignaturesService {
     });
 
     if (pendingSignatures.length === 0) return;
-
-    this.logger.log(
-      `[Biometría] Verificando ${pendingSignatures.length} firma(s) ENEXT pendientes...`,
-    );
 
     for (const signature of pendingSignatures) {
       try {
@@ -1897,44 +2019,42 @@ export class SignaturesService {
         }
 
         const { estado, mensaje } = data.data.biometria;
-        const mensajeLower: string = (mensaje || '').toLowerCase();
-
-        this.logger.log(
-          `[Biometría] Firma ${signature.id} → estado: ${estado}, mensaje: "${mensaje}"`,
-        );
-
-        // Mapeo de estados — se irá completando conforme se conozcan los códigos
-        if (estado === 0 || mensajeLower.includes('pendiente')) {
-          // Sigue en proceso, no actualizar
+        const estadoNum = Number(estado);
+        if (estadoNum === 0 || estadoNum === -1) {
           continue;
         }
 
         let newBiometryStatus: BiometryStatus | null = null;
         let newSignatureStatus: SignatureStatus | null = null;
 
-        if (
-          mensajeLower.includes('completado') &&
-          mensajeLower.includes('contrase')
-        ) {
-          // Ej: "Completado biometría pero falta contraseña"
-          newBiometryStatus = BiometryStatus.COMPLETED_MISSING_PASSWORD;
-        } else if (
-          mensajeLower.includes('completado') ||
-          mensajeLower.includes('aprobado')
-        ) {
-          newBiometryStatus = BiometryStatus.COMPLETED;
-          newSignatureStatus = SignatureStatus.COMPLETED;
-        } else if (
-          mensajeLower.includes('rechazado') ||
-          mensajeLower.includes('rejected')
-        ) {
+        if (estadoNum === 1) {
+          // Biometría completa.
+          const aprobacion = data.data.aprobacion;
+
+          if (aprobacion !== undefined && aprobacion !== null) {
+            const estadoTramite = Number(aprobacion.estadoTramite);
+
+            if (estadoTramite === 1) {
+              newBiometryStatus = BiometryStatus.COMPLETED;
+              newSignatureStatus = SignatureStatus.COMPLETED;
+            } else if (estadoTramite === 2) {
+              newBiometryStatus = BiometryStatus.REJECTED;
+              newSignatureStatus = SignatureStatus.REJECTED;
+            } else if (estadoTramite === 3) {
+              newSignatureStatus = SignatureStatus.DOCS_APPROVED;
+            } else {
+              continue;
+            }
+          } else {
+            newBiometryStatus = BiometryStatus.COMPLETED;
+            newSignatureStatus = SignatureStatus.COMPLETED;
+          }
+        } else if (estadoNum === 2) {
           newBiometryStatus = BiometryStatus.REJECTED;
           newSignatureStatus = SignatureStatus.REJECTED;
+        } else if (estadoNum === 3) {
+          newBiometryStatus = BiometryStatus.COMPLETED_MISSING_PASSWORD;
         } else {
-          // Estado desconocido — solo loguear por ahora
-          this.logger.warn(
-            `[Biometría] Estado desconocido para firma ${signature.id} → estado: ${estado}, mensaje: "${mensaje}"`,
-          );
           continue;
         }
 
@@ -1947,8 +2067,7 @@ export class SignaturesService {
         });
 
         this.logger.log(
-          `[Biometría] Firma ${signature.id} actualizada → biometryStatus: ${newBiometryStatus}${newSignatureStatus ? `, status: ${newSignatureStatus}` : ''
-          }`,
+          `[Biometría] Firma ${signature.id} actualizada → biometryStatus: ${newBiometryStatus}${newSignatureStatus ? `, status: ${newSignatureStatus}` : ''}`,
         );
       } catch (error) {
         this.logger.error(
@@ -2196,10 +2315,11 @@ export class SignaturesService {
         razon_social: signatureRequest.razon_social,
         rep_legal: signatureRequest.rep_legal,
         cargo: signatureRequest.cargo,
-        pais: signatureRequest.pais,
         ruc: signatureRequest.ruc,
         tipo_envio: signatureRequest.tipo_envio,
         status: signatureRequest.status,
+        biometryStatus: signatureRequest.biometryStatus,
+        signatureType: signatureRequest.signatureType,
         providerCode: signatureRequest.providerCode,
         providerMessage: signatureRequest.providerMessage,
         annulledNote: signatureRequest.annulledNote,
@@ -2355,6 +2475,8 @@ export class SignaturesService {
           ruc: request.ruc,
           razon_social: request.razon_social,
           status: request.status,
+          biometryStatus: request.biometryStatus,
+          signatureType: request.signatureType,
           providerCode: request.providerCode,
           providerMessage: request.providerMessage,
           annulledBy: request.annulledBy,
@@ -2514,10 +2636,11 @@ export class SignaturesService {
         razon_social: signatureRequest.razon_social,
         rep_legal: signatureRequest.rep_legal,
         cargo: signatureRequest.cargo,
-        pais: signatureRequest.pais,
         ruc: signatureRequest.ruc,
         tipo_envio: signatureRequest.tipo_envio,
         status: signatureRequest.status,
+        biometryStatus: signatureRequest.biometryStatus,
+        signatureType: signatureRequest.signatureType,
         providerCode: signatureRequest.providerCode,
         providerMessage: signatureRequest.providerMessage,
         annulledBy: signatureRequest.annulledBy,

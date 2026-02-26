@@ -25,7 +25,6 @@ export class SignatureResponseDto {
   cargo?: string | null;
   pais: string;
   ruc?: string | null;
-  tipo_envio: string;
   status: SignatureStatus;
   providerCode?: string | null;
   providerMessage?: string | null;

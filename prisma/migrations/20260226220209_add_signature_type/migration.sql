@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "SignatureType" AS ENUM ('NATURAL_CEDULA', 'NATURAL_PASAPORTE', 'NATURAL_TOKEN', 'JURIDICA_CEDULA', 'JURIDICA_PASAPORTE', 'JURIDICA_TOKEN');
+
+-- AlterTable
+ALTER TABLE "SignatureRequest" ADD COLUMN     "signatureType" "SignatureType";

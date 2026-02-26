@@ -23,7 +23,6 @@ import {
 import { SignaturesService } from './signatures.service';
 import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
-import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { AdminSignatureFilterDto } from './dto/admin-signature-filter.dto';
 import { AnnulSignatureDto } from './dto/annul-signature.dto';
 import { ApproveSignatureDto } from './dto/approve-signature.dto';
@@ -323,7 +322,6 @@ export class SignaturesController {
         cargo: null,
         pais: 'ECUADOR',
         ruc: null,
-        tipo_envio: 'NATURAL',
         status: 'PENDING',
         providerCode: '200',
         providerMessage: 'Solicitud recibida',
@@ -543,7 +541,6 @@ export class SignaturesController {
         cargo: null,
         pais: 'ECUADOR',
         ruc: null,
-        tipo_envio: 'NATURAL',
         status: 'COMPLETED',
         providerCode: '1',
         providerMessage: 'Solicitud enviada correctamente',
@@ -671,5 +668,47 @@ export class SignaturesController {
       req.user.firstName + ' ' + req.user.lastName,
       dto.note,
     );
+  }
+
+  @Post('admin/resend-biometric-link')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Reenviar link de biometría Enext (Admin)',
+    description:
+      'Genera un nuevo link de biometría para una firma ENEXT en proceso y lo envía automáticamente al correo y WhatsApp del cliente. Solo para administradores. Actualiza el token guardado en la firma.',
+  })
+  @ApiQuery({
+    name: 'signatureId',
+    required: true,
+    type: String,
+    description: 'ID de la solicitud de firma ENEXT',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Link generado y enviado exitosamente',
+    schema: {
+      example: {
+        success: true,
+        message: 'Link de biometría generado y enviado por correo y WhatsApp',
+        newToken: 'abc123xyz...',
+        link: 'https://enext.online/',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Firma no encontrada, no es ENEXT, ya completada o sin token registrado',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo para administradores',
+  })
+  async resendBiometricLink(@Query('signatureId') signatureId: string) {
+    if (!signatureId) {
+      throw new BadRequestException('El parámetro signatureId es requerido');
+    }
+    return this.signaturesService.resendEnextBiometricLink(signatureId);
   }
 }
