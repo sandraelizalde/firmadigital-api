@@ -16,7 +16,7 @@ export class CreditsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsappService: WhatsappService,
-  ) { }
+  ) {}
 
   async createCredit(createCreditDto: CreateCreditDto, adminName: string) {
     const { distributorId, creditDays } = createCreditDto;
@@ -99,7 +99,7 @@ export class CreditsService {
       );
     }
 
-    // Verificar si tiene deudas pendientes (solo para informar)
+    // Verificar si tiene deudas pendientes
     const unpaidCutoffs = await this.prisma.creditCutoff.findMany({
       where: {
         creditId: credit.id,
@@ -112,7 +112,13 @@ export class CreditsService {
       0,
     );
 
-    // Desactivar el crédito sin importar si tiene deudas
+    if (totalOwed > 0) {
+      throw new BadRequestException(
+        `No se puede desactivar el crédito. El distribuidor tiene una deuda pendiente de $${(totalOwed / 100).toFixed(2)}`,
+      );
+    }
+
+    // Desactivar el crédito solo si no tiene deudas
     const updatedCredit = await this.prisma.distributorCredit.update({
       where: { id: credit.id },
       data: {
