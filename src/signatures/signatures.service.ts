@@ -1536,7 +1536,11 @@ export class SignaturesService {
     payload: any,
     providerUrl: string | undefined,
     type: 'NATURAL' | 'JURIDICA',
-  ): Promise<{ codigo: number; mensaje: string; token_biometria: string | null }> {
+  ): Promise<{
+    codigo: number;
+    mensaje: string;
+    token_biometria: string | null;
+  }> {
     try {
       if (!providerUrl) {
         throw new Error(
@@ -1652,6 +1656,7 @@ export class SignaturesService {
     personType?: string,
     startDate?: string,
     endDate?: string,
+    search?: string,
   ): Promise<PaginatedSignatureListResponseDto> {
     const skip = (page - 1) * limit;
 
@@ -1681,6 +1686,14 @@ export class SignaturesService {
       if (endDate) {
         where.createdAt.lte = new Date(`${endDate}T23:59:59.999-05:00`);
       }
+    }
+
+    // Filtro por identificacion
+    if (search) {
+      where.OR = [
+        { cedula: { contains: search } },
+        { ruc: { contains: search } },
+      ];
     }
 
     // Obtener el total de registros
@@ -1920,7 +1933,7 @@ export class SignaturesService {
         if (!response.data?.success || !response.data?.data?.token) {
           throw new BadRequestException(
             response.data?.message ||
-            'El proveedor no pudo generar el link de biometría',
+              'El proveedor no pudo generar el link de biometría',
           );
         }
 
@@ -2279,16 +2292,16 @@ export class SignaturesService {
       if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
         pdf_sri_url = signatureRequest.pdf_sri
           ? await this.filesService.getFileUrl(
-            signatureRequest.pdf_sri,
-            'pdf-sri',
-          )
+              signatureRequest.pdf_sri,
+              'pdf-sri',
+            )
           : null;
 
         nombramiento_url = signatureRequest.nombramiento
           ? await this.filesService.getFileUrl(
-            signatureRequest.nombramiento,
-            'pdf-nombramiento',
-          )
+              signatureRequest.nombramiento,
+              'pdf-nombramiento',
+            )
           : null;
       }
 
@@ -2490,14 +2503,14 @@ export class SignaturesService {
           updatedAt: request.updatedAt,
           distributor: request.distributor
             ? {
-              id: request.distributor.id,
-              firstName: request.distributor.firstName,
-              lastName: request.distributor.lastName,
-              socialReason: request.distributor.socialReason,
-              identification: request.distributor.identification,
-              email: request.distributor.email,
-              phone: request.distributor.phone,
-            }
+                id: request.distributor.id,
+                firstName: request.distributor.firstName,
+                lastName: request.distributor.lastName,
+                socialReason: request.distributor.socialReason,
+                identification: request.distributor.identification,
+                email: request.distributor.email,
+                phone: request.distributor.phone,
+              }
             : null,
         };
       },
@@ -2933,7 +2946,7 @@ export class SignaturesService {
         const clientName = signatureRequest.perfil_firma.startsWith('PJ-')
           ? `${signatureRequest.razon_social}`
           : `${signatureRequest.nombres} ${signatureRequest.apellidos}` ||
-          'Cliente';
+            'Cliente';
         const reason = note || 'Anulada por administrador';
 
         await this.whatsappService.sendTemplate(

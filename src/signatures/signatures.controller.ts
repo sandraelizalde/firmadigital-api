@@ -403,6 +403,7 @@ export class SignaturesController {
     @Query('personType') personType?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('search') search?: string,
   ) {
     return this.signaturesService.getAllSignatureRequests(
       req.user.userId,
@@ -412,6 +413,7 @@ export class SignaturesController {
       personType,
       startDate,
       endDate,
+      search,
     );
   }
 
