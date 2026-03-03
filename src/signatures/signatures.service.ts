@@ -1974,222 +1974,6 @@ export class SignaturesService {
   }
 
   /**
-   * Cron cada minuto para verificar el estado de biometría de firmas ENEXT en PENDING.
-   * Estados `biometria.estado`:
-   *   0  → Pendiente (sin cambios)
-   *   1  → Biometría Completa (PN: COMPLETED | PJ: depende de aprobacion.estadoTramite)
-   *   2  → Bloqueada / Rechazada
-   *   3  → Biometría OK pero falta clave (COMPLETED_MISSING_PASSWORD)
-   *  -1  → No disponible / flujo anterior (sin cambios)
-   *
-   * `aprobacion.estadoTramite` (solo PJ):
-   *   0  → En revisión
-   *   1  → Completado
-   *   2  → Rechazado
-   *   3  → Docs aprobados – pendiente biometría
-   */
-  @Cron('* * * * *', {
-    timeZone: 'America/Guayaquil',
-  })
-  async checkEnextBiometryStatus() {
-    if (this.config.environment !== 'production') return;
-
-    const biometriaUrl = this.config.signProvider.biometriaUrl;
-    if (!biometriaUrl) {
-      this.logger.warn('URL de biometría Enext no configurada');
-      return;
-    }
-
-    // Buscar firmas ENEXT en PENDING con token_biometria guardado en providerCode
-    const pendingSignatures = await this.prisma.signatureRequest.findMany({
-      where: {
-        provider: 'ENEXT',
-        status: SignatureStatus.PENDING,
-        providerCode: { not: null },
-        biometryStatus: {
-          notIn: [BiometryStatus.COMPLETED, BiometryStatus.REJECTED],
-        },
-      },
-      select: { id: true, providerCode: true },
-    });
-
-    if (pendingSignatures.length === 0) return;
-
-    for (const signature of pendingSignatures) {
-      try {
-        const response = await firstValueFrom(
-          this.httpService.post(
-            biometriaUrl,
-            new URLSearchParams({ token: signature.providerCode! }).toString(),
-            {
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              timeout: 10000,
-            },
-          ),
-        );
-
-        const data = response.data;
-
-        if (!data?.success || !data?.data?.biometria) {
-          this.logger.warn(
-            `[Biometría] Respuesta inesperada para firma ${signature.id}: ${JSON.stringify(data)}`,
-          );
-          continue;
-        }
-
-        const { estado, mensaje } = data.data.biometria;
-        const estadoNum = Number(estado);
-        if (estadoNum === 0 || estadoNum === -1) {
-          continue;
-        }
-
-        let newBiometryStatus: BiometryStatus | null = null;
-        let newSignatureStatus: SignatureStatus | null = null;
-
-        if (estadoNum === 1) {
-          // Biometría completa.
-          const aprobacion = data.data.aprobacion;
-
-          if (aprobacion !== undefined && aprobacion !== null) {
-            const estadoTramite = Number(aprobacion.estadoTramite);
-
-            if (estadoTramite === 1) {
-              newBiometryStatus = BiometryStatus.COMPLETED;
-              newSignatureStatus = SignatureStatus.COMPLETED;
-            } else if (estadoTramite === 2) {
-              newBiometryStatus = BiometryStatus.REJECTED;
-              newSignatureStatus = SignatureStatus.REJECTED;
-            } else if (estadoTramite === 3) {
-              newSignatureStatus = SignatureStatus.DOCS_APPROVED;
-            } else {
-              continue;
-            }
-          } else {
-            newBiometryStatus = BiometryStatus.COMPLETED;
-            newSignatureStatus = SignatureStatus.COMPLETED;
-          }
-        } else if (estadoNum === 2) {
-          newBiometryStatus = BiometryStatus.REJECTED;
-          newSignatureStatus = SignatureStatus.REJECTED;
-        } else if (estadoNum === 3) {
-          newBiometryStatus = BiometryStatus.COMPLETED_MISSING_PASSWORD;
-        } else {
-          continue;
-        }
-
-        await this.prisma.signatureRequest.update({
-          where: { id: signature.id },
-          data: {
-            biometryStatus: newBiometryStatus,
-            ...(newSignatureStatus && { status: newSignatureStatus }),
-          },
-        });
-
-        this.logger.log(
-          `[Biometría] Firma ${signature.id} actualizada → biometryStatus: ${newBiometryStatus}${newSignatureStatus ? `, status: ${newSignatureStatus}` : ''}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `[Biometría] Error consultando estado de firma ${signature.id}: ${error.message}`,
-        );
-      }
-    }
-  }
-
-  /**
-   * Cron diario (12:00 PM) para notificar firmas próximas a vencer (5 días antes)
-   * Solo para firmas de 1 a 5 años
-   */
-  @Cron('0 12 * * *', {
-    timeZone: 'America/Guayaquil',
-  })
-  async notifyExpiringSignatures() {
-    if (this.config.environment !== 'production') {
-      this.logger.log(
-        'Notificación de firmas por vencer omitida (Entorno no productivo)',
-      );
-      return;
-    }
-
-    this.logger.log('Iniciando verificación de firmas próximas a vencer...');
-
-    try {
-      const today = new Date();
-      // Fecha de vencimiento objetivo: Hoy + 5 días
-      const targetExpiration = new Date(today);
-      targetExpiration.setDate(today.getDate() + 5);
-
-      const expirationDateStr = targetExpiration.toLocaleDateString('es-EC', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-
-      const yearsToCheck = [1, 2, 3, 4, 5];
-
-      for (const years of yearsToCheck) {
-        const targetUpdatedAt = new Date(targetExpiration);
-        targetUpdatedAt.setFullYear(targetExpiration.getFullYear() - years);
-
-        const startDate = new Date(targetUpdatedAt);
-        startDate.setHours(0, 0, 0, 0);
-
-        const endDate = new Date(targetUpdatedAt);
-        endDate.setHours(23, 59, 59, 999);
-
-        // Buscar firmas que expiran, filtrando por la relación con el plan
-        const expiringSignatures = await this.prisma.signatureRequest.findMany({
-          where: {
-            status: SignatureStatus.COMPLETED,
-            activeNotification: true,
-            updatedAt: {
-              gte: startDate,
-              lte: endDate,
-            },
-            plan: {
-              duration: years.toString(),
-              durationType: { in: ['Y', 'YS'] },
-              isActive: true,
-            },
-            distributor: {
-              active: true,
-              phone: { not: '' },
-            },
-          },
-          include: {
-            distributor: {
-              select: {
-                phone: true,
-                firstName: true,
-                lastName: true,
-                socialReason: true,
-              },
-            },
-          },
-        });
-
-        if (expiringSignatures.length > 0) {
-          this.logger.log(
-            `Encontradas ${expiringSignatures.length} firmas de ${years} año(s) que vencen el ${expirationDateStr}`,
-          );
-
-          // 4. Enviar notificaciones
-          for (const signature of expiringSignatures) {
-            await this.sendExpirationNotification(signature, expirationDateStr);
-          }
-        }
-      }
-
-      this.logger.log('Verificación de firmas próximas a vencer completada.');
-    } catch (error) {
-      this.logger.error(
-        `Error en el cron de notificaciones de firma: ${error.message}`,
-        error.stack,
-      );
-    }
-  }
-
-  /**
    * Envía la notificación de WhatsApp para una firma por vencer
    */
   private async sendExpirationNotification(
@@ -3793,5 +3577,348 @@ export class SignaturesService {
     }
 
     return obj;
+  }
+
+  /**
+   * Cron cada minuto para verificar el estado de biometría de firmas ENEXT en PENDING.
+   * Estados `biometria.estado`:
+   *   0  → Pendiente (sin cambios)
+   *   1  → Biometría Completa (PN: COMPLETED | PJ: depende de aprobacion.estadoTramite)
+   *   2  → Bloqueada / Rechazada
+   *   3  → Biometría OK pero falta clave (COMPLETED_MISSING_PASSWORD)
+   *  -1  → No disponible / flujo anterior (sin cambios)
+   *
+   * `aprobacion.estadoTramite` (solo PJ):
+   *   0  → En revisión
+   *   1  → Completado
+   *   2  → Rechazado
+   *   3  → Docs aprobados – pendiente biometría
+   */
+  @Cron('* * * * *', {
+    timeZone: 'America/Guayaquil',
+  })
+  async checkEnextBiometryStatus() {
+    if (this.config.environment !== 'production') return;
+
+    const biometriaUrl = this.config.signProvider.biometriaUrl;
+    if (!biometriaUrl) {
+      this.logger.warn('URL de biometría Enext no configurada');
+      return;
+    }
+
+    // Buscar firmas ENEXT en PENDING con token_biometria guardado en providerCode
+    const pendingSignatures = await this.prisma.signatureRequest.findMany({
+      where: {
+        provider: 'ENEXT',
+        status: SignatureStatus.PENDING,
+        providerCode: { not: null },
+        biometryStatus: {
+          notIn: [BiometryStatus.COMPLETED, BiometryStatus.REJECTED],
+        },
+      },
+      select: { id: true, providerCode: true },
+    });
+
+    if (pendingSignatures.length === 0) return;
+
+    for (const signature of pendingSignatures) {
+      try {
+        const response = await firstValueFrom(
+          this.httpService.post(
+            biometriaUrl,
+            new URLSearchParams({ token: signature.providerCode! }).toString(),
+            {
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              timeout: 10000,
+            },
+          ),
+        );
+
+        const data = response.data;
+
+        if (!data?.success || !data?.data?.biometria) {
+          this.logger.warn(
+            `[Biometría] Respuesta inesperada para firma ${signature.id}: ${JSON.stringify(data)}`,
+          );
+          continue;
+        }
+
+        const { estado, mensaje } = data.data.biometria;
+        const estadoNum = Number(estado);
+        if (estadoNum === 0 || estadoNum === -1) {
+          continue;
+        }
+
+        let newBiometryStatus: BiometryStatus | null = null;
+        let newSignatureStatus: SignatureStatus | null = null;
+
+        if (estadoNum === 1) {
+          // Biometría completa.
+          const aprobacion = data.data.aprobacion;
+
+          if (aprobacion !== undefined && aprobacion !== null) {
+            const estadoTramite = Number(aprobacion.estadoTramite);
+
+            if (estadoTramite === 1) {
+              newBiometryStatus = BiometryStatus.COMPLETED;
+              newSignatureStatus = SignatureStatus.COMPLETED;
+            } else if (estadoTramite === 2) {
+              newBiometryStatus = BiometryStatus.REJECTED;
+              newSignatureStatus = SignatureStatus.REJECTED;
+            } else if (estadoTramite === 3) {
+              newSignatureStatus = SignatureStatus.DOCS_APPROVED;
+            } else {
+              continue;
+            }
+          } else {
+            newBiometryStatus = BiometryStatus.COMPLETED;
+            newSignatureStatus = SignatureStatus.COMPLETED;
+          }
+        } else if (estadoNum === 2) {
+          newBiometryStatus = BiometryStatus.REJECTED;
+          newSignatureStatus = SignatureStatus.REJECTED;
+        } else if (estadoNum === 3) {
+          newBiometryStatus = BiometryStatus.COMPLETED_MISSING_PASSWORD;
+        } else {
+          continue;
+        }
+
+        await this.prisma.signatureRequest.update({
+          where: { id: signature.id },
+          data: {
+            biometryStatus: newBiometryStatus,
+            ...(newSignatureStatus && { status: newSignatureStatus }),
+          },
+        });
+
+        this.logger.log(
+          `[Biometría] Firma ${signature.id} actualizada → biometryStatus: ${newBiometryStatus}${newSignatureStatus ? `, status: ${newSignatureStatus}` : ''}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[Biometría] Error consultando estado de firma ${signature.id}: ${error.message}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Cron diario (12:00 PM) para notificar firmas próximas a vencer (5 días antes)
+   * Solo para firmas de 1 a 5 años
+   */
+  @Cron('0 12 * * *', {
+    timeZone: 'America/Guayaquil',
+  })
+  async notifyExpiringSignatures() {
+    if (this.config.environment !== 'production') {
+      this.logger.log(
+        'Notificación de firmas por vencer omitida (Entorno no productivo)',
+      );
+      return;
+    }
+
+    this.logger.log('Iniciando verificación de firmas próximas a vencer...');
+
+    try {
+      const today = new Date();
+      // Fecha de vencimiento objetivo: Hoy + 5 días
+      const targetExpiration = new Date(today);
+      targetExpiration.setDate(today.getDate() + 5);
+
+      const expirationDateStr = targetExpiration.toLocaleDateString('es-EC', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+
+      const yearsToCheck = [1, 2, 3, 4, 5];
+
+      for (const years of yearsToCheck) {
+        const targetUpdatedAt = new Date(targetExpiration);
+        targetUpdatedAt.setFullYear(targetExpiration.getFullYear() - years);
+
+        const startDate = new Date(targetUpdatedAt);
+        startDate.setHours(0, 0, 0, 0);
+
+        const endDate = new Date(targetUpdatedAt);
+        endDate.setHours(23, 59, 59, 999);
+
+        // Buscar firmas que expiran, filtrando por la relación con el plan
+        const expiringSignatures = await this.prisma.signatureRequest.findMany({
+          where: {
+            status: SignatureStatus.COMPLETED,
+            activeNotification: true,
+            updatedAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+            plan: {
+              duration: years.toString(),
+              durationType: { in: ['Y', 'YS'] },
+              isActive: true,
+            },
+            distributor: {
+              active: true,
+              phone: { not: '' },
+            },
+          },
+          include: {
+            distributor: {
+              select: {
+                phone: true,
+                firstName: true,
+                lastName: true,
+                socialReason: true,
+              },
+            },
+          },
+        });
+
+        if (expiringSignatures.length > 0) {
+          this.logger.log(
+            `Encontradas ${expiringSignatures.length} firmas de ${years} año(s) que vencen el ${expirationDateStr}`,
+          );
+
+          // 4. Enviar notificaciones
+          for (const signature of expiringSignatures) {
+            await this.sendExpirationNotification(signature, expirationDateStr);
+          }
+        }
+      }
+
+      this.logger.log('Verificación de firmas próximas a vencer completada.');
+    } catch (error) {
+      this.logger.error(
+        `Error en el cron de notificaciones de firma: ${error.message}`,
+        error.stack,
+      );
+    }
+  }
+
+  /**
+   * Cron cada 30 minutos para verificar el estado de solicitudes UANATACA en PENDING.
+   * Llama a GET /api/certificateRequests?uuid={uuid} con autenticación JWT.
+   *
+   * Mapeo de estados Uanataca → estados internos:
+   *   NEW              → sin cambios (sigue PENDING)
+   *   UPDATE_REQUESTED → sin cambios (sigue PENDING)
+   *   APPROVED         → SignatureStatus: DOCS_APPROVED
+   *   ISSUED           → SignatureStatus: COMPLETED, BiometryStatus: COMPLETED
+   *   REJECTED         → SignatureStatus: REJECTED, BiometryStatus: REJECTED
+   */
+  @Cron('0 */30 * * * *', {
+    timeZone: 'America/Guayaquil',
+  })
+  async checkUanatacaCertificateStatus() {
+    if (this.config.environment !== 'production') return;
+
+    const baseUrl = this.config.uanataca.baseUrl;
+    if (!baseUrl) {
+      this.logger.warn('[Uanataca Cron] URL base de Uanataca no configurada');
+      return;
+    }
+
+    // Buscar firmas UANATACA en PENDING con UUID guardado en providerCode
+    const pendingSignatures = await this.prisma.signatureRequest.findMany({
+      where: {
+        provider: 'UANATACA',
+        status: SignatureStatus.PENDING,
+        providerCode: { not: null },
+      },
+      select: { id: true, providerCode: true },
+    });
+
+    if (pendingSignatures.length === 0) return;
+
+    this.logger.log(
+      `[Uanataca Cron] Verificando ${pendingSignatures.length} firma(s) pendientes`,
+    );
+
+    // Autenticar una sola vez para todas las solicitudes
+    let accessToken: string;
+    try {
+      accessToken = await this.authenticateUanataca();
+    } catch (error) {
+      this.logger.error(
+        `[Uanataca Cron] Error al autenticar con Uanataca: ${error.message}`,
+      );
+      return;
+    }
+
+    for (const signature of pendingSignatures) {
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get(`${baseUrl}/api/certificateRequests`, {
+            params: { uuid: signature.providerCode },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            timeout: 15000,
+          }),
+        );
+
+        const data = response.data;
+
+        // El estado puede estar en data.status, data.state o data.estado según el proveedor
+        const uanatacaStatus: string | undefined =
+          data?.status ?? data?.state ?? data?.estado;
+
+        if (!uanatacaStatus) {
+          this.logger.warn(
+            `[Uanataca Cron] Respuesta sin estado para firma ${signature.id}: ${JSON.stringify(data)}`,
+          );
+          continue;
+        }
+
+        const statusUpper = uanatacaStatus.toUpperCase();
+
+        // Ignorar estados que no implican cambio
+        if (statusUpper === 'NEW' || statusUpper === 'UPDATE_REQUESTED') {
+          continue;
+        }
+
+        let newSignatureStatus: SignatureStatus | null = null;
+        let newBiometryStatus: BiometryStatus | null = null;
+
+        switch (statusUpper) {
+          case 'APPROVED':
+            newSignatureStatus = SignatureStatus.DOCS_APPROVED;
+            break;
+
+          case 'ISSUED':
+            newSignatureStatus = SignatureStatus.COMPLETED;
+            newBiometryStatus = BiometryStatus.COMPLETED;
+            break;
+
+          case 'REJECTED':
+            newSignatureStatus = SignatureStatus.REJECTED;
+            newBiometryStatus = BiometryStatus.REJECTED;
+            break;
+
+          default:
+            this.logger.warn(
+              `[Uanataca Cron] Estado desconocido "${uanatacaStatus}" para firma ${signature.id}`,
+            );
+            continue;
+        }
+
+        await this.prisma.signatureRequest.update({
+          where: { id: signature.id },
+          data: {
+            ...(newSignatureStatus && { status: newSignatureStatus }),
+            ...(newBiometryStatus && { biometryStatus: newBiometryStatus }),
+          },
+        });
+
+        this.logger.log(
+          `[Uanataca Cron] Firma ${signature.id} actualizada → status: ${newSignatureStatus}${newBiometryStatus ? `, biometryStatus: ${newBiometryStatus}` : ''}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[Uanataca Cron] Error consultando estado de firma ${signature.id}: ${error.message}`,
+        );
+      }
+    }
   }
 }
