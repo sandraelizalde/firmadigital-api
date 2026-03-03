@@ -307,6 +307,7 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
+          selfie: files.selfie_key || null,
           ruc: dto.ruc || null,
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -456,6 +457,7 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
+          selfie: files.selfie_key || null,
           ruc: dto.ruc || null,
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -647,6 +649,7 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
+          selfie: files.selfie_key || null,
           ruc: dto.ruc || null,
           razon_social: null,
           rep_legal: null,
@@ -891,6 +894,7 @@ export class SignaturesService {
         foto_frontal: files.foto_frontal_key,
         foto_posterior: files.foto_posterior_key,
         video_face: files.video_face_key || null,
+        selfie: files.selfie_key || null,
         ruc: dto.ruc || '',
         razon_social: dto.razon_social?.toUpperCase() || null,
         rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -1096,6 +1100,7 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
+          selfie: files.selfie_key || null,
           ruc: dto.ruc || null,
           razon_social: null,
           rep_legal: null,
@@ -1340,6 +1345,7 @@ export class SignaturesService {
           foto_frontal: files.foto_frontal_key,
           foto_posterior: files.foto_posterior_key,
           video_face: files.video_face_key || null,
+          selfie: files.selfie_key || null,
           ruc: dto.ruc || '',
           razon_social: dto.razon_social?.toUpperCase() || null,
           rep_legal: dto.rep_legal?.toUpperCase() || null,
@@ -2231,6 +2237,7 @@ export class SignaturesService {
       },
       include: {
         plan: true,
+        tokenInfo: true,
       },
     });
 
@@ -2277,7 +2284,10 @@ export class SignaturesService {
         Promise.resolve(null),
       ]);
 
-      let video_face_url;
+      let video_face_url: string | null = null;
+      let pdf_sri_url: string | null = null;
+      let nombramiento_url: string | null = null;
+      let selfie_url: string | null = null;
 
       if (signatureRequest.video_face) {
         video_face_url = await this.filesService.getFileUrl(
@@ -2286,8 +2296,12 @@ export class SignaturesService {
         );
       }
 
-      let pdf_sri_url;
-      let nombramiento_url;
+      if (signatureRequest.selfie) {
+        selfie_url = await this.filesService.getFileUrl(
+          signatureRequest.selfie,
+          'fotos-cedulas',
+        );
+      }
 
       if (signatureRequest.pdf_sri || signatureRequest.nombramiento) {
         pdf_sri_url = signatureRequest.pdf_sri
@@ -2322,9 +2336,10 @@ export class SignaturesService {
         dateOfBirth: signatureRequest.dateOfBirth,
         foto_frontal_url,
         foto_posterior_url,
+        selfie_url,
         video_face_url,
-        pdf_sri_url,
-        nombramiento_url,
+        pdf_sri_url: pdf_sri_url ?? null,
+        nombramiento_url: nombramiento_url ?? null,
         razon_social: signatureRequest.razon_social,
         rep_legal: signatureRequest.rep_legal,
         cargo: signatureRequest.cargo,
@@ -2342,6 +2357,7 @@ export class SignaturesService {
         durationType,
         priceCharged: signatureRequest.priceCharged,
         paymentMethod: signatureRequest.paymentMethod,
+        tokenInfo: signatureRequest.tokenInfo ?? null,
         createdAt: signatureRequest.createdAt,
         updatedAt: signatureRequest.updatedAt,
       };
@@ -2558,6 +2574,7 @@ export class SignaturesService {
           },
         },
         plan: true,
+        tokenInfo: true,
       },
     });
 
@@ -2605,6 +2622,7 @@ export class SignaturesService {
       let video_url: string | null = null;
       let pdf_sri_url: string | null = null;
       let nombramiento_url: string | null = null;
+      let selfie_url: string | null = null;
 
       if (signatureRequest.pdf_sri) {
         pdf_sri_url = await this.filesService.getFileUrl(
@@ -2626,6 +2644,13 @@ export class SignaturesService {
         );
       }
 
+      if (signatureRequest.selfie) {
+        selfie_url = await this.filesService.getFileUrl(
+          signatureRequest.selfie,
+          'fotos-cedulas',
+        );
+      }
+
       return {
         id: signatureRequest.id,
         numero_tramite: signatureRequest.numero_tramite,
@@ -2643,6 +2668,7 @@ export class SignaturesService {
         dateOfBirth: signatureRequest.dateOfBirth,
         foto_frontal_url,
         foto_posterior_url,
+        selfie_url,
         video_face: video_url,
         pdf_sri_url,
         nombramiento_url,
@@ -2664,6 +2690,7 @@ export class SignaturesService {
         expirationDate,
         duration,
         durationType,
+        tokenInfo: signatureRequest.tokenInfo ?? null,
         createdAt: signatureRequest.createdAt,
         updatedAt: signatureRequest.updatedAt,
         distributor: signatureRequest.distributor,
@@ -3270,6 +3297,7 @@ export class SignaturesService {
       return {
         foto_frontal_key: 'dev-foto-frontal.jpg',
         foto_posterior_key: 'dev-foto-posterior.jpg',
+        selfie_key: dto.selfie ? 'dev-selfie.jpg' : undefined,
         pdf_sri_key: dto.pdf_sri_base64 ? 'dev-pdf-sri.pdf' : undefined,
         nombramiento_key: dto.nombramiento_base64
           ? 'dev-nombramiento.pdf'
@@ -3297,6 +3325,17 @@ export class SignaturesService {
     let pdf_sri_key: string | undefined;
     let nombramiento_key: string | undefined;
     let video_face_key: string | undefined;
+    let selfie_key: string | undefined;
+
+    if (dto.selfie) {
+      selfie_key = await this.filesService.uploadFile(
+        dto.selfie,
+        distributorId.toString(),
+        'jpg',
+        'fotos-distribuidores',
+        'fotos-cedulas',
+      );
+    }
 
     if (dto.pdf_sri_base64) {
       pdf_sri_key = await this.filesService.uploadFile(
@@ -3332,6 +3371,7 @@ export class SignaturesService {
     return {
       foto_frontal_key,
       foto_posterior_key,
+      selfie_key,
       pdf_sri_key,
       nombramiento_key,
       video_face_key,
@@ -3632,7 +3672,7 @@ export class SignaturesService {
 
       return {
         success: true,
-        message: 'Certificado creado exitosamente',
+        message: 'Proceso ingresado para revisión correctamente',
         providerUuid,
       };
     } catch (error) {

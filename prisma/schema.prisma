@@ -222,6 +222,7 @@ model SignatureRequest {
   foto_frontal       String
   foto_posterior     String
   video_face         String?
+  selfie             String?
   pdf_sri            String?
   nombramiento       String?
   razon_social       String?
