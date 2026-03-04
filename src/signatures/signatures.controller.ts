@@ -23,7 +23,6 @@ import {
 import { SignaturesService } from './signatures.service';
 import { CreateNaturalSignatureDto } from './dto/create-natural-signature.dto';
 import { CreateJuridicalSignatureDto } from './dto/create-juridical-signature.dto';
-import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { AdminSignatureFilterDto } from './dto/admin-signature-filter.dto';
 import { AnnulSignatureDto } from './dto/annul-signature.dto';
 import { ApproveSignatureDto } from './dto/approve-signature.dto';
@@ -62,7 +61,6 @@ export class SignaturesController {
         'parroquia',
         'direccion',
         'celular',
-        'clave_firma',
         'foto_frontal',
         'foto_posterior',
         'plan_id',
@@ -79,7 +77,6 @@ export class SignaturesController {
         parroquia: { type: 'string', example: 'IÑAQUITO' },
         direccion: { type: 'string', example: 'QUITUS COLONIAL' },
         celular: { type: 'string', example: '0990602199' },
-        clave_firma: { type: 'string', example: 'GONZALEZ1752' },
         foto_frontal: { type: 'string', example: 'base64_string...' },
         foto_posterior: { type: 'string', example: 'base64_string...' },
         plan_id: { type: 'string', example: 'clx123abc456' },
@@ -179,7 +176,6 @@ export class SignaturesController {
         'parroquia',
         'direccion',
         'celular',
-        'clave_firma',
         'foto_frontal',
         'foto_posterior',
         'plan_id',
@@ -202,7 +198,6 @@ export class SignaturesController {
         parroquia: { type: 'string', example: 'IÑAQUITO' },
         direccion: { type: 'string', example: 'QUITUS COLONIAL' },
         celular: { type: 'string', example: '0990602199' },
-        clave_firma: { type: 'string', example: 'GONZALEZ1752' },
         foto_frontal: { type: 'string', example: 'base64_string...' },
         foto_posterior: { type: 'string', example: 'base64_string...' },
         plan_id: { type: 'string', example: 'clx123abc456' },
@@ -317,22 +312,30 @@ export class SignaturesController {
         parroquia: 'IÑAQUITO',
         direccion: 'QUITUS COLONIAL',
         dateOfBirth: '1990-05-15T00:00:00.000Z',
-        foto_frontal_url: '/9j/4AAQSkZJRgABAQAAAQABAAD...',
-        foto_posterior_url: '/9j/4AAQSkZJRgABAQAAAQABAAD...',
+        foto_frontal_url: 'https://s3.wasabisys.com/...',
+        foto_posterior_url: 'https://s3.wasabisys.com/...',
+        selfie_url: 'https://s3.wasabisys.com/...',
         video_face_url: null,
         pdf_sri_url: null,
         nombramiento_url: null,
         razon_social: null,
         rep_legal: null,
         cargo: null,
-        pais: 'ECUADOR',
-        clavefirma: 'GONZALEZ1752',
         ruc: null,
-        tipo_envio: 'NATURAL',
+        tipo_envio: 'EMAIL',
         status: 'PENDING',
+        biometryStatus: 'PENDING',
+        signatureType: 'NATURAL_CEDULA',
         providerCode: '200',
         providerMessage: 'Solicitud recibida',
+        annulledNote: null,
         activeNotification: true,
+        expirationDate: null,
+        duration: '1',
+        durationType: 'Y',
+        priceCharged: 79900,
+        paymentMethod: 'BALANCE',
+        tokenInfo: null,
         createdAt: '2024-12-23T10:30:00.000Z',
         updatedAt: '2024-12-23T10:30:00.000Z',
       },
@@ -548,25 +551,46 @@ export class SignaturesController {
         dateOfBirth: '1990-05-15T00:00:00.000Z',
         foto_frontal_url: 'https://s3.wasabisys.com/...',
         foto_posterior_url: 'https://s3.wasabisys.com/...',
+        selfie_url: 'https://s3.wasabisys.com/...',
         video_face: 'https://s3.wasabisys.com/...',
         pdf_sri_url: null,
         nombramiento_url: null,
         razon_social: null,
         rep_legal: null,
         cargo: null,
-        pais: 'ECUADOR',
-        clavefirma: 'GONZALEZ1752',
         ruc: null,
-        tipo_envio: 'NATURAL',
+        tipo_envio: 'EMAIL',
         status: 'COMPLETED',
-        providerCode: '1',
+        biometryStatus: null,
+        signatureType: 'JURIDICA_TOKEN',
+        providerCode: 'uuid-proveedor-123',
         providerMessage: 'Solicitud enviada correctamente',
-        annulledBy: 'Juan Perez',
-        annulledNote: 'Solicitud anulada por error',
+        annulledBy: null,
+        annulledNote: null,
         activeNotification: true,
         expirationDate: '2025-12-23T10:30:00.000Z',
         duration: '1',
         durationType: 'Y',
+        priceCharged: 89900,
+        paymentMethod: 'CREDIT',
+        tokenInfo: {
+          id: 'clxtoken123',
+          shippingTypeUuid: 'uuid-envio-continental',
+          deliveryMethod: 'DELIVERY',
+          office: null,
+          contactName: 'LUIS GONZALEZ',
+          contactPhone: '0990602199',
+          province: 'PICHINCHA',
+          city: 'QUITO',
+          mainStreet: 'AV. AMAZONAS',
+          houseNumber: 'N35-26',
+          secondaryStreet: 'PATRIA',
+          reference: 'EDIFICIO COFIEC',
+          recipientIdentification: '1752549467',
+          recipientName: 'LUIS GONZALEZ',
+          createdAt: '2024-12-23T10:30:00.000Z',
+          updatedAt: '2024-12-23T10:30:00.000Z',
+        },
         createdAt: '2024-12-23T10:30:00.000Z',
         updatedAt: '2024-12-23T10:30:00.000Z',
         distributor: {
@@ -685,5 +709,47 @@ export class SignaturesController {
       req.user.firstName + ' ' + req.user.lastName,
       dto.note,
     );
+  }
+
+  @Post('admin/resend-biometric-link')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Reenviar link de biometría Enext (Admin)',
+    description:
+      'Genera un nuevo link de biometría para una firma ENEXT en proceso y lo envía automáticamente al correo y WhatsApp del cliente. Solo para administradores. Actualiza el token guardado en la firma.',
+  })
+  @ApiQuery({
+    name: 'signatureId',
+    required: true,
+    type: String,
+    description: 'ID de la solicitud de firma ENEXT',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Link generado y enviado exitosamente',
+    schema: {
+      example: {
+        success: true,
+        message: 'Link de biometría generado y enviado por correo y WhatsApp',
+        newToken: 'abc123xyz...',
+        link: 'https://enext.online/',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Firma no encontrada, no es ENEXT, ya completada o sin token registrado',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Acceso denegado - Solo para administradores',
+  })
+  async resendBiometricLink(@Query('signatureId') signatureId: string) {
+    if (!signatureId) {
+      throw new BadRequestException('El parámetro signatureId es requerido');
+    }
+    return this.signaturesService.resendEnextBiometricLink(signatureId);
   }
 }

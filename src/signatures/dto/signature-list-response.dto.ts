@@ -1,4 +1,4 @@
-import { SignatureStatus } from '@prisma/client';
+import { BiometryStatus, SignatureStatus, SignatureType } from '@prisma/client';
 
 export class SignatureListItemDto {
   id: string;
@@ -12,6 +12,8 @@ export class SignatureListItemDto {
   ruc: string | null;
   razon_social: string | null;
   status: SignatureStatus;
+  biometryStatus: BiometryStatus | null;
+  signatureType: SignatureType | null;
   providerCode: string | null;
   providerMessage: string | null;
   expiredDays: number | null;

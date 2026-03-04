@@ -1,4 +1,4 @@
-import { SignatureStatus } from '@prisma/client';
+import { BiometryStatus, SignatureStatus, SignatureType } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DistributorInfoDto {
@@ -61,6 +61,11 @@ export class AdminSignatureListItemDto {
   @ApiProperty({ enum: SignatureStatus, example: 'COMPLETED' })
   status: SignatureStatus;
 
+  @ApiPropertyOptional({ enum: BiometryStatus, example: 'PENDING' })
+  biometryStatus: BiometryStatus | null;
+
+  @ApiPropertyOptional({ enum: SignatureType, example: 'NATURAL_CEDULA' })
+  signatureType: SignatureType | null;
   @ApiPropertyOptional({ example: '1' })
   providerCode: string | null;
 

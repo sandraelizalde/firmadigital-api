@@ -6,10 +6,10 @@ export default registerAs('app', () => ({
   signProvider: {
     baseUrlNatural: process.env.SIGN_PROVIDER_BASE_URL_NATURAL,
     baseUrlJuridica: process.env.SIGN_PROVIDER_BASE_URL_JURIDICA,
+    biometriaUrl: process.env.SIGN_PROVIDER_BIOMETRIA_URL,
+    generarLinkBiometriaUrl: process.env.SIGN_PROVIDER_GENERAR_LINK_BIOMETRIA_URL,
     user: process.env.SIGN_PROVIDER_USER,
     password: process.env.SIGN_PROVIDER_PASSWORD,
-    authUsername: process.env.SIGN_PROVIDER_AUTH_USERNAME,
-    authPassword: process.env.SIGN_PROVIDER_AUTH_PASSWORD,
     authUsernameBiometria: process.env.SIGN_PROVIDER_AUTH_USERNAME_BIOMETRIA,
     authPasswordBiometria: process.env.SIGN_PROVIDER_AUTH_PASSWORD_BIOMETRIA,
     callback: process.env.SIGN_PROVIDER_CALLBACK,

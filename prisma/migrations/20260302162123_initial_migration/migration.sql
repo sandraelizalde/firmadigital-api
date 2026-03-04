@@ -1,14 +1,8 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "IdentificationType" AS ENUM ('CEDULA', 'RUC');
 
 -- CreateEnum
-CREATE TYPE "TypeClient" AS ENUM ('PERSONA_NATURAL_SIN_RUC', 'PERSONA_NATURAL_CON_RUC', 'PERSONA_JURIDICA');
-
--- CreateEnum
-CREATE TYPE "SignatureStatus" AS ENUM ('COMPLETED', 'PENDING', 'REJECTED', 'FAILED', 'ANNULLED');
+CREATE TYPE "SignatureStatus" AS ENUM ('COMPLETED', 'PENDING', 'DOCS_APPROVED', 'REJECTED', 'FAILED', 'ANNULLED');
 
 -- CreateEnum
 CREATE TYPE "RechargeMethod" AS ENUM ('CARD', 'TRANSFER', 'MANUAL');
@@ -30,6 +24,12 @@ CREATE TYPE "SignatureProvider" AS ENUM ('ENEXT', 'UANATACA');
 
 -- CreateEnum
 CREATE TYPE "DeliveryMethod" AS ENUM ('PICKUP', 'DELIVERY');
+
+-- CreateEnum
+CREATE TYPE "BiometryStatus" AS ENUM ('PENDING', 'COMPLETED', 'REJECTED', 'COMPLETED_MISSING_PASSWORD');
+
+-- CreateEnum
+CREATE TYPE "SignatureType" AS ENUM ('NATURAL_CEDULA', 'NATURAL_PASAPORTE', 'NATURAL_TOKEN', 'JURIDICA_CEDULA', 'JURIDICA_PASAPORTE', 'JURIDICA_TOKEN');
 
 -- CreateTable
 CREATE TABLE "Distributor" (
@@ -137,8 +137,6 @@ CREATE TABLE "SignatureRequest" (
     "razon_social" TEXT,
     "rep_legal" TEXT,
     "cargo" TEXT,
-    "pais" TEXT NOT NULL DEFAULT 'ECUADOR',
-    "clavefirma" TEXT NOT NULL,
     "ruc" TEXT,
     "tipo_envio" TEXT NOT NULL,
     "status" "SignatureStatus" NOT NULL DEFAULT 'PENDING',
@@ -153,6 +151,8 @@ CREATE TABLE "SignatureRequest" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "distributorId" TEXT,
     "provider" "SignatureProvider" NOT NULL DEFAULT 'ENEXT',
+    "biometryStatus" "BiometryStatus",
+    "signatureType" "SignatureType",
 
     CONSTRAINT "SignatureRequest_pkey" PRIMARY KEY ("id")
 );

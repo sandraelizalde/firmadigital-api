@@ -10,7 +10,6 @@ import { AssignPlansToDistributorDto } from './dto/assign-plan-to-distributor.dt
 import { UpdateDistributorPlanPriceDto } from './dto/update-distributor-plan-price.dto';
 import { UpdatePlansToDistributorDto } from './dto/update-plans-to-distributor.dto';
 import { CreatePromotionsDto } from './dto/create-promotions.dto';
-import { TypeClient } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
 import { WhatsappService } from 'src/notifications/whatsapp.service';
 

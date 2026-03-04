@@ -1,2 +1,0 @@
--- AlterEnum
-ALTER TYPE "CreditStatus" ADD VALUE 'PARTIALLY_PAID';
