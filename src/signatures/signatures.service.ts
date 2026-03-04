@@ -2490,6 +2490,191 @@ export class SignaturesService {
   }
 
   /**
+   * Procesa el reembolso del dinero al distribuidor cuando una firma es rechazada automáticamente.
+   * Reutiliza la misma lógica financiera que annulSignatureRequest pero sin cambiar el estado de la firma.
+   * @param signatureId ID de la solicitud de firma rechazada
+   * @param reason Motivo del rechazo para el registro del movimiento
+   */
+  private async processRefundForSignature(
+    signatureId: string,
+    reason: string,
+  ): Promise<void> {
+    const signatureRequest = await this.prisma.signatureRequest.findUnique({
+      where: { id: signatureId },
+      include: { distributor: true },
+    });
+
+    if (!signatureRequest || !signatureRequest.distributorId) {
+      this.logger.warn(
+        `[Reembolso] Firma ${signatureId} no encontrada o sin distribuidor asociado`,
+      );
+      return;
+    }
+
+    // Determinar si fue pagada por crédito
+    let isPaidViaCredit =
+      signatureRequest.paymentMethod === PaymentMethod.CREDIT;
+    let targetCutoff: any = null;
+    let refundAmount = signatureRequest.priceCharged || 0;
+    let wasAlreadyPaidInCutoff = false;
+
+    if (!isPaidViaCredit) {
+      const originalMovement = await this.prisma.accountMovement.findFirst({
+        where: {
+          signatureId: signatureRequest.id,
+          type: MovementType.EXPENSE,
+        },
+      });
+      if (originalMovement) {
+        refundAmount = originalMovement.amount;
+      } else if (refundAmount === 0) {
+        const planPrice = await this.prisma.distributorPlanPrice.findFirst({
+          where: {
+            distributorId: signatureRequest.distributorId,
+            planId: signatureRequest.planId,
+          },
+        });
+        refundAmount = planPrice?.customPrice || 0;
+        isPaidViaCredit = true;
+      }
+    }
+
+    if (isPaidViaCredit) {
+      const sigDate = new Date(signatureRequest.createdAt);
+      const ecuadorDateString = sigDate.toLocaleString('en-US', {
+        timeZone: 'America/Guayaquil',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+      const [month, day, year] = ecuadorDateString.split('/');
+      const cutoffDate = new Date(`${year}-${month}-${day}T23:59:59.999-05:00`);
+
+      targetCutoff = await this.prisma.creditCutoff.findFirst({
+        where: {
+          distributorId: signatureRequest.distributorId,
+          cutoffDate: cutoffDate,
+        },
+      });
+
+      if (targetCutoff) {
+        wasAlreadyPaidInCutoff = targetCutoff.amountPaid >= refundAmount;
+      }
+    }
+
+    if (refundAmount <= 0) {
+      this.logger.warn(
+        `[Reembolso] Firma ${signatureId} rechazada con monto de reembolso 0, no se procesa`,
+      );
+      return;
+    }
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        const distributor = await tx.distributor.findUnique({
+          where: { id: signatureRequest.distributorId! },
+          select: { balance: true },
+        });
+
+        let newBalance = distributor?.balance || 0;
+
+        if (isPaidViaCredit && targetCutoff) {
+          let signatures: string[] = [];
+          try {
+            signatures = JSON.parse(targetCutoff.signaturesDetails || '[]');
+          } catch {
+            signatures = [];
+          }
+
+          signatures = signatures.filter((id) => id !== signatureId);
+
+          let newAmountUsed = Math.max(
+            0,
+            targetCutoff.amountUsed - refundAmount,
+          );
+          let newAmountPaid = targetCutoff.amountPaid;
+
+          if (wasAlreadyPaidInCutoff) {
+            newAmountPaid = Math.max(0, targetCutoff.amountPaid - refundAmount);
+            newBalance += refundAmount;
+
+            await tx.distributor.update({
+              where: { id: signatureRequest.distributorId! },
+              data: { balance: newBalance },
+            });
+
+            await tx.accountMovement.create({
+              data: {
+                distributorId: signatureRequest.distributorId!,
+                type: MovementType.INCOME,
+                detail: `Reembolso por firma rechazada - Corte del ${new Date(targetCutoff.cutoffDate).toLocaleDateString('es-EC', { timeZone: 'America/Guayaquil', day: '2-digit', month: '2-digit', year: 'numeric' })}`,
+                amount: refundAmount,
+                balanceAfter: newBalance,
+                signatureId: signatureRequest.id,
+                note: reason,
+              },
+            });
+          } else {
+            newAmountPaid = Math.min(targetCutoff.amountPaid, newAmountUsed);
+          }
+
+          const isNowPaid = newAmountUsed <= newAmountPaid;
+
+          await tx.creditCutoff.update({
+            where: { id: targetCutoff.id },
+            data: {
+              amountUsed: newAmountUsed,
+              amountPaid: newAmountPaid,
+              signaturesCount: Math.max(0, targetCutoff.signaturesCount - 1),
+              signaturesDetails: JSON.stringify(signatures),
+              isPaid: isNowPaid,
+              isOverdue: isNowPaid ? false : targetCutoff.isOverdue,
+            },
+          });
+        } else {
+          // Reembolso directo al balance
+          newBalance += refundAmount;
+
+          await tx.distributor.update({
+            where: { id: signatureRequest.distributorId! },
+            data: { balance: newBalance },
+          });
+
+          await tx.accountMovement.create({
+            data: {
+              distributorId: signatureRequest.distributorId!,
+              type: MovementType.INCOME,
+              detail: `Reembolso por firma rechazada - ${signatureRequest.apellidos || signatureRequest.razon_social}`,
+              amount: refundAmount,
+              balanceAfter: newBalance,
+              signatureId: signatureRequest.id,
+              note: reason,
+            },
+          });
+        }
+      },
+      { timeout: 300_000 },
+    );
+
+    if (isPaidViaCredit && targetCutoff) {
+      try {
+        await this.creditsService.checkAndUnblockAfterAnnulment(
+          signatureRequest.distributorId!,
+          targetCutoff.creditId,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[Reembolso] Error al verificar desbloqueo tras rechazo de firma ${signatureId}: ${error.message}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `[Reembolso] Reembolso de $${(refundAmount / 100).toFixed(2)} procesado para firma rechazada ${signatureId}`,
+    );
+  }
+
+  /**
    * Anula una solicitud de firma y reembolsa el dinero al distribuidor
    * @param signatureId ID de la solicitud de firma
    * @param adminId ID del administrador que realiza la anulación
@@ -3694,6 +3879,19 @@ export class SignaturesService {
         this.logger.log(
           `[Biometría] Firma ${signature.id} actualizada → biometryStatus: ${newBiometryStatus}${newSignatureStatus ? `, status: ${newSignatureStatus}` : ''}`,
         );
+
+        if (newSignatureStatus === SignatureStatus.REJECTED) {
+          try {
+            await this.processRefundForSignature(
+              signature.id,
+              'Firma rechazada automáticamente por biometría ENEXT',
+            );
+          } catch (refundError) {
+            this.logger.error(
+              `[Biometría] Error al procesar reembolso para firma ${signature.id}: ${refundError.message}`,
+            );
+          }
+        }
       } catch (error) {
         this.logger.error(
           `[Biometría] Error consultando estado de firma ${signature.id}: ${error.message}`,
@@ -3914,6 +4112,19 @@ export class SignaturesService {
         this.logger.log(
           `[Uanataca Cron] Firma ${signature.id} actualizada → status: ${newSignatureStatus}${newBiometryStatus ? `, biometryStatus: ${newBiometryStatus}` : ''}`,
         );
+
+        if (newSignatureStatus === SignatureStatus.REJECTED) {
+          try {
+            await this.processRefundForSignature(
+              signature.id,
+              'Firma rechazada',
+            );
+          } catch (refundError) {
+            this.logger.error(
+              `[Uanataca Cron] Error al procesar reembolso para firma ${signature.id}: ${refundError.message}`,
+            );
+          }
+        }
       } catch (error) {
         this.logger.error(
           `[Uanataca Cron] Error consultando estado de firma ${signature.id}: ${error.message}`,
