@@ -17,6 +17,7 @@ export class SignatureListItemDto {
   providerCode: string | null;
   providerMessage: string | null;
   expiredDays: number | null;
+  priceCharged: number;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -99,7 +99,7 @@ export class CreditsService {
       );
     }
 
-    // Verificar si tiene deudas pendientes (solo para informar)
+    // Verificar si tiene deudas pendientes
     const unpaidCutoffs = await this.prisma.creditCutoff.findMany({
       where: {
         creditId: credit.id,
@@ -112,7 +112,13 @@ export class CreditsService {
       0,
     );
 
-    // Desactivar el crédito sin importar si tiene deudas
+    if (totalOwed > 0) {
+      throw new BadRequestException(
+        `No se puede desactivar el crédito. El distribuidor tiene una deuda pendiente de $${(totalOwed / 100).toFixed(2)}`,
+      );
+    }
+
+    // Desactivar el crédito solo si no tiene deudas
     const updatedCredit = await this.prisma.distributorCredit.update({
       where: { id: credit.id },
       data: {
@@ -1051,11 +1057,12 @@ export class CreditsService {
       }
 
       // Verificar si se deben desbloquear créditos
+      // Solo consideramos los créditos activos que fueron bloqueados por deuda
       const creditsToUnblock = await this.prisma.distributorCredit.findMany({
         where: {
           distributorId,
-          // Buscamos créditos que estén bloqueados O inactivos (por bloqueo previo)
-          OR: [{ isBlocked: true }, { isActive: false }],
+          isActive: true,
+          isBlocked: true,
         },
       });
 
@@ -1071,11 +1078,11 @@ export class CreditsService {
         if (remainingOverdueUnpaid === 0) {
           await this.prisma.distributorCredit.update({
             where: { id: credit.id },
-            data: { isBlocked: false, isActive: true },
+            data: { isBlocked: false },
           });
 
           this.logger.log(
-            `Crédito ${credit.id} desbloqueado y reactivado - no quedan deudas vencidas`,
+            `Crédito ${credit.id} desbloqueado - no quedan deudas vencidas`,
           );
         }
       }

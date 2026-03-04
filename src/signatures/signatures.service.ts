@@ -1763,6 +1763,7 @@ export class SignaturesService {
         durationType: plan ? plan.durationType : null,
         duration: plan ? plan.duration : null,
         expiredDays,
+        priceCharged: request.priceCharged,
         createdAt: request.createdAt,
         updatedAt: request.updatedAt,
       };
