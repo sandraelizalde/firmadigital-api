@@ -3401,6 +3401,7 @@ export class SignaturesService {
           data: {
             ...signatureData,
             priceCharged,
+            biometryStatus: BiometryStatus.PENDING,
             paymentMethod: usedCredit
               ? PaymentMethod.CREDIT
               : PaymentMethod.BALANCE,
