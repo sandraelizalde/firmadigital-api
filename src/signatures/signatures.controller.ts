@@ -700,19 +700,16 @@ export class SignaturesController {
     status: 403,
     description: 'Acceso denegado - Solo para administradores',
   })
-  async approveJuridicalSignature(
-    @Request() req,
-    @Body() dto: ApproveSignatureDto,
-  ) {
-    return this.signaturesService.approveJuridicalSignature(
+  async approveSignature(@Request() req, @Body() dto: ApproveSignatureDto) {
+    return this.signaturesService.approveSignature(
       dto.signatureId,
       req.user.firstName + ' ' + req.user.lastName,
       dto.note,
     );
   }
 
-  @Post('admin/resend-biometric-link')
-  @Roles(Role.ADMIN)
+  @Post('resend-biometric-link')
+  @Roles(Role.ADMIN, Role.DISTRIBUTOR)
   @ApiOperation({
     summary: 'Reenviar link de biometría Enext (Admin)',
     description:
@@ -746,10 +743,16 @@ export class SignaturesController {
     status: 403,
     description: 'Acceso denegado - Solo para administradores',
   })
-  async resendBiometricLink(@Query('signatureId') signatureId: string) {
+  async resendBiometricLink(
+    @Query('signatureId') signatureId: string,
+    @Query('solo_generar') soloGenerar?: string,
+  ) {
     if (!signatureId) {
       throw new BadRequestException('El parámetro signatureId es requerido');
     }
-    return this.signaturesService.resendEnextBiometricLink(signatureId);
+    return this.signaturesService.resendEnextBiometricLink(
+      signatureId,
+      soloGenerar === 'true',
+    );
   }
 }

@@ -24,7 +24,7 @@ async function main() {
     // Plan 1: 15 DÍAS
     {
       perfilNaturalEnext: '018',
-      perfilJuridicoEnext: '019',
+      perfilJuridicoEnext: null,
       perfilNaturalUanataca: null,
       perfilJuridicoUanataca: null,
       perfilNaturalTokenUanataca: null,
@@ -45,19 +45,6 @@ async function main() {
       duration: '1',
       basePrice: 799,
       durationType: 'M',
-    },
-
-    // Plan 3: 6 MESES
-    {
-      perfilNaturalEnext: '015',
-      perfilJuridicoEnext: '016',
-      perfilNaturalUanataca: null,
-      perfilJuridicoUanataca: null,
-      perfilNaturalTokenUanataca: null,
-      perfilJuridicoTokenUanataca: null,
-      duration: '6',
-      basePrice: 1199,
-      durationType: 'MS',
     },
 
     // Plan 4: 1 AÑO

@@ -263,12 +263,17 @@ export class SignaturesService {
       const isRejected = providerResponse.codigo === 0;
 
       let status: SignatureStatus;
+      let biometryStatus: BiometryStatus;
+
       if (isSuccess) {
         status = SignatureStatus.PENDING;
+        biometryStatus = BiometryStatus.PENDING;
       } else if (isRejected) {
         status = SignatureStatus.REJECTED;
+        biometryStatus = BiometryStatus.REJECTED;
       } else {
         status = SignatureStatus.FAILED;
+        biometryStatus = BiometryStatus.REJECTED;
       }
 
       // 6. Subir archivos
@@ -318,6 +323,7 @@ export class SignaturesService {
           signatureType: SignatureType.NATURAL_CEDULA,
           distributorId,
           status,
+          biometryStatus,
           providerCode: providerResponse.token_biometria,
           providerMessage: providerResponse.mensaje,
         },
@@ -413,12 +419,16 @@ export class SignaturesService {
       const isRejected = providerResponse.codigo === 0;
 
       let status: SignatureStatus;
+      let biometryStatus: BiometryStatus;
       if (isSuccess) {
         status = SignatureStatus.PENDING;
+        biometryStatus = BiometryStatus.PENDING;
       } else if (isRejected) {
         status = SignatureStatus.REJECTED;
+        biometryStatus = BiometryStatus.REJECTED;
       } else {
         status = SignatureStatus.FAILED;
+        biometryStatus = BiometryStatus.REJECTED;
       }
 
       // 6. Subir archivos
@@ -468,6 +478,7 @@ export class SignaturesService {
           signatureType: SignatureType.JURIDICA_CEDULA,
           distributorId,
           status,
+          biometryStatus,
           providerCode: providerResponse.token_biometria,
           providerMessage: providerResponse.mensaje,
         },
@@ -607,10 +618,13 @@ export class SignaturesService {
       const isSuccess = providerResponse.success;
 
       let status: SignatureStatus;
+      let biometryStatus: BiometryStatus;
       if (isSuccess) {
         status = SignatureStatus.PENDING;
+        biometryStatus = BiometryStatus.PENDING;
       } else {
-        status = SignatureStatus.FAILED;
+        status = SignatureStatus.REJECTED;
+        biometryStatus = BiometryStatus.REJECTED;
       }
 
       // 8. Subir archivos al storage
@@ -660,6 +674,7 @@ export class SignaturesService {
           signatureType: SignatureType.NATURAL_PASAPORTE,
           distributorId,
           status,
+          biometryStatus,
           providerCode:
             providerResponse.providerUuid || (isSuccess ? '1' : '0'),
           providerMessage: providerResponse.message,
@@ -852,10 +867,13 @@ export class SignaturesService {
     const isSuccess = providerResponse.success;
 
     let status: SignatureStatus;
+    let biometryStatus: BiometryStatus;
     if (isSuccess) {
       status = SignatureStatus.PENDING;
+      biometryStatus = BiometryStatus.PENDING;
     } else {
       status = SignatureStatus.REJECTED;
+      biometryStatus = BiometryStatus.REJECTED;
     }
 
     // 8. Subir archivos al storage
@@ -905,6 +923,7 @@ export class SignaturesService {
         signatureType: SignatureType.JURIDICA_PASAPORTE,
         distributorId,
         status,
+        biometryStatus,
         providerCode: providerResponse.providerUuid || (isSuccess ? '1' : '0'),
         providerMessage: providerResponse.message,
         provider: 'UANATACA',
@@ -1063,6 +1082,10 @@ export class SignaturesService {
         ? SignatureStatus.PENDING
         : SignatureStatus.FAILED;
 
+      const biometryStatus: BiometryStatus = isSuccess
+        ? BiometryStatus.PENDING
+        : BiometryStatus.REJECTED;
+
       // 7. Subir archivos al storage
       const files = await this.uploadSignatureFiles(
         distributorId,
@@ -1111,6 +1134,7 @@ export class SignaturesService {
           signatureType: SignatureType.NATURAL_TOKEN,
           distributorId,
           status,
+          biometryStatus,
           providerCode:
             providerResponse.providerUuid || (isSuccess ? '1' : '0'),
           providerMessage: providerResponse.message,
@@ -1307,6 +1331,9 @@ export class SignaturesService {
       const status: SignatureStatus = isSuccess
         ? SignatureStatus.PENDING
         : SignatureStatus.FAILED;
+      const biometryStatus: BiometryStatus = isSuccess
+        ? BiometryStatus.PENDING
+        : BiometryStatus.REJECTED;
 
       // 7. Subir archivos
       const files = await this.uploadSignatureFiles(
@@ -1356,6 +1383,7 @@ export class SignaturesService {
           signatureType: SignatureType.JURIDICA_TOKEN,
           distributorId,
           status,
+          biometryStatus,
           providerCode:
             providerResponse.providerUuid || (isSuccess ? '1' : '0'),
           providerMessage: providerResponse.message,
@@ -1872,11 +1900,15 @@ export class SignaturesService {
    * envíe el link por correo y WhatsApp automáticamente.
    * Actualiza providerCode con el nuevo token_biometria retornado.
    */
-  async resendEnextBiometricLink(signatureId: string): Promise<{
+  async resendEnextBiometricLink(
+    signatureId: string,
+    soloGenerar: boolean = false,
+  ): Promise<{
     success: boolean;
     message: string;
     newToken: string;
     link: string;
+    soloGenerar: boolean;
   }> {
     const generarLinkUrl = this.config.signProvider.generarLinkBiometriaUrl;
     if (!generarLinkUrl) {
@@ -1893,6 +1925,11 @@ export class SignaturesService {
         providerCode: true,
         correo: true,
         status: true,
+        biometryStatus: true,
+        celular: true,
+        nombres: true,
+        apellidos: true,
+        razon_social: true,
       },
     });
 
@@ -1909,6 +1946,14 @@ export class SignaturesService {
         'La firma no tiene token de biometría registrado',
       );
     }
+    if (
+      signature.status === SignatureStatus.COMPLETED ||
+      signature.status === SignatureStatus.ANNULLED
+    ) {
+      throw new BadRequestException(
+        'No se puede reenviar biometría para una firma completada o anulada',
+      );
+    }
 
     let responseData: any;
 
@@ -1918,17 +1963,23 @@ export class SignaturesService {
         token: `sim-token-resend-${Date.now()}`,
         link: `https://enext.online/biometria.php?token=sim-token-resend-${Date.now()}`,
         correo: signature.correo,
-        soloGenerar: false,
+        celular: signature.celular, 
+        soloGenerar,
       };
       this.logger.log(
-        `[Biometría] SIMULACIÓN reenvío link para firma ${signatureId}`,
+        `[Biometría] SIMULACIÓN ${soloGenerar ? 'generación' : 'reenvío'} link para firma ${signatureId}`,
       );
     } else {
       try {
-        const body = new URLSearchParams({
+        const params: Record<string, string> = {
           token_actual: signature.providerCode,
           correo: signature.correo,
-        }).toString();
+          celular: signature.celular,
+        };
+        if (soloGenerar) {
+          params.solo_generar = '1';
+        }
+        const body = new URLSearchParams(params).toString();
 
         const response = await firstValueFrom(
           this.httpService.post(generarLinkUrl, body, {
@@ -1956,21 +2007,28 @@ export class SignaturesService {
       }
     }
 
-    // Actualizar providerCode con el nuevo token
+    // Restablecer biometryStatus a PENDING y actualizar token
+    // para que el cron retome la consulta de esta firma.
     await this.prisma.signatureRequest.update({
       where: { id: signatureId },
-      data: { providerCode: responseData.token },
+      data: {
+        providerCode: responseData.token,
+        biometryStatus: BiometryStatus.PENDING,
+      },
     });
 
     this.logger.log(
-      `[Biometría] Link reenviado para firma ${signatureId}. Nuevo token guardado.`,
+      `[Biometría] Link ${soloGenerar ? 'generado' : 'reenviado'} para firma ${signatureId}. Nuevo token guardado.`,
     );
 
     return {
       success: true,
-      message: 'Link de biometría generado y enviado por correo y WhatsApp',
+      message: soloGenerar
+        ? 'Link de biometría generado correctamente'
+        : 'Link de biometría generado y enviado por correo y WhatsApp',
       newToken: responseData.token,
       link: responseData.link,
+      soloGenerar,
     };
   }
 
@@ -2973,7 +3031,7 @@ export class SignaturesService {
    * @param note Nota opcional sobre la aprobación
    * @returns Resultado de la aprobación
    */
-  async approveJuridicalSignature(
+  async approveSignature(
     signatureId: string,
     adminName: string,
     note?: string,
@@ -2985,18 +3043,6 @@ export class SignaturesService {
 
     if (!signatureRequest) {
       throw new BadRequestException('Solicitud de firma no encontrada');
-    }
-
-    // Verificar que sea una firma jurídica (tipo_envio '1' con campos de jurídica o perfil PJ-)
-    const isJuridica =
-      signatureRequest.razon_social !== null ||
-      signatureRequest.rep_legal !== null ||
-      signatureRequest.perfil_firma.startsWith('PJ-');
-
-    if (!isJuridica) {
-      throw new BadRequestException(
-        'Solo se pueden aprobar solicitudes de firma jurídica',
-      );
     }
 
     // Verificar que la firma esté en estado PENDING
@@ -3013,6 +3059,7 @@ export class SignaturesService {
       where: { id: signatureId },
       data: {
         status: SignatureStatus.COMPLETED,
+        biometryStatus: BiometryStatus.COMPLETED,
         providerMessage:
           note + ' ' + adminName
             ? `Aprobada por ${adminName}: ${note}`
@@ -3022,7 +3069,7 @@ export class SignaturesService {
 
     return {
       success: true,
-      message: 'Firma jurídica aprobada exitosamente',
+      message: 'Firma aprobada exitosamente',
       data: {
         signatureId,
         previousStatus,
@@ -3793,17 +3840,23 @@ export class SignaturesService {
       return;
     }
 
-    // Buscar firmas ENEXT en PENDING con token_biometria guardado en providerCode
+    // Buscar firmas ENEXT en PENDING o DOCS_APPROVED con token_biometria guardado en providerCode.
+    // DOCS_APPROVED: docs aprobados pero pendiente de biometría (estadoTramite=3).
+    // Se excluye solo biometryStatus COMPLETED: mientras el status sea PENDING/DOCS_APPROVED
+    // hay que seguir consultando aunque la biometría haya sido rechazada previamente,
+    // ya que el admin puede regenerar el link y el cliente puede volver a intentarlo.
     const pendingSignatures = await this.prisma.signatureRequest.findMany({
       where: {
         provider: 'ENEXT',
-        status: SignatureStatus.PENDING,
+        status: {
+          in: [SignatureStatus.PENDING, SignatureStatus.DOCS_APPROVED],
+        },
         providerCode: { not: null },
         biometryStatus: {
-          notIn: [BiometryStatus.COMPLETED, BiometryStatus.REJECTED],
+          not: BiometryStatus.COMPLETED,
         },
       },
-      select: { id: true, providerCode: true },
+      select: { id: true, providerCode: true, distributorId: true },
     });
 
     if (pendingSignatures.length === 0) return;
@@ -3832,48 +3885,83 @@ export class SignaturesService {
 
         const { estado, mensaje } = data.data.biometria;
         const estadoNum = Number(estado);
-        if (estadoNum === 0 || estadoNum === -1) {
-          continue;
-        }
+        const aprobacion = data.data.aprobacion;
+        const hasAprobacion = aprobacion !== undefined && aprobacion !== null;
+        const estadoTramite = hasAprobacion
+          ? Number(aprobacion.estadoTramite)
+          : null;
 
         let newBiometryStatus: BiometryStatus | null = null;
         let newSignatureStatus: SignatureStatus | null = null;
+        let shouldSkip = false;
 
-        if (estadoNum === 1) {
-          // Biometría completa.
-          const aprobacion = data.data.aprobacion;
+        // Eje 1: determinar biometryStatus a partir de biometria.estado
+        switch (estadoNum) {
+          case 1:
+            newBiometryStatus = BiometryStatus.COMPLETED;
+            break;
+          case 2:
+            newBiometryStatus = BiometryStatus.REJECTED;
+            break;
+          case 3:
+            newBiometryStatus = BiometryStatus.COMPLETED_MISSING_PASSWORD;
+            break;
+          case 0:
+          case -1:
+            break;
+          default:
+            shouldSkip = true;
+        }
 
-          if (aprobacion !== undefined && aprobacion !== null) {
-            const estadoTramite = Number(aprobacion.estadoTramite);
-
-            if (estadoTramite === 1) {
-              newBiometryStatus = BiometryStatus.COMPLETED;
-              newSignatureStatus = SignatureStatus.COMPLETED;
-            } else if (estadoTramite === 2) {
-              newBiometryStatus = BiometryStatus.REJECTED;
-              newSignatureStatus = SignatureStatus.REJECTED;
-            } else if (estadoTramite === 3) {
-              newSignatureStatus = SignatureStatus.DOCS_APPROVED;
-            } else {
-              continue;
+        if (!shouldSkip) {
+          if (hasAprobacion && estadoTramite !== null) {
+            // Tabla:
+            //   0 → En revisión          → sin cambio
+            //   1 → Completado            → COMPLETED
+            //   2 → Rechazado             → REJECTED
+            //   3 → Docs aprobados, pdte biometría → DOCS_APPROVED
+            switch (estadoTramite) {
+              case 0:
+                break;
+              case 1:
+                newSignatureStatus = SignatureStatus.COMPLETED;
+                if (!newBiometryStatus)
+                  newBiometryStatus = BiometryStatus.COMPLETED;
+                break;
+              case 2:
+                newSignatureStatus = SignatureStatus.REJECTED;
+                if (!newBiometryStatus)
+                  newBiometryStatus = BiometryStatus.REJECTED;
+                break;
+              case 3:
+                newSignatureStatus = SignatureStatus.DOCS_APPROVED;
+                break;
+              default:
+                shouldSkip = true;
             }
           } else {
-            newBiometryStatus = BiometryStatus.COMPLETED;
-            newSignatureStatus = SignatureStatus.COMPLETED;
+            switch (estadoNum) {
+              case 1:
+                newSignatureStatus = SignatureStatus.COMPLETED;
+                break;
+              case 0:
+              case -1:
+                shouldSkip = true;
+                break;
+              default:
+                break;
+            }
           }
-        } else if (estadoNum === 2) {
-          newBiometryStatus = BiometryStatus.REJECTED;
-          newSignatureStatus = SignatureStatus.REJECTED;
-        } else if (estadoNum === 3) {
-          newBiometryStatus = BiometryStatus.COMPLETED_MISSING_PASSWORD;
-        } else {
+        }
+
+        if (shouldSkip || (!newBiometryStatus && !newSignatureStatus)) {
           continue;
         }
 
         await this.prisma.signatureRequest.update({
           where: { id: signature.id },
           data: {
-            biometryStatus: newBiometryStatus,
+            ...(newBiometryStatus && { biometryStatus: newBiometryStatus }),
             ...(newSignatureStatus && { status: newSignatureStatus }),
           },
         });
@@ -3886,7 +3974,7 @@ export class SignaturesService {
           try {
             await this.processRefundForSignature(
               signature.id,
-              'Firma rechazada automáticamente por biometría ENEXT',
+              'Firma rechazada automáticamente por biometría',
             );
           } catch (refundError) {
             this.logger.error(
@@ -4001,10 +4089,12 @@ export class SignaturesService {
    *
    * Mapeo de estados Uanataca → estados internos:
    *   NEW              → sin cambios (sigue PENDING)
+   *   IN_VALIDATION    → sin cambios (sigue PENDING)
    *   UPDATE_REQUESTED → sin cambios (sigue PENDING)
-   *   APPROVED         → SignatureStatus: DOCS_APPROVED
+   *   UPDATED          → sin cambios (sigue PENDING)
    *   ISSUED           → SignatureStatus: COMPLETED, BiometryStatus: COMPLETED
    *   REJECTED         → SignatureStatus: REJECTED, BiometryStatus: REJECTED
+   *   CANCELED         → SignatureStatus: ANNULLED
    */
   @Cron('0 */30 * * * *', {
     timeZone: 'America/Guayaquil',
@@ -4025,7 +4115,7 @@ export class SignaturesService {
         status: SignatureStatus.PENDING,
         providerCode: { not: null },
       },
-      select: { id: true, providerCode: true },
+      select: { id: true, providerCode: true, distributorId: true },
     });
 
     if (pendingSignatures.length === 0) return;
@@ -4073,8 +4163,13 @@ export class SignaturesService {
 
         const statusUpper = uanatacaStatus.toUpperCase();
 
-        // Ignorar estados que no implican cambio
-        if (statusUpper === 'NEW' || statusUpper === 'UPDATE_REQUESTED') {
+        // Ignorar estados intermedios que no implican cambio
+        if (
+          statusUpper === 'NEW' ||
+          statusUpper === 'IN_VALIDATION' ||
+          statusUpper === 'UPDATE_REQUESTED' ||
+          statusUpper === 'UPDATED'
+        ) {
           continue;
         }
 
@@ -4082,10 +4177,6 @@ export class SignaturesService {
         let newBiometryStatus: BiometryStatus | null = null;
 
         switch (statusUpper) {
-          case 'APPROVED':
-            newSignatureStatus = SignatureStatus.DOCS_APPROVED;
-            break;
-
           case 'ISSUED':
             newSignatureStatus = SignatureStatus.COMPLETED;
             newBiometryStatus = BiometryStatus.COMPLETED;
@@ -4094,6 +4185,10 @@ export class SignaturesService {
           case 'REJECTED':
             newSignatureStatus = SignatureStatus.REJECTED;
             newBiometryStatus = BiometryStatus.REJECTED;
+            break;
+
+          case 'CANCELED':
+            newSignatureStatus = SignatureStatus.ANNULLED;
             break;
 
           default:
@@ -4115,11 +4210,16 @@ export class SignaturesService {
           `[Uanataca Cron] Firma ${signature.id} actualizada → status: ${newSignatureStatus}${newBiometryStatus ? `, biometryStatus: ${newBiometryStatus}` : ''}`,
         );
 
-        if (newSignatureStatus === SignatureStatus.REJECTED) {
+        if (
+          newSignatureStatus === SignatureStatus.REJECTED ||
+          newSignatureStatus === SignatureStatus.ANNULLED
+        ) {
           try {
             await this.processRefundForSignature(
               signature.id,
-              'Firma rechazada',
+              newSignatureStatus === SignatureStatus.ANNULLED
+                ? 'Firma cancelada'
+                : 'Firma rechazada',
             );
           } catch (refundError) {
             this.logger.error(
