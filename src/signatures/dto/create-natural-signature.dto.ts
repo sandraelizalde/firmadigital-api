@@ -51,7 +51,7 @@ export class CreateNaturalSignatureDto {
 
   @ApiProperty({
     description: 'Correo electrónico del solicitante',
-    example: 'luisg@solucionesnexus.com',
+    example: 'luisg@elizaldeasociados.com',
   })
   @IsEmail()
   @IsNotEmpty()

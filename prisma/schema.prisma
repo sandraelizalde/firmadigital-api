@@ -71,6 +71,7 @@ enum BiometryStatus {
   PENDING // Pendiente
   COMPLETED // Completado (biometría + contraseña)
   REJECTED // Rechazado
+  ANNULLED // Anulado por admin
   COMPLETED_MISSING_PASSWORD // Completado biometría pero falta contraseña
 }
 

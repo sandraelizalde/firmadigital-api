@@ -16,7 +16,7 @@ export class MailService {
   private async sendEmail(to: string, subject: string, html: string) {
     try {
       await this.resend.emails.send({
-        from: `Nexus Soluciones <${this.fromEmail}>`,
+        from: `Elizalde y Asociados <${this.fromEmail}>`,
         to,
         subject,
         html,
@@ -35,7 +35,7 @@ export class MailService {
   ) {
     try {
       await this.resend.emails.send({
-        from: `Nexus Soluciones <${this.fromEmail}>`,
+        from: `Elizalde y Asociados <${this.fromEmail}>`,
         to,
         subject,
         html,
@@ -118,7 +118,7 @@ export class MailService {
       // Enviar email
       await this.sendEmail(
         distributorEmail,
-        'Bienvenido/a como distribuidor de Nexus Soluciones',
+        'Bienvenido/a como distribuidor de Elizalde y Asociados',
         html,
       );
     } catch (error) {

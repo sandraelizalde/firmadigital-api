@@ -30,7 +30,7 @@ async function bootstrap() {
   // Lista de orígenes permitidos
   const baseOrigins = [
     process.env.FRONTEND_URL!,
-    process.env.NEXUS_FRONTEND_URL!,
+    process.env.ELIZALDE_FRONTEND_URL!,
   ].filter(Boolean);
 
   const allowedOrigins = [
@@ -78,8 +78,8 @@ async function bootstrap() {
   // Solo habilitar Swagger en desarrollo
   if (process.env.ENVIRONMENT === 'development') {
     const config = new DocumentBuilder()
-      .setTitle('Distribuidores Nexus API')
-      .setDescription('API documentation for Distribuidores Nexus Backend')
+      .setTitle('Distribuidores Elizalde API')
+      .setDescription('API documentation for Distribuidores Elizalde Backend')
       .setVersion('1.0')
       .addBearerAuth({
         type: 'http',

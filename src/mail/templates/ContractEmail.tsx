@@ -1,15 +1,7 @@
 import * as React from 'react';
-import {
-  Html,
-  Head,
-  Preview,
-  Body,
-  Container,
-  Section,
-  Text,
-  Hr,
-  Img,
-} from '@react-email/components';
+import { Text } from '@react-email/components';
+import { brand } from './shared/constants';
+import { EmailLayout, DataBlock } from './shared/EmailLayout';
 
 type Props = {
   distributorName: string;
@@ -17,150 +9,43 @@ type Props = {
 };
 
 export default function ContractEmail({
-  distributorName,
-  identification,
+  distributorName = 'Juan Pérez',
+  identification = '1712345678',
 }: Props) {
-  const brand = {
-    tealDark: '#005a70',
-    tealLight: '#0F9BB0',
-    white: '#FFFFFF',
-    bg: '#F3F7F9',
-    text: '#374151',
-    textLight: '#6b7280',
-  };
-
   return (
-    <Html>
-      <Head />
-      <Preview>Nuevo contrato de distribuidor - {distributorName}</Preview>
-      <Body
+    <EmailLayout
+      previewText={`Nuevo contrato de distribuidor — ${distributorName}`}
+      headerTitle="Nuevo Contrato de Distribuidor"
+      headerSubtitle="Gestión interna"
+      showSupport={false}
+    >
+      <Text
         style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: brand.bg,
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+          fontSize: '15px',
+          color: brand.colors.text,
+          lineHeight: '1.65',
+          margin: '0 0 28px',
         }}
       >
-        <Section style={{ backgroundColor: brand.tealDark, padding: '32px 0' }}>
-          <Container
-            style={{ maxWidth: '600px', margin: '0 auto', padding: '0 20px' }}
-          >
-            <Img
-              src="https://www.solucionesnexus.com/images/home/logo-full-white.png"
-              alt="Nexus Soluciones"
-              width={180}
-              height={48}
-              style={{ display: 'block', margin: '0 auto' }}
-            />
-          </Container>
-        </Section>
+        Se ha generado un nuevo contrato para el siguiente distribuidor. El
+        documento se encuentra adjunto a este correo en formato PDF.
+      </Text>
 
-        <Container
-          style={{
-            maxWidth: '600px',
-            margin: '40px auto',
-            padding: '0 20px',
-          }}
-        >
-          <Section
-            style={{
-              backgroundColor: brand.white,
-              borderRadius: '8px',
-              padding: '32px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            }}
-          >
-            <Text
-              style={{
-                margin: '0 0 24px',
-                fontSize: '20px',
-                fontWeight: 'bold',
-                color: brand.tealDark,
-              }}
-            >
-              Nuevo Contrato de Distribuidor
-            </Text>
+      <Text
+        style={{
+          fontSize: '10px',
+          fontWeight: '700',
+          color: brand.colors.textLight,
+          textTransform: 'uppercase',
+          letterSpacing: '1px',
+          margin: '0 0 12px',
+        }}
+      >
+        Datos del Distribuidor
+      </Text>
 
-            <Text
-              style={{
-                margin: '0 0 16px',
-                fontSize: '16px',
-                lineHeight: '1.6',
-                color: brand.text,
-              }}
-            >
-              Se ha generado un nuevo contrato para el distribuidor:
-            </Text>
-
-            <Section
-              style={{
-                backgroundColor: brand.bg,
-                borderRadius: '6px',
-                padding: '16px',
-                marginBottom: '24px',
-              }}
-            >
-              <Text
-                style={{
-                  margin: '0 0 8px',
-                  fontSize: '14px',
-                  color: brand.textLight,
-                }}
-              >
-                <strong>Distribuidor:</strong> {distributorName}
-              </Text>
-              <Text
-                style={{
-                  margin: '0',
-                  fontSize: '14px',
-                  color: brand.textLight,
-                }}
-              >
-                <strong>Identificación:</strong> {identification}
-              </Text>
-            </Section>
-
-            <Text
-              style={{
-                margin: '0 0 16px',
-                fontSize: '16px',
-                lineHeight: '1.6',
-                color: brand.text,
-              }}
-            >
-              El contrato se encuentra adjunto a este correo electrónico en
-              formato PDF para su revisión y archivo.
-            </Text>
-
-            <Hr style={{ margin: '24px 0', borderColor: '#e5e7eb' }} />
-
-            <Text
-              style={{
-                margin: 0,
-                fontSize: '14px',
-                color: brand.textLight,
-                textAlign: 'center',
-              }}
-            >
-              Este correo ha sido generado automáticamente por el sistema de
-              gestión de distribuidores de Nexus Soluciones.
-            </Text>
-          </Section>
-
-          <Text
-            style={{
-              margin: '24px 0 0',
-              fontSize: '12px',
-              color: brand.textLight,
-              textAlign: 'center',
-            }}
-          >
-            © {new Date().getFullYear()} Nexus Soluciones. Todos los derechos
-            reservados.
-          </Text>
-        </Container>
-      </Body>
-    </Html>
+      <DataBlock label="Distribuidor" value={distributorName} />
+      <DataBlock label="Identificación" value={identification} mono />
+    </EmailLayout>
   );
 }

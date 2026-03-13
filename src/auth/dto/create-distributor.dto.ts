@@ -30,7 +30,7 @@ export class CreateDistributorDto {
 
   @ApiPropertyOptional({
     description: 'Razón social (persona jurídica)',
-    example: 'Soluciones Nexus S.A.',
+    example: 'Elizalde y Asociados S.A.',
     type: String,
   })
   @IsOptional()

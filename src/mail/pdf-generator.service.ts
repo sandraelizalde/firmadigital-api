@@ -40,7 +40,7 @@ export class PdfGeneratorService {
             'CONTRATO DE PRESTACIÓN DE SERVICIOS PARA COMERCIALIZACIÓN DE',
             { align: 'center' },
           )
-          .text('FIRMA ELECTRÓNICA DE NEXUS SOLUCIONES S.A.S. B.I.C.', {
+          .text('FIRMA ELECTRÓNICA DE ELIZALDE Y ASOCIADOS S.A.S. B.I.C.', {
             align: 'center',
           })
           .text('PARA FACTURACIÓN', { align: 'center' });
@@ -75,7 +75,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            'I.       Por una parte, NEXUS-SOLUCIONES S.A.S. B.I.C. constituida bajo las leyes de la República de Ecuador, con domicilio en la ciudad de Quito, con RUC No. 0791844185001, representada legalmente por la empresa Holding-Collaguazo S.A.S. en su calidad de Gerente General, identificado con numero de Ruc: 0791843630001, quien para los efectos del presente contrato se denominará "NEXUS SOLUCIONES".',
+            'I.       Por una parte, ELIZALDE Y ASOCIADOS S.A.S. B.I.C. constituida bajo las leyes de la República de Ecuador, con domicilio en la ciudad de Quito, con RUC No. 0791844185001, representada legalmente por la empresa Holding-Collaguazo S.A.S. en su calidad de Gerente General, identificado con numero de Ruc: 0791843630001, quien para los efectos del presente contrato se denominará "ELIZALDE Y ASOCIADOS".',
             { align: 'justify' },
           );
 
@@ -118,24 +118,24 @@ export class PdfGeneratorService {
         doc.fontSize(10).font('Helvetica-Bold').text('3.  DECLARACIONES');
         doc.moveDown();
 
-        // a. Por parte de "NEXUS SOLUCIONES"
+        // a. Por parte de "ELIZALDE Y ASOCIADOS"
         doc
           .fontSize(9)
           .font('Helvetica-Bold')
-          .text('     a. Por parte de "NEXUS SOLUCIONES":');
+          .text('     a. Por parte de "ELIZALDE Y ASOCIADOS":');
         doc.moveDown();
 
-        const nexusDeclarations = [
-          'Que "NEXUS SOLUCIONES" y su representante legal tienen capacidad y facultades para la celebración del presente contrato.',
-          'Que "NEXUS SOLUCIONES" tiene por objeto el diseño y desarrollo de sistemas y soluciones tecnológicas para firma electrónica, certificación digital, certificación de identidad, gestión documental, blockchain pública y privada.',
-          'Que "NEXUS SOLUCIONES" se encuentra acreditada como Ente de Certificación de la Información y Servicios Relacionados en el Ecuador.',
-          'Que, en desarrollo de su objeto social, "NEXUS SOLUCIONES" actividades de preparación de las declaraciones tributarias de las personas y empresas; asesoramiento y de representación de clientes ante las autoridades tributarias.',
+        const elizaldeDeclarations = [
+          'Que "ELIZALDE Y ASOCIADOS" y su representante legal tienen capacidad y facultades para la celebración del presente contrato.',
+          'Que "ELIZALDE Y ASOCIADOS" tiene por objeto el diseño y desarrollo de sistemas y soluciones tecnológicas para firma electrónica, certificación digital, certificación de identidad, gestión documental, blockchain pública y privada.',
+          'Que "ELIZALDE Y ASOCIADOS" se encuentra acreditada como Ente de Certificación de la Información y Servicios Relacionados en el Ecuador.',
+          'Que, en desarrollo de su objeto social, "ELIZALDE Y ASOCIADOS" actividades de preparación de las declaraciones tributarias de las personas y empresas; asesoramiento y de representación de clientes ante las autoridades tributarias.',
           'Que el otorgamiento del presente Contrato no requiere autorización administrativa, ni viola prohibición legal alguna.',
-          'Que las obligaciones asumidas por "NEXUS SOLUCIONES" en virtud del Contrato son válidas y pueden ser exigibles.',
-          'Que "NEXUS SOLUCIONES" cuenta con todas las autorizaciones legales y privadas necesarias para llevar a cabo las actividades objeto del presente contrato.',
+          'Que las obligaciones asumidas por "ELIZALDE Y ASOCIADOS" en virtud del Contrato son válidas y pueden ser exigibles.',
+          'Que "ELIZALDE Y ASOCIADOS" cuenta con todas las autorizaciones legales y privadas necesarias para llevar a cabo las actividades objeto del presente contrato.',
         ];
 
-        nexusDeclarations.forEach((declaration) => {
+        elizaldeDeclarations.forEach((declaration) => {
           doc
             .fontSize(9)
             .font('Helvetica')
@@ -180,17 +180,17 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            `Los representantes legales de ${data.distributorName} y de "NEXUS SOLUCIONES" declaran:`,
+            `Los representantes legales de ${data.distributorName} y de "ELIZALDE Y ASOCIADOS" declaran:`,
             { align: 'justify' },
           );
         doc.moveDown();
 
         const jointDeclarations = [
-          'Que ambas partes están interesadas en establecer el marco contractual que regule la prestación de servicio de para acceder al servicio de emisión en línea y física y comercialización de firmas electrónicas que "NEXUS SOLUCIONES" proveerá a "EL CLIENTE".',
+          'Que ambas partes están interesadas en establecer el marco contractual que regule la prestación de servicio de para acceder al servicio de emisión en línea y física y comercialización de firmas electrónicas que "ELIZALDE Y ASOCIADOS" proveerá a "EL CLIENTE".',
           'Que las partes tienen autonomía técnica, administrativa y financiera.',
           'Que, en consecuencia, el personal que éstas designen para la ejecución del presente contrato no tendrá vínculo laboral con la otra parte, por lo que, bajo ninguna circunstancia, podrán alegar la falta de pago de obligaciones laborales y mucho menos, el personal de cada una de las partes podrá exigir a la otra tales pagos. Bajo esta consideración, ninguna de las partes, tiene obligaciones con el IESS y Ministerio de Trabajo, por el manejo del personal, de la otra parte.',
           'Que las partes actuarán, cada una, por su cuenta y riesgo en la ejecución del presente Contrato, disponiendo de su capacidad técnica y financiera, utilizando sus propias herramientas, siendo responsables de vincular al personal idóneo que requieran para el cabal cumplimiento de sus obligaciones, y en general ejecutarán el presente Contrato de manera diligente y oportuna. En línea con lo anterior, las partes se asegurarán de que no existirá solidaridad laboral con la otra parte por las obligaciones que surjan en favor de cualquiera de sus empleados o contratistas.',
-          'Que se encuentran altamente comprometidas en monitorear, prevenir y rechazar cualquier transacción que resulte sospechosa, evitando así que pueda ser utilizada la plataforma de emisión de firmas electrónicas de NEXUS SOLUCIONES, y las transacciones que a través de ésta se procesen.',
+          'Que se encuentran altamente comprometidas en monitorear, prevenir y rechazar cualquier transacción que resulte sospechosa, evitando así que pueda ser utilizada la plataforma de emisión de firmas electrónicas de ELIZALDE Y ASOCIADOS, y las transacciones que a través de ésta se procesen.',
           'Que las partes de mutuo acuerdo podrán designar cada una, representantes en los que se delegue poderes, funciones o autorizaciones relacionadas con el objeto del presente contrato, para fortalecer el correcto funcionamiento y ejecución de este contrato.',
         ];
 
@@ -236,13 +236,13 @@ export class PdfGeneratorService {
           .fontSize(10)
           .font('Helvetica-Bold')
           .text(
-            'CLÁUSULA SEGUNDA: OBLIGACIONES POR PARTE DE "NEXUS SOLUCIONES" Y "EL CLIENTE".',
+            'CLÁUSULA SEGUNDA: OBLIGACIONES POR PARTE DE "ELIZALDE Y ASOCIADOS" Y "EL CLIENTE".',
           );
         doc.moveDown();
         doc
           .fontSize(9)
           .font('Helvetica')
-          .text('OBLIGACIONES POR PARTE DE "NEXUS SOLUCIONES"');
+          .text('OBLIGACIONES POR PARTE DE "ELIZALDE Y ASOCIADOS"');
         doc.moveDown(1.5);
 
         // Continúa CLÁUSULA SEGUNDA con A, B, C, etc.
@@ -254,7 +254,7 @@ export class PdfGeneratorService {
           .text('Autorizar el uso del sistema ', { continued: true })
           .font('Helvetica')
           .text(
-            'de emisión en línea o física y comercialización de firmas electrónicas: "NEXUS SOLUCIONES" concede, durante la vigencia del presente contrato a "EL CLIENTE" una autorización para usar dicho servicio de forma externa, la cual se sujeta a las condiciones del presente contrato. En este mismo acto, "EL CLIENTE" acepta tales condiciones, de manera que sólo tras la aceptación expresa de tales condiciones "EL CLIENTE" podrá utilizar lícitamente el sistema antes mencionado, el cual es propiedad de "NEXUS SOLUCIONES".',
+            'de emisión en línea o física y comercialización de firmas electrónicas: "ELIZALDE Y ASOCIADOS" concede, durante la vigencia del presente contrato a "EL CLIENTE" una autorización para usar dicho servicio de forma externa, la cual se sujeta a las condiciones del presente contrato. En este mismo acto, "EL CLIENTE" acepta tales condiciones, de manera que sólo tras la aceptación expresa de tales condiciones "EL CLIENTE" podrá utilizar lícitamente el sistema antes mencionado, el cual es propiedad de "ELIZALDE Y ASOCIADOS".',
             { align: 'justify' },
           );
 
@@ -270,7 +270,7 @@ export class PdfGeneratorService {
           })
           .font('Helvetica')
           .text(
-            'de emisión en línea y física y comercialización de firmas electrónicas: para tal fin "NEXUS SOLUCIONES":',
+            'de emisión en línea y física y comercialización de firmas electrónicas: para tal fin "ELIZALDE Y ASOCIADOS":',
             { align: 'justify' },
           );
 
@@ -311,7 +311,7 @@ export class PdfGeneratorService {
           .text('Servicio de Atención a "EL CLIENTE": ', { continued: true })
           .font('Helvetica')
           .text(
-            '"NEXUS SOLUCIONES" prestará por sí o a través de un tercero autorizado bajo su responsabilidad, el servicio de atención a "EL CLIENTE". Dicho servicio consiste en la asistencia técnica telefónica o por medios no presenciales, destinada a resolver las dudas que se presenten con relación al funcionamiento y utilización de la plataforma cuya autorización de uso es objeto de este contrato.',
+            '"ELIZALDE Y ASOCIADOS" prestará por sí o a través de un tercero autorizado bajo su responsabilidad, el servicio de atención a "EL CLIENTE". Dicho servicio consiste en la asistencia técnica telefónica o por medios no presenciales, destinada a resolver las dudas que se presenten con relación al funcionamiento y utilización de la plataforma cuya autorización de uso es objeto de este contrato.',
             { align: 'justify' },
           );
 
@@ -336,7 +336,7 @@ export class PdfGeneratorService {
           .text('Disponibilidad: ', { continued: true })
           .font('Helvetica')
           .text(
-            '"NEXUS SOLUCIONES" no es responsable por la disponibilidad que las plataformas tecnológicas o de consulta de terceros, puedan tener.',
+            '"ELIZALDE Y ASOCIADOS" no es responsable por la disponibilidad que las plataformas tecnológicas o de consulta de terceros, puedan tener.',
             { align: 'justify' },
           );
 
@@ -349,7 +349,7 @@ export class PdfGeneratorService {
           .text('E. ', { continued: true })
           .font('Helvetica')
           .text(
-            'Igualmente "NEXUS SOLUCIONES" no se hará responsable cuando estas plataformas se encuentren fuera de línea o presenten algún inconveniente en su funcionamiento, que imposibiliten la prestación del servicio de nuestra plataforma, no dará lugar a ningún tipo de responsabilidad para "NEXUS SOLUCIONES" pues tales redes y sistemas, no se encuentran operados por "NEXUS SOLUCIONES".',
+            'Igualmente "ELIZALDE Y ASOCIADOS" no se hará responsable cuando estas plataformas se encuentren fuera de línea o presenten algún inconveniente en su funcionamiento, que imposibiliten la prestación del servicio de nuestra plataforma, no dará lugar a ningún tipo de responsabilidad para "ELIZALDE Y ASOCIADOS" pues tales redes y sistemas, no se encuentran operados por "ELIZALDE Y ASOCIADOS".',
             { align: 'justify' },
           );
 
@@ -362,7 +362,7 @@ export class PdfGeneratorService {
           .text('F. ', { continued: true })
           .font('Helvetica')
           .text(
-            'Para los efectos del cumplimiento de las obligaciones previamente establecidas y a cargo de "NEXUS SOLUCIONES", la plataforma comprende toda nueva versión sobre la misma, en virtud de los cual "NEXUS SOLUCIONES" se reserva el derecho a sustituir dicho sistema por nuevas versiones, cuyas actualizaciones no tendrán ningún costo adicional.',
+            'Para los efectos del cumplimiento de las obligaciones previamente establecidas y a cargo de "ELIZALDE Y ASOCIADOS", la plataforma comprende toda nueva versión sobre la misma, en virtud de los cual "ELIZALDE Y ASOCIADOS" se reserva el derecho a sustituir dicho sistema por nuevas versiones, cuyas actualizaciones no tendrán ningún costo adicional.',
             { align: 'justify' },
           );
 
@@ -375,7 +375,7 @@ export class PdfGeneratorService {
           .text('G. ', { continued: true })
           .font('Helvetica')
           .text(
-            '"NEXUS SOLUCIONES" no será responsable por las fallas que pudieran generarse, en el uso de la plataforma de emisión en línea y física y comercialización de firmas electrónicas, generadas por el mal manejo de equipos y sistemas de "EL CLIENTE", quien será el único responsable de dar el oportuno mantenimiento a los equipos y sistemas, por ellos empleados, para un correcto funcionamiento de nuestra plataforma.',
+            '"ELIZALDE Y ASOCIADOS" no será responsable por las fallas que pudieran generarse, en el uso de la plataforma de emisión en línea y física y comercialización de firmas electrónicas, generadas por el mal manejo de equipos y sistemas de "EL CLIENTE", quien será el único responsable de dar el oportuno mantenimiento a los equipos y sistemas, por ellos empleados, para un correcto funcionamiento de nuestra plataforma.',
             { align: 'justify' },
           );
 
@@ -463,7 +463,7 @@ export class PdfGeneratorService {
           .text('B. ', { continued: true })
           .font('Helvetica')
           .text(
-            'Garantizar a NEXUS SOLUCIONES" que las firmas electrónicas que sean emitidas y comercializadas por "EL CLIENTE", en atención al presente contrato se utilicen exclusivamente para los fines autorizados por el titular y propietario de la firma electrónica, en base a la cláusula primera del presente contrato.',
+            'Garantizar a ELIZALDE Y ASOCIADOS" que las firmas electrónicas que sean emitidas y comercializadas por "EL CLIENTE", en atención al presente contrato se utilicen exclusivamente para los fines autorizados por el titular y propietario de la firma electrónica, en base a la cláusula primera del presente contrato.',
             { align: 'justify' },
           );
 
@@ -515,7 +515,7 @@ export class PdfGeneratorService {
           .text('F. ', { continued: true })
           .font('Helvetica')
           .text(
-            '"EL CLIENTE" se compromete a monitorear, prevenir y rechazar cualquier transacción que resulte sospechosa, evitando así que pueda ser utilizada la plataforma de NEXUS SOLUCIONES, propiedad de NEXUS SOLUCIONES, y las transacciones que a través de ésta se procesen, como instrumento para el ocultamiento, manejo, o aprovechamiento en cualquier forma de la suplantación de identidad para dar apariencia de legalidad a actividades delictivas.',
+            '"EL CLIENTE" se compromete a monitorear, prevenir y rechazar cualquier transacción que resulte sospechosa, evitando así que pueda ser utilizada la plataforma de ELIZALDE Y ASOCIADOS, propiedad de ELIZALDE Y ASOCIADOS, y las transacciones que a través de ésta se procesen, como instrumento para el ocultamiento, manejo, o aprovechamiento en cualquier forma de la suplantación de identidad para dar apariencia de legalidad a actividades delictivas.',
             { align: 'justify' },
           );
 
@@ -528,7 +528,7 @@ export class PdfGeneratorService {
           .text('G. ', { continued: true })
           .font('Helvetica')
           .text(
-            'Mantener indemne a "NEXUS SOLUCIONES" por cualquier reclamación que efectúe un tercero o cualquier autoridad administrativa o judicial.',
+            'Mantener indemne a "ELIZALDE Y ASOCIADOS" por cualquier reclamación que efectúe un tercero o cualquier autoridad administrativa o judicial.',
             { align: 'justify' },
           );
 
@@ -544,7 +544,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            'Dentro de los ocho (8) días hábiles posteriores a la recepción en el domicilio contractual, del contrato debidamente firmado por "EL CLIENTE", el área de soporte técnico de "NEXUS SOLUCIONES" enviará un comunicado a "EL CLIENTE" para que éste inicie el proceso de integración de nuestra plataforma dentro del sitio, plataforma y/o ecosistema de propiedad de "EL CLIENTE".',
+            'Dentro de los ocho (8) días hábiles posteriores a la recepción en el domicilio contractual, del contrato debidamente firmado por "EL CLIENTE", el área de soporte técnico de "ELIZALDE Y ASOCIADOS" enviará un comunicado a "EL CLIENTE" para que éste inicie el proceso de integración de nuestra plataforma dentro del sitio, plataforma y/o ecosistema de propiedad de "EL CLIENTE".',
             { align: 'justify' },
           );
 
@@ -554,7 +554,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            '"EL CLIENTE" hará la integración por su propia cuenta y riesgo y tendrá un plazo máximo de una (1) semana para culminar dicho proceso, término de tiempo que será computable desde el envío por correo electrónico del comunicado referido al inicio de esta cláusula. En caso de requerir el soporte de "NEXUS SOLUCIONES" este será costeado por fuera del alcance de este contrato, como consta en el literal C, de la CLAUSULA SEGUNDA del presente contrato.',
+            '"EL CLIENTE" hará la integración por su propia cuenta y riesgo y tendrá un plazo máximo de una (1) semana para culminar dicho proceso, término de tiempo que será computable desde el envío por correo electrónico del comunicado referido al inicio de esta cláusula. En caso de requerir el soporte de "ELIZALDE Y ASOCIADOS" este será costeado por fuera del alcance de este contrato, como consta en el literal C, de la CLAUSULA SEGUNDA del presente contrato.',
             { align: 'justify' },
           );
 
@@ -574,7 +574,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            'El desarrollo de "EL CLIENTE" deberá cumplir con las especificaciones técnicas previamente establecidas y comunicadas por "NEXUS SOLUCIONES" para que su sitio, plataforma y/o ecosistema pueda ser puesto en producción, es decir, para poder emitir firmas electrónicas y firmar digitalmente los documentos digitales que conforman parte del flujo de "EL CLIENTE".',
+            'El desarrollo de "EL CLIENTE" deberá cumplir con las especificaciones técnicas previamente establecidas y comunicadas por "ELIZALDE Y ASOCIADOS" para que su sitio, plataforma y/o ecosistema pueda ser puesto en producción, es decir, para poder emitir firmas electrónicas y firmar digitalmente los documentos digitales que conforman parte del flujo de "EL CLIENTE".',
             { align: 'justify' },
           );
 
@@ -584,7 +584,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            'En caso de que "EL CLIENTE" decida contratar con un tercero el desarrollo para la integración, el tercero que se contrate para tal propósito, deberá cumplir con los requisitos técnicos que necesita la plataforma y en todo caso, "NEXUS SOLUCIONES" será ajeno a la relación jurídica y comercial que "EL CLIENTE" establezca con el tercero con quien contrate su desarrollo, y no tendrá ninguna responsabilidad civil o laboral con tal contratación.',
+            'En caso de que "EL CLIENTE" decida contratar con un tercero el desarrollo para la integración, el tercero que se contrate para tal propósito, deberá cumplir con los requisitos técnicos que necesita la plataforma y en todo caso, "ELIZALDE Y ASOCIADOS" será ajeno a la relación jurídica y comercial que "EL CLIENTE" establezca con el tercero con quien contrate su desarrollo, y no tendrá ninguna responsabilidad civil o laboral con tal contratación.',
             { align: 'justify' },
           );
 
@@ -595,7 +595,7 @@ export class PdfGeneratorService {
           .fontSize(10)
           .font('Helvetica-Bold')
           .text(
-            'CLÁUSULA   CUARTA:  EXCLUSIÓN  DE  RESPONSABILIDAD.  "NEXUS SOLUCIONES"',
+            'CLÁUSULA   CUARTA:  EXCLUSIÓN  DE  RESPONSABILIDAD.  "ELIZALDE Y ASOCIADOS"',
           )
           .text('ASOCIADOS" no será responsable en los siguientes eventos:');
         doc.moveDown(1.5);
@@ -609,7 +609,7 @@ export class PdfGeneratorService {
           .text('Afluencia de tráfico: ', { continued: true })
           .font('Helvetica')
           .text(
-            '"NEXUS SOLUCIONES" no garantiza la realización de un número cualquiera de visitas, recaudos, ventas o ingresos a través del sitio, tienda virtual o física de "EL CLIENTE" por parte de los usuarios; en consecuencia, "EL CLIENTE" exime a "NEXUS SOLUCIONES" de toda responsabilidad por los daños y perjuicios de toda naturaleza que pudieran deberse, entre otras, a la ausencia de visitas o negocios mediante el sitio, tienda virtual o física por parte de los usuarios y/o de ventas electrónicas y/o por la no obtención de unos ingresos mínimos por ventas electrónicas. Es decir, la plataforma es una herramienta de medio, mas no de resultados, de acuerdo con lo antes señalado.',
+            '"ELIZALDE Y ASOCIADOS" no garantiza la realización de un número cualquiera de visitas, recaudos, ventas o ingresos a través del sitio, tienda virtual o física de "EL CLIENTE" por parte de los usuarios; en consecuencia, "EL CLIENTE" exime a "ELIZALDE Y ASOCIADOS" de toda responsabilidad por los daños y perjuicios de toda naturaleza que pudieran deberse, entre otras, a la ausencia de visitas o negocios mediante el sitio, tienda virtual o física por parte de los usuarios y/o de ventas electrónicas y/o por la no obtención de unos ingresos mínimos por ventas electrónicas. Es decir, la plataforma es una herramienta de medio, mas no de resultados, de acuerdo con lo antes señalado.',
             { align: 'justify' },
           );
 
@@ -619,7 +619,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            '"NEXUS SOLUCIONES" no asume responsabilidad alguna por la presencia de fraude en las transacciones, entendiendo por fraude de manera general, el engaño, abuso, las maniobras inescrupulosas que puedan generar por parte de usuarios de nuestra plataforma contra cargos para "EL CLIENTE" y será este último quien asuma los mismos. "EL CLIENTE", dejará indemne y eximirá de toda responsabilidad a "NEXUS SOLUCIONES" en eventos de este tipo.',
+            '"ELIZALDE Y ASOCIADOS" no asume responsabilidad alguna por la presencia de fraude en las transacciones, entendiendo por fraude de manera general, el engaño, abuso, las maniobras inescrupulosas que puedan generar por parte de usuarios de nuestra plataforma contra cargos para "EL CLIENTE" y será este último quien asuma los mismos. "EL CLIENTE", dejará indemne y eximirá de toda responsabilidad a "ELIZALDE Y ASOCIADOS" en eventos de este tipo.',
             { align: 'justify' },
           );
 
@@ -636,7 +636,7 @@ export class PdfGeneratorService {
           })
           .font('Helvetica')
           .text(
-            '"NEXUS SOLUCIONES" es enteramente ajena y no tiene la obligación de ejercer ninguna clase de control a los productos, ni las ofertas relativas a los productos incluidas en el sitio, tienda virtual o física de "EL CLIENTE", ni las condiciones de las ventas electrónicas o físicas propuestas por "EL CLIENTE", ni el cumplimiento de las obligaciones derivadas de las ventas electrónicas o físicas, o a la calidad por parte de "EL CLIENTE", lo que excluye de forma expresa a "NEXUS SOLUCIONES" de cualquier clase de garantía y responsabilidad al respecto frente a "EL CLIENTE" y frente a terceros.',
+            '"ELIZALDE Y ASOCIADOS" es enteramente ajena y no tiene la obligación de ejercer ninguna clase de control a los productos, ni las ofertas relativas a los productos incluidas en el sitio, tienda virtual o física de "EL CLIENTE", ni las condiciones de las ventas electrónicas o físicas propuestas por "EL CLIENTE", ni el cumplimiento de las obligaciones derivadas de las ventas electrónicas o físicas, o a la calidad por parte de "EL CLIENTE", lo que excluye de forma expresa a "ELIZALDE Y ASOCIADOS" de cualquier clase de garantía y responsabilidad al respecto frente a "EL CLIENTE" y frente a terceros.',
             { align: 'justify' },
           );
 
@@ -652,7 +652,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            'En los casos en que "EL CLIENTE" definitivamente deba almacenar información de sus usuarios, deberá informar al mismo, que adicional al almacenamiento de información que "NEXUS SOLUCIONES" requiere realizar como parte de la normativa que le rige como Ente de Certificación, mediante la aceptación de "Términos y Condiciones y Protección de Datos" propios de su entorno de consumo de información.',
+            'En los casos en que "EL CLIENTE" definitivamente deba almacenar información de sus usuarios, deberá informar al mismo, que adicional al almacenamiento de información que "ELIZALDE Y ASOCIADOS" requiere realizar como parte de la normativa que le rige como Ente de Certificación, mediante la aceptación de "Términos y Condiciones y Protección de Datos" propios de su entorno de consumo de información.',
             { align: 'justify' },
           );
 
@@ -678,7 +678,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            'Por la celebración de este contrato, no podrá "EL CLIENTE" exigir exclusividad a "NEXUS SOLUCIONES". En este sentido "EL CLIENTE" acepta expresamente que "NEXUS SOLUCIONES" puede, directamente o en asocio de terceros, en los mismos términos o en términos diversos a los pactados en el presente contrato, desarrollar, establecer y celebrar otros contratos de uso del sistema de nuestra plataforma, cuyo objeto sea la contratación electrónica de cualquiera de los productos y/o servicios idénticos, similares, competidores o relacionados con los productos que "EL CLIENTE" ofrece a través de su sitio, su tienda virtual, física o de cualquier otro modo.',
+            'Por la celebración de este contrato, no podrá "EL CLIENTE" exigir exclusividad a "ELIZALDE Y ASOCIADOS". En este sentido "EL CLIENTE" acepta expresamente que "ELIZALDE Y ASOCIADOS" puede, directamente o en asocio de terceros, en los mismos términos o en términos diversos a los pactados en el presente contrato, desarrollar, establecer y celebrar otros contratos de uso del sistema de nuestra plataforma, cuyo objeto sea la contratación electrónica de cualquiera de los productos y/o servicios idénticos, similares, competidores o relacionados con los productos que "EL CLIENTE" ofrece a través de su sitio, su tienda virtual, física o de cualquier otro modo.',
             { align: 'justify' },
           );
 
@@ -688,7 +688,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            'Por su parte, "EL CLIENTE", no podrá comercializar de ninguna forma la plataforma de NEXUS SOLUCIONES, pues el presente contrato no transfiere la propiedad de la plataforma, por lo que "EL CLIENTE" simplemente es un usuario, y en caso de efectuar integraciones independientes, será también responsable por las mismas y por la información que por medio de ellas se traslade',
+            'Por su parte, "EL CLIENTE", no podrá comercializar de ninguna forma la plataforma de ELIZALDE Y ASOCIADOS, pues el presente contrato no transfiere la propiedad de la plataforma, por lo que "EL CLIENTE" simplemente es un usuario, y en caso de efectuar integraciones independientes, será también responsable por las mismas y por la información que por medio de ellas se traslade',
             { align: 'justify' },
           );
 
@@ -705,7 +705,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            '"EL CLIENTE" se obliga a pagar a "NEXUS SOLUCIONES" bajo el precio o precios pactados dentro de las condiciones que se detallan en la propuesta comercial anexada al presente contrato, denominada Anexo 1.',
+            '"EL CLIENTE" se obliga a pagar a "ELIZALDE Y ASOCIADOS" bajo el precio o precios pactados dentro de las condiciones que se detallan en la propuesta comercial anexada al presente contrato, denominada Anexo 1.',
             { align: 'justify' },
           );
 
@@ -715,7 +715,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            'En caso de mora en el pago de dichas sumas, "NEXUS SOLUCIONES" podrá suspender el servicio e igualmente queda facultada para reportar tal situación a las centrales de riesgo, para cuyo efecto, con la sola firma del presente contrato se autoriza dicho reporte.',
+            'En caso de mora en el pago de dichas sumas, "ELIZALDE Y ASOCIADOS" podrá suspender el servicio e igualmente queda facultada para reportar tal situación a las centrales de riesgo, para cuyo efecto, con la sola firma del presente contrato se autoriza dicho reporte.',
             { align: 'justify' },
           );
 
@@ -735,7 +735,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica-Bold')
           .text(
-            'Al día siguiente de la generación de dichas firmas, se enviará al "EL CLIENTE" un reporte detallado que incluirá el valor exacto a pagar por las firmas emitidas el día anterior a las cuentas bancarias indicadas por " NEXUS SOLUCIONES ".',
+            'Al día siguiente de la generación de dichas firmas, se enviará al "EL CLIENTE" un reporte detallado que incluirá el valor exacto a pagar por las firmas emitidas el día anterior a las cuentas bancarias indicadas por " ELIZALDE Y ASOCIADOS ".',
             { align: 'justify' },
           );
 
@@ -855,7 +855,7 @@ export class PdfGeneratorService {
           .fontSize(10)
           .font('Helvetica-Bold')
           .text(
-            'CLÁUSULA DÉCIMA: "NEXUS SOLUCIONES" cumple con las políticas de tratamiento',
+            'CLÁUSULA DÉCIMA: "ELIZALDE Y ASOCIADOS" cumple con las políticas de tratamiento',
           )
           .text(
             'de datos personales e información confidencial establecidas en la legislación.',
@@ -1131,7 +1131,7 @@ export class PdfGeneratorService {
           .fontSize(9)
           .font('Helvetica')
           .text(
-            '"EL CLIENTE"  autoriza a "NEXUS SOLUCIONES" para mencionar en los documentos y presentaciones que "NEXUS SOLUCIONES" elabora, desarrolla y maneja para con terceros, que "EL CLIENTE", es cliente de "NEXUS SOLUCIONES".',
+            '"EL CLIENTE"  autoriza a "ELIZALDE Y ASOCIADOS" para mencionar en los documentos y presentaciones que "ELIZALDE Y ASOCIADOS" elabora, desarrolla y maneja para con terceros, que "EL CLIENTE", es cliente de "ELIZALDE Y ASOCIADOS".',
             { align: 'justify' },
           );
 
@@ -1211,14 +1211,14 @@ export class PdfGeneratorService {
 
         // Nueva página para información de contacto
         doc.moveDown(1.5);
-        doc.fontSize(9).font('Helvetica-Bold').text('"NEXUS SOLUCIONES"');
+        doc.fontSize(9).font('Helvetica-Bold').text('"ELIZALDE Y ASOCIADOS"');
         doc
           .fontSize(8)
           .font('Helvetica')
           .text(
             'Domicilio: Jorge Drom N34-188 y Gaspar de Villarroel, Edificio Plus 1-Oficina #71 Atención:',
           )
-          .text('Anthony Collaguazo Correo electrónico: info@solucionesnexus.com');
+          .text('Anthony Collaguazo Correo electrónico: gerencia@elizaldeasociados.com');
 
         doc.moveDown(2);
 
@@ -1298,7 +1298,7 @@ export class PdfGeneratorService {
 
         doc.moveDown();
 
-        doc.fontSize(9).text('EMPRESA: NEXUS SOLUCIONES', 80, doc.y);
+        doc.fontSize(9).text('EMPRESA: ELIZALDE Y ASOCIADOS', 80, doc.y);
 
         // Nueva página para ANEXO 1
         doc.addPage();

@@ -271,7 +271,7 @@ export class RechargesService {
         `${Date.now()}`,
         extension,
         'vouchers-distribuidores',
-        'vouchers-nexus',
+        'vouchers-elizalde',
       );
     }
 
@@ -416,7 +416,7 @@ export class RechargesService {
       receiptFile: recharge.receiptFile
         ? await this.filesService.getFile(
             recharge.receiptFile,
-            'vouchers-nexus',
+            'vouchers-elizalde',
           )
         : null,
     };
@@ -537,7 +537,7 @@ export class RechargesService {
       receiptFileUrl: recharge.receiptFile
         ? await this.filesService.getFileUrl(
             recharge.receiptFile,
-            'vouchers-nexus',
+            'vouchers-elizalde',
           )
         : null,
     };
@@ -1172,7 +1172,7 @@ export class RechargesService {
     }
 
     const { data } = await this.http.axiosRef.get(
-      `${process.env.NEXUS_API_URL}/users/phones/active`,
+      `${process.env.ELIZALDE_API_URL}/users/phones/active`,
       {
         headers: {
           'internal-api-key': process.env.INTERNAL_API_KEY,

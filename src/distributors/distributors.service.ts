@@ -345,7 +345,7 @@ export class DistributorsService {
           `${distributor.firstName} ${distributor.lastName}`;
 
         await this.mailService.sendDistributorUpdateNotification(
-          'gerencia@solucionesnexus.com',
+          'gerencia@elizaldeasociados.com',
           distributorName,
           distributor.identification,
           changes,

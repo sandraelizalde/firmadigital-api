@@ -1,7 +1,7 @@
 {
   "info": {
     "_postman_id": "f9b3d3b0-0000-4000-8000-000000000001",
-    "name": "Firmas Digitales - Nexus",
+    "name": "Firmas Digitales - Elizalde y Asociados",
     "description": "Colección completa para API de firmas digitales. Incluye todos los tipos de firma (Natural y Jurídica con diferentes documentos). Variables: `baseUrl`, `token`, `signatureId`, `planId`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -71,7 +71,7 @@
                 },
                 {
                   "key": "correo",
-                  "value": "luisg@solucionesnexus.com",
+                  "value": "luisg@elizaldeasociados.com",
                   "type": "text"
                 },
                 {
@@ -441,7 +441,7 @@
                 },
                 {
                   "key": "correo",
-                  "value": "luisg@solucionesnexus.com",
+                  "value": "luisg@elizaldeasociados.com",
                   "type": "text"
                 },
                 {

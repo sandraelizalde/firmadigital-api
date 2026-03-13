@@ -51,7 +51,7 @@ export class CreateJuridicalSignatureDto {
 
   @ApiProperty({
     description: 'Correo electrónico',
-    example: 'luisg@solucionesnexus.com',
+    example: 'luisg@elizaldeasociados.com',
   })
   @IsEmail()
   @IsNotEmpty()
