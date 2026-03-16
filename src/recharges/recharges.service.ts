@@ -271,7 +271,6 @@ export class RechargesService {
         `${Date.now()}`,
         extension,
         'vouchers-distribuidores',
-        'vouchers-elizalde',
       );
     }
 
@@ -416,7 +415,6 @@ export class RechargesService {
       receiptFile: recharge.receiptFile
         ? await this.filesService.getFile(
             recharge.receiptFile,
-            'vouchers-elizalde',
           )
         : null,
     };
@@ -537,7 +535,6 @@ export class RechargesService {
       receiptFileUrl: recharge.receiptFile
         ? await this.filesService.getFileUrl(
             recharge.receiptFile,
-            'vouchers-elizalde',
           )
         : null,
     };

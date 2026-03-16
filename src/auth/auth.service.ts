@@ -101,7 +101,6 @@ export class AuthService {
         data.identification,
         'jpg',
         `identificaciones-distribuidores/${data.identification}`,
-        'fotos-cedulas',
       );
     }
 
@@ -111,7 +110,6 @@ export class AuthService {
         data.identification,
         'jpg',
         `identificaciones-distribuidores/${data.identification}`,
-        'fotos-cedulas',
       );
     }
 

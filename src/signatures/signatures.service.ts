@@ -2118,11 +2118,9 @@ export class SignaturesService {
       const [foto_frontal_url, foto_posterior_url] = await Promise.all([
         this.filesService.getFileUrl(
           signatureRequest.foto_frontal,
-          'fotos-cedulas',
         ),
         this.filesService.getFileUrl(
           signatureRequest.foto_posterior,
-          'fotos-cedulas',
         ),
         Promise.resolve(null),
       ]);
@@ -2135,14 +2133,12 @@ export class SignaturesService {
       if (signatureRequest.video_face) {
         video_face_url = await this.filesService.getFileUrl(
           signatureRequest.video_face,
-          'fotos-cedulas',
         );
       }
 
       if (signatureRequest.selfie) {
         selfie_url = await this.filesService.getFileUrl(
           signatureRequest.selfie,
-          'fotos-cedulas',
         );
       }
 
@@ -2150,14 +2146,12 @@ export class SignaturesService {
         pdf_sri_url = signatureRequest.pdf_sri
           ? await this.filesService.getFileUrl(
               signatureRequest.pdf_sri,
-              'pdf-sri',
             )
           : null;
 
         nombramiento_url = signatureRequest.nombramiento
           ? await this.filesService.getFileUrl(
               signatureRequest.nombramiento,
-              'pdf-nombramiento',
             )
           : null;
       }
@@ -2454,11 +2448,9 @@ export class SignaturesService {
       const [foto_frontal_url, foto_posterior_url] = await Promise.all([
         this.filesService.getFileUrl(
           signatureRequest.foto_frontal,
-          'fotos-cedulas',
         ),
         this.filesService.getFileUrl(
           signatureRequest.foto_posterior,
-          'fotos-cedulas',
         ),
       ]);
 
@@ -2470,27 +2462,23 @@ export class SignaturesService {
       if (signatureRequest.pdf_sri) {
         pdf_sri_url = await this.filesService.getFileUrl(
           signatureRequest.pdf_sri,
-          'pdf-sri',
         );
       }
 
       if (signatureRequest.nombramiento) {
         nombramiento_url = await this.filesService.getFileUrl(
           signatureRequest.nombramiento,
-          'pdf-nombramiento',
         );
       }
       if (signatureRequest.video_face) {
         video_url = await this.filesService.getFileUrl(
           signatureRequest.video_face,
-          'fotos-cedulas',
         );
       }
 
       if (signatureRequest.selfie) {
         selfie_url = await this.filesService.getFileUrl(
           signatureRequest.selfie,
-          'fotos-cedulas',
         );
       }
 
@@ -3328,7 +3316,6 @@ export class SignaturesService {
       distributorId.toString(),
       'jpg',
       'fotos-distribuidores',
-      'fotos-cedulas',
     );
 
     const foto_posterior_key = await this.filesService.uploadFile(
@@ -3336,7 +3323,6 @@ export class SignaturesService {
       distributorId.toString(),
       'jpg',
       'fotos-distribuidores',
-      'fotos-cedulas',
     );
 
     let pdf_sri_key: string | undefined;
@@ -3350,7 +3336,6 @@ export class SignaturesService {
         distributorId.toString(),
         'jpg',
         'fotos-distribuidores',
-        'fotos-cedulas',
       );
     }
 
@@ -3360,7 +3345,6 @@ export class SignaturesService {
         distributorId.toString(),
         'pdf',
         'pdfs-distribuidores',
-        'pdf-sri',
       );
     }
 
@@ -3370,7 +3354,6 @@ export class SignaturesService {
         distributorId.toString(),
         'pdf',
         'pdfs-distribuidores',
-        'pdf-nombramiento',
       );
     }
 
@@ -3381,7 +3364,6 @@ export class SignaturesService {
         distributorId.toString(),
         videoExtension,
         'fotos-distribuidores',
-        'fotos-cedulas',
       );
     }
 

@@ -46,4 +46,12 @@ export default registerAs('app', () => ({
     apiUrl: process.env.EMAIL_VERIFICATION_API_URL,
     apiKey: process.env.EMAIL_VERIFICATION_API_KEY,
   },
+
+  wasabi: {
+    endpoint: process.env.WASABI_ENDPOINT,
+    region: process.env.WASABI_REGION,
+    accessKeyId: process.env.WASABI_ACCESS_KEY,
+    secretAccessKey: process.env.WASABI_SECRET_KEY,
+    bucket: process.env.WASABI_BUCKET_NAME,
+  },
 }));

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
   PutObjectCommand,
@@ -11,23 +12,27 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 @Injectable()
 export class FilesService {
   private readonly s3Client: S3Client;
+  private readonly bucket: string;
   private readonly logger = new Logger(FilesService.name);
 
   // Caché para validación de conexión (válido por 5 minutos)
   private lastConnectionCheck: number = 0;
   private readonly CONNECTION_CACHE_MS = 5 * 60 * 1000; // 5 minutos
 
-  constructor() {
-    const endpoint = process.env.WASABI_ENDPOINT;
-    const region = process.env.WASABI_REGION;
-    const accessKeyId = process.env.WASABI_ACCESS_KEY;
-    const secretAccessKey = process.env.WASABI_SECRET_KEY;
+  constructor(private readonly configService: ConfigService) {
+    const endpoint = this.configService.get<string>('app.wasabi.endpoint');
+    const region = this.configService.get<string>('app.wasabi.region');
+    const accessKeyId = this.configService.get<string>('app.wasabi.accessKeyId');
+    const secretAccessKey = this.configService.get<string>('app.wasabi.secretAccessKey');
+    const bucket = this.configService.get<string>('app.wasabi.bucket');
 
-    if (!endpoint || !region || !accessKeyId || !secretAccessKey) {
+    if (!endpoint || !region || !accessKeyId || !secretAccessKey || !bucket) {
       throw new Error(
         'Faltan configuraciones de Wasabi en las variables de entorno',
       );
     }
+
+    this.bucket = bucket;
 
     this.s3Client = new S3Client({
       endpoint,
@@ -41,18 +46,18 @@ export class FilesService {
   }
 
   /**
-   * Sube un voucher desde base64 al bucket de S3
+   * Sube un archivo desde base64 al bucket de S3
    * @param base64 - Archivo en formato base64
-   * @param rechargeId - ID de la recarga
+   * @param ownerId - ID del dueño
    * @param extension - Extensión del archivo (jpg, png, pdf, etc.)
-   * @returns URL del archivo subido
+   * @param folder - Carpeta dentro del bucket
+   * @returns Key del archivo subido
    */
   async uploadFile(
     base64: string,
-    rechargeId: number | string,
+    ownerId: number | string,
     extension: string,
-    file: string,
-    bucket: string,
+    folder: string,
   ): Promise<string> {
     try {
       // Remover el prefijo data:image/jpeg;base64, si existe
@@ -60,35 +65,34 @@ export class FilesService {
       const buffer = Buffer.from(base64Data, 'base64');
 
       const timestamp = Date.now();
-      const key = `${file}/${rechargeId}/${rechargeId}-${timestamp}.${extension}`;
+      const key = `${folder}/${ownerId}/${ownerId}-${timestamp}.${extension}`;
 
       const command = new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: this.bucket,
         Key: key,
         Body: buffer,
         ContentType: this.getContentType(extension),
       });
 
       await this.s3Client.send(command);
-      const fileUrl = `${key}`;
 
-      this.logger.log(`Archivo subido exitosamente en ${bucket}: ${key}`);
-      return fileUrl;
+      this.logger.log(`Archivo subido exitosamente: ${key}`);
+      return key;
     } catch (error) {
-      this.logger.error(`Error al subir ${bucket}: ${error.message}`);
-      throw new Error(`Error al subir ${bucket}: ${error.message}`);
+      this.logger.error(`Error al subir archivo: ${error.message}`);
+      throw new Error(`Error al subir archivo: ${error.message}`);
     }
   }
 
   /**
-   * Obtiene un voucher del bucket de S3 en formato base64
-   * @param url - URL completa del archivo en S3
+   * Obtiene un archivo del bucket de S3 en formato base64
+   * @param key - Key del archivo en S3
    * @returns Archivo en formato base64
    */
-  async getFile(key: string, bucket: string): Promise<string> {
+  async getFile(key: string): Promise<string> {
     try {
       const command = new GetObjectCommand({
-        Bucket: bucket,
+        Bucket: this.bucket,
         Key: key,
       });
 
@@ -109,10 +113,10 @@ export class FilesService {
     }
   }
 
-  async getFileUrl(key: string, bucket: string): Promise<string> {
+  async getFileUrl(key: string): Promise<string> {
     try {
       const command = new GetObjectCommand({
-        Bucket: bucket,
+        Bucket: this.bucket,
         Key: key,
       });
 
@@ -129,18 +133,18 @@ export class FilesService {
   }
 
   /**
-   * Elimina un voucher del bucket de S3
-   * @param url - URL completa del archivo en S3
+   * Elimina un archivo del bucket de S3
+   * @param key - Key del archivo en S3
    */
-  async deleteFile(key: string, bucket: string): Promise<void> {
+  async deleteFile(key: string): Promise<void> {
     try {
       const command = new DeleteObjectCommand({
-        Bucket: bucket,
+        Bucket: this.bucket,
         Key: key,
       });
 
       await this.s3Client.send(command);
-      this.logger.log(`Voucher eliminado exitosamente: ${key}`);
+      this.logger.log(`Archivo eliminado exitosamente: ${key}`);
     } catch (error) {
       this.logger.error(`Error al eliminar ${key}: ${error.message}`);
       throw new Error(`Error al eliminar ${key}: ${error.message}`);
@@ -150,25 +154,23 @@ export class FilesService {
   /**
    * Sube un archivo desde Buffer (para multipart/form-data) al bucket de S3
    * @param buffer - Buffer del archivo
-   * @param ownerId - ID del dueño (rechargeId, distributorId, etc.)
+   * @param ownerId - ID del dueño
    * @param extension - Extensión del archivo (jpg, png, pdf, mp4, etc.)
    * @param folder - Carpeta dentro del bucket
-   * @param bucket - Nombre del bucket
-   * @returns Key/URL del archivo subido
+   * @returns Key del archivo subido
    */
   async uploadFileFromBuffer(
     buffer: Buffer,
     ownerId: number | string,
     extension: string,
     folder: string,
-    bucket: string,
   ): Promise<string> {
     try {
       const timestamp = Date.now();
       const key = `${folder}/${ownerId}/${ownerId}-${timestamp}.${extension}`;
 
       const command = new PutObjectCommand({
-        Bucket: bucket,
+        Bucket: this.bucket,
         Key: key,
         Body: buffer,
         ContentType: this.getContentType(extension),
@@ -176,11 +178,11 @@ export class FilesService {
 
       await this.s3Client.send(command);
 
-      this.logger.log(`Archivo subido exitosamente en ${bucket}: ${key}`);
+      this.logger.log(`Archivo subido exitosamente: ${key}`);
       return key;
     } catch (error) {
-      this.logger.error(`Error al subir archivo a ${bucket}: ${error.message}`);
-      throw new Error(`Error al subir archivo a ${bucket}: ${error.message}`);
+      this.logger.error(`Error al subir archivo: ${error.message}`);
+      throw new Error(`Error al subir archivo: ${error.message}`);
     }
   }
 
@@ -198,11 +200,8 @@ export class FilesService {
         return true;
       }
 
-      // Usar HeadBucket que solo verifica acceso sin crear/eliminar archivos
-      const testBucket = process.env.WASABI_BUCKET || 'fotos-cedulas';
-
       const command = new HeadBucketCommand({
-        Bucket: testBucket,
+        Bucket: this.bucket,
       });
 
       await this.s3Client.send(command);

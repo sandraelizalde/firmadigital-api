@@ -131,7 +131,6 @@ export class DistributorsService {
       try {
         contract_url = await this.filesService.getFileUrl(
           distributor.contractSignedUrl,
-          'contratos-distribuidores',
         );
       } catch (error) {
         // Si hay error al obtener el contrato, continuar sin él
@@ -147,7 +146,6 @@ export class DistributorsService {
       try {
         identificationFront_url = await this.filesService.getFileUrl(
           distributor.identificationFrontUrl,
-          'fotos-cedulas',
         );
       } catch (error) {
         identificationFront_url = null;
@@ -158,7 +156,6 @@ export class DistributorsService {
       try {
         identificationBack_url = await this.filesService.getFileUrl(
           distributor.identificationBackUrl,
-          'fotos-cedulas',
         );
       } catch (error) {
         identificationBack_url = null;
@@ -513,7 +510,6 @@ export class DistributorsService {
         distributorId,
         'pdf',
         distributor.identification,
-        'contratos-distribuidores',
       );
 
       // Obtener la contraseña desencriptada para enviarla por email
@@ -859,7 +855,6 @@ export class DistributorsService {
       try {
         await this.filesService.deleteFile(
           distributor.contractSignedUrl,
-          'contratos-distribuidores',
         );
         deletedFiles.push(`contrato: ${distributor.contractSignedUrl}`);
       } catch (error) {
@@ -875,7 +870,6 @@ export class DistributorsService {
       try {
         await this.filesService.deleteFile(
           distributor.identificationFrontUrl,
-          'fotos-cedulas',
         );
         deletedFiles.push(
           `foto frontal: ${distributor.identificationFrontUrl}`,
@@ -892,7 +886,6 @@ export class DistributorsService {
       try {
         await this.filesService.deleteFile(
           distributor.identificationBackUrl,
-          'fotos-cedulas',
         );
         deletedFiles.push(
           `foto posterior: ${distributor.identificationBackUrl}`,
@@ -914,7 +907,6 @@ export class DistributorsService {
         try {
           await this.filesService.deleteFile(
             signature.foto_frontal,
-            'fotos-cedulas',
           );
           deletedFiles.push(`firma foto frontal: ${signature.foto_frontal}`);
         } catch (error) {
@@ -930,7 +922,6 @@ export class DistributorsService {
         try {
           await this.filesService.deleteFile(
             signature.foto_posterior,
-            'fotos-cedulas',
           );
           deletedFiles.push(
             `firma foto posterior: ${signature.foto_posterior}`,
@@ -946,7 +937,7 @@ export class DistributorsService {
       // PDF SRI
       if (signature.pdf_sri) {
         try {
-          await this.filesService.deleteFile(signature.pdf_sri, 'pdf-sri');
+          await this.filesService.deleteFile(signature.pdf_sri);
           deletedFiles.push(`firma pdf sri: ${signature.pdf_sri}`);
         } catch (error) {
           this.logger.warn(
@@ -961,7 +952,6 @@ export class DistributorsService {
         try {
           await this.filesService.deleteFile(
             signature.nombramiento,
-            'pdf-nombramiento',
           );
           deletedFiles.push(`firma nombramiento: ${signature.nombramiento}`);
         } catch (error) {
@@ -979,7 +969,6 @@ export class DistributorsService {
         try {
           await this.filesService.deleteFile(
             recharge.receiptFile,
-            'vouchers-recargas',
           );
           deletedFiles.push(`voucher recarga: ${recharge.receiptFile}`);
         } catch (error) {
