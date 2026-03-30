@@ -27,6 +27,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
 import java.io.ByteArrayInputStream;
+import java.math.BigInteger;
 import java.security.KeyStore;
 import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateNotYetValidException;
@@ -101,6 +102,15 @@ public class ServicioAppValidarCertificadoDigital extends RequestSizeFilter {
                 motivoNoValido = "El certificado aún no es válido";
                 LOGGER.log(Level.WARNING, "Certificado aún no vigente");
             }
+
+            // 3.1 Verificar revocación por CRL/servicio central
+            EstadoRevocacion estadoRevocacion = consultarRevocacion(cert.getSerialNumber());
+            if (estadoRevocacion.revocado) {
+                valido = false;
+                estado = "REVOCADO";
+                motivoNoValido = "El certificado fue revocado";
+                LOGGER.log(Level.WARNING, "Certificado revocado. Serial: {0}", cert.getSerialNumber());
+            }
             
             // 4. Extraer información del certificado
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
@@ -128,6 +138,11 @@ public class ServicioAppValidarCertificadoDigital extends RequestSizeFilter {
             
             if (motivoNoValido != null) {
                 response.addProperty("motivoNoValido", motivoNoValido);
+            }
+
+            response.addProperty("revocado", estadoRevocacion.revocado);
+            if (estadoRevocacion.fechaRevocado != null) {
+                response.addProperty("fechaRevocado", estadoRevocacion.fechaRevocado);
             }
             
             // Calcular días hasta expiración
@@ -172,6 +187,46 @@ public class ServicioAppValidarCertificadoDigital extends RequestSizeFilter {
     private long calcularDiasHastaExpiracion(Date notAfter) {
         long diff = notAfter.getTime() - new Date().getTime();
         return diff / (1000 * 60 * 60 * 24);
+    }
+
+    /**
+     * Consulta el estado de revocación usando el servicio interno de certificados.
+     */
+    private EstadoRevocacion consultarRevocacion(BigInteger serial) {
+        try {
+            ServicioCertificado servicioCertificado = new ServicioCertificado();
+            String revocadoResponse = servicioCertificado.validarCertificado(serial);
+            boolean revocado = Boolean.parseBoolean(revocadoResponse == null ? "false" : revocadoResponse.trim());
+
+            if (!revocado) {
+                return new EstadoRevocacion(false, null);
+            }
+
+            String fechaRevocado = servicioCertificado.validarFechaRevocado(serial);
+            if (fechaRevocado != null) {
+                fechaRevocado = fechaRevocado.trim();
+                if (fechaRevocado.isEmpty() || "null".equalsIgnoreCase(fechaRevocado)) {
+                    fechaRevocado = null;
+                }
+            }
+
+            return new EstadoRevocacion(true, fechaRevocado);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING,
+                    "No se pudo consultar revocación para serial {0}: {1}",
+                    new Object[]{serial, e.getMessage()});
+            return new EstadoRevocacion(false, null);
+        }
+    }
+
+    private static class EstadoRevocacion {
+        private final boolean revocado;
+        private final String fechaRevocado;
+
+        private EstadoRevocacion(boolean revocado, String fechaRevocado) {
+            this.revocado = revocado;
+            this.fechaRevocado = fechaRevocado;
+        }
     }
     
     private String crearRespuestaError(String mensaje) {
