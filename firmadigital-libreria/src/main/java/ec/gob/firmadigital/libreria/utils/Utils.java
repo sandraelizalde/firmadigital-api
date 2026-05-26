@@ -672,7 +672,7 @@ public class Utils {
         return datosUsuario;
     }
 
-    public static Certificado signInfoToCertificado(SignInfo signInfo) throws CertificadoInvalidoException, IOException, ConexionException, EntidadCertificadoraNoValidaException {
+    public static Certificado signInfoToCertificado(SignInfo signInfo) throws CertificadoInvalidoException, IOException, EntidadCertificadoraNoValidaException {
         signInfo.getCerts();
         Certificado certificado = null;
         DatosUsuario datosUsuario = CertEcUtils.getDatosUsuarios(signInfo.getCerts()[0]);
@@ -682,6 +682,12 @@ public class Utils {
             datosUsuario = infoCertificado(datosUsuario, signInfo);
             datosUsuario.setCertificadoDigitalValido(false);
         }
+        Date fechaRevocado = null;
+        try {
+            fechaRevocado = UtilsCrlOcsp.validarFechaRevocado(signInfo.getCerts()[0], null);
+        } catch (ConexionException e) {
+            LOGGER.log(Level.WARNING, "No se pudo verificar revocacion (red no disponible): {0}", e.getMessage());
+        }
         certificado = new Certificado(
                 signInfo.getCerts()[0].getSerialNumber().toString(),
                 Util.getCN(signInfo.getCerts()[0]),
@@ -689,7 +695,7 @@ public class Utils {
                 dateToCalendar(signInfo.getCerts()[0].getNotBefore()),
                 dateToCalendar(signInfo.getCerts()[0].getNotAfter()),
                 dateToCalendar(signInfo.getSigningTime()),
-                dateToCalendar(UtilsCrlOcsp.validarFechaRevocado(signInfo.getCerts()[0], null)),
+                dateToCalendar(fechaRevocado),
                 esValido(signInfo.getCerts()[0], signInfo.getSigningTime()),
                 datosUsuario);
         certificado.setDocValidTimeStamp(false);
