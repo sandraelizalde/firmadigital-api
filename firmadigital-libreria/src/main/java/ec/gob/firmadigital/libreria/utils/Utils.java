@@ -97,6 +97,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cms.SignerInformationVerifier;
 import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder;
 import org.bouncycastle.util.Store;
 
@@ -434,10 +435,10 @@ public class Utils {
             if (signInfos == null || signInfos.isEmpty()) {
                 return new Documento(false, false, certificados, "Documento sin firmas");
             } else {
+                java.util.List<String> signatureNames = signatureUtil.getSignatureNames();
                 for (SignInfo signInfo : signInfos) {
                     Certificado certificado = signInfoToCertificado(signInfo);
                     try {
-                        java.util.List<String> signatureNames = signatureUtil.getSignatureNames();
                         for (String signatureName : signatureNames) {
                             PdfPKCS7 pdfPKCS7 = signatureUtil.readSignatureData(signatureName);
                             for (X509Certificate certificate : signInfo.getCerts()) {
@@ -453,8 +454,9 @@ public class Utils {
                                         X509CertificateHolder certificateHolder = (X509CertificateHolder) iterator.next();
                                         X509Certificate x509Certificate = new JcaX509CertificateConverter().getCertificate(certificateHolder);
                                         ////////////////////
-                                        boolean tsTohenisSignatureValid = tsToken.isSignatureValid(new JcaSimpleSignerInfoVerifierBuilder().setProvider("BC").build(certificateHolder));
-                                        tsToken.validate(new JcaSimpleSignerInfoVerifierBuilder().setProvider("BC").build(certificateHolder));
+                                        SignerInformationVerifier tsVerifier = new JcaSimpleSignerInfoVerifierBuilder().setProvider("BC").build(certificateHolder);
+                                        boolean tsTohenisSignatureValid = tsToken.isSignatureValid(tsVerifier);
+                                        tsToken.validate(tsVerifier);
                                         if (tsTohenisSignatureValid) {
                                             List<String> extendedKeyUsages = x509Certificate.getExtendedKeyUsage();
                                             for (String extendedKeyUsage : extendedKeyUsages) {
