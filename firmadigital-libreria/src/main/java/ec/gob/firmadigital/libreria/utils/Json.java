@@ -130,7 +130,7 @@ public class Json {
             jsonObjectCertificado.addProperty("emitidoPor", certificado.getIssuedBy());
             jsonObjectCertificado.addProperty("validoDesde", formatCalendar(certificado.getValidFrom()));
             jsonObjectCertificado.addProperty("validoHasta", formatCalendar(certificado.getValidTo()));
-            jsonObjectCertificado.addProperty("fechaRevocado", certificado.getRevocated() != null ? formatCalendar(certificado.getRevocado()) : null);
+            jsonObjectCertificado.addProperty("fechaRevocado", certificado.getRevocated() != null ? formatCalendar(certificado.getRevocated()) : (String) null);
             jsonObjectCertificado.addProperty("certificadoDigitalValido", certificado.getDatosUsuario().isCertificadoDigitalValido());
             jsonObjectCertificado.addProperty("fechaDocumentoFirmado", formatCalendar(certificado.getSignGenerated()));
             jsonObjectCertificado.addProperty("razon", certificado.getDocReason());
@@ -196,7 +196,7 @@ public class Json {
             jsonObjectCertificado.addProperty("emitidoPor", certificado.getIssuedBy());
             jsonObjectCertificado.addProperty("validoDesde", formatCalendar(certificado.getValidFrom()));
             jsonObjectCertificado.addProperty("validoHasta", formatCalendar(certificado.getValidTo()));
-            jsonObjectCertificado.addProperty("fechaRevocado", certificado.getRevocated() != null ? formatCalendar(certificado.getRevocado()) : null);
+            jsonObjectCertificado.addProperty("fechaRevocado", certificado.getRevocated() != null ? formatCalendar(certificado.getRevocated()) : (String) null);
         }
         gsonArray.add(jsonObjectCertificado);
         return gsonArray.toString();
