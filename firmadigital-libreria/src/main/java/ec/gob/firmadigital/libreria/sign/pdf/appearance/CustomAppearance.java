@@ -27,4 +27,9 @@ public interface CustomAppearance {
 
     void createCustomAppearance(PdfSignatureAppearance signatureAppearance, int pageNumber, PdfDocument pdfDocument,
             Rectangle signaturePositionOnPage) throws IOException;
+
+    default void createCustomAppearance(PdfSignatureAppearance signatureAppearance, int pageNumber,
+            PdfDocument pdfDocument, Rectangle signaturePositionOnPage, int pageRotation) throws IOException {
+        createCustomAppearance(signatureAppearance, pageNumber, pdfDocument, signaturePositionOnPage);
+    }
 }

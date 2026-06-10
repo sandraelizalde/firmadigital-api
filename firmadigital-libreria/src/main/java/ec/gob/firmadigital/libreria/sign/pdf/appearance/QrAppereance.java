@@ -71,6 +71,12 @@ public class QrAppereance implements CustomAppearance {
     @Override
     public void createCustomAppearance(PdfSignatureAppearance signatureAppearance, int pageNumber,
             PdfDocument pdfDocument, Rectangle signaturePositionOnPage) throws IOException {
+        createCustomAppearance(signatureAppearance, pageNumber, pdfDocument, signaturePositionOnPage, 0);
+    }
+
+    @Override
+    public void createCustomAppearance(PdfSignatureAppearance signatureAppearance, int pageNumber,
+            PdfDocument pdfDocument, Rectangle signaturePositionOnPage, int pageRotation) throws IOException {
 
         signatureAppearance.setPageRect(signaturePositionOnPage);
         signatureAppearance.setPageNumber(pageNumber);
@@ -122,8 +128,25 @@ public class QrAppereance implements CustomAppearance {
             }
         }
 
-        float totalWidth = signaturePositionOnPage.getWidth();
-        float totalHeight = signaturePositionOnPage.getHeight();
+        float rawWidth = signaturePositionOnPage.getWidth();
+        float rawHeight = signaturePositionOnPage.getHeight();
+
+        // Counter-rotate content for pages with rotation so QR appears horizontal
+        float totalWidth = rawWidth;
+        float totalHeight = rawHeight;
+        if (pageRotation == 90) {
+            // XObject is (rawWidth × rawHeight) e.g. (50 × 150), draw as (150 × 50)
+            canvas.concatMatrix(0, 1, -1, 0, rawWidth, 0);
+            totalWidth = rawHeight;  // visual width = raw height
+            totalHeight = rawWidth;  // visual height = raw width
+        } else if (pageRotation == 270) {
+            canvas.concatMatrix(0, -1, 1, 0, 0, rawHeight);
+            totalWidth = rawHeight;
+            totalHeight = rawWidth;
+        } else if (pageRotation == 180) {
+            canvas.concatMatrix(-1, 0, 0, -1, rawWidth, rawHeight);
+            // totalWidth and totalHeight stay the same
+        }
 
         // Layout: [QR con isologo] [Texto firmante]
         float qrSide = totalHeight;

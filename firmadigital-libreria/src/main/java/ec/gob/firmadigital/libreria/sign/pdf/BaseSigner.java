@@ -29,6 +29,7 @@ import java.util.logging.Logger;
 
 import com.itextpdf.kernel.geom.Rectangle;
 import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfPage;
 import com.itextpdf.kernel.pdf.PdfReader;
 import com.itextpdf.kernel.pdf.StampingProperties;
 import com.itextpdf.signatures.PdfSignatureAppearance;
@@ -132,10 +133,39 @@ public abstract class BaseSigner {
             }
             Rectangle signaturePositionOnPage = RectanguloUtil.getPositionOnPage(extraParams);
             if (typeSig != null) {
-                PdfSignatureAppearance signatureAppearance = pdfSigner.getSignatureAppearance();
-                signatureAppearance.setPageRect(signaturePositionOnPage).setPageNumber(page);
+                PdfDocument pdfDocument = pdfSigner.getDocument();
+                PdfPage pdfPage = pdfDocument.getPage(page);
+                int pageRotation = pdfPage.getRotation();
 
-                if (signaturePositionOnPage != null) {
+                // Convert visual coordinates to raw coordinates for rotated pages
+                Rectangle adjustedRect = signaturePositionOnPage;
+                if (signaturePositionOnPage != null && pageRotation != 0) {
+                    float vx = signaturePositionOnPage.getX();
+                    float vy = signaturePositionOnPage.getY();
+                    float vw = signaturePositionOnPage.getWidth();
+                    float vh = signaturePositionOnPage.getHeight();
+                    float rawW = pdfPage.getPageSize().getWidth();
+                    float rawH = pdfPage.getPageSize().getHeight();
+
+                    switch (pageRotation) {
+                        case 90 ->
+                            adjustedRect = new Rectangle(rawW - vy - vh, vx, vh, vw);
+                        case 180 ->
+                            adjustedRect = new Rectangle(rawW - vx - vw, rawH - vy - vh, vw, vh);
+                        case 270 ->
+                            adjustedRect = new Rectangle(vy, rawH - vx - vw, vh, vw);
+                        default -> { }
+                    }
+                    LOGGER.log(Level.INFO, "Page rotation {0}: visual({1},{2},{3},{4}) -> raw({5},{6},{7},{8})",
+                            new Object[]{pageRotation, vx, vy, vw, vh,
+                                    adjustedRect.getX(), adjustedRect.getY(),
+                                    adjustedRect.getWidth(), adjustedRect.getHeight()});
+                }
+
+                PdfSignatureAppearance signatureAppearance = pdfSigner.getSignatureAppearance();
+                signatureAppearance.setPageRect(adjustedRect).setPageNumber(page);
+
+                if (adjustedRect != null) {
                     DatosUsuario datosUsuario = null;
                     try {
                         datosUsuario = CertEcUtils.getDatosUsuarios(x509Certificate);
@@ -144,7 +174,6 @@ public abstract class BaseSigner {
                     }
                     String nombreFirmante = (datosUsuario.getNombre() + " " + datosUsuario.getApellido()).toUpperCase();
                     String informacionCertificado = x509Certificate.getSubjectDN().getName();
-                    PdfDocument pdfDocument = pdfSigner.getDocument();
                     CustomAppearance customAppearance;
                     switch (typeSig) {
                         case "QR" -> {
@@ -162,7 +191,7 @@ public abstract class BaseSigner {
                         }
                     }
                     customAppearance.createCustomAppearance(signatureAppearance, page, pdfDocument,
-                            signaturePositionOnPage);
+                            adjustedRect, pageRotation);
                 }
                 // Razon de firma
                 if (reason != null) {
